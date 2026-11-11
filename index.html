@@ -287,6 +287,25 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .rc-box{border:1px dashed var(--pri);border-radius:14px;padding:10px;margin:6px 0 2px;background:var(--pri-soft)}
 .rc-row{display:flex;gap:10px;align-items:center;margin-top:8px}
 .rc-row .rimg{max-width:84px;max-height:84px;margin:0;object-fit:cover}
+/* 정보 탭 묶음 제목 · 관리자 상자 */
+.sec-title{margin:22px 2px 8px;font-size:calc(17px*var(--fs));color:var(--sub);border-bottom:2px solid var(--line);padding-bottom:4px}
+.admin-box{margin-top:26px;border:2px dashed var(--warn);border-radius:var(--r);padding:4px 10px 10px;background:var(--warn-soft)}
+.admin-box>summary{list-style:none;display:flex;align-items:center;gap:8px;padding:10px 4px;font-weight:800;font-size:calc(16px*var(--fs));color:var(--warn);cursor:pointer}
+.admin-box>summary::-webkit-details-marker{display:none}
+.admin-box .card{margin-top:8px}
+.admin-box[open] .adm-hint{display:none}
+/* 필수 태국어 */
+.thai{border:2px solid var(--pri)}
+.thai-cats{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px}
+.thai-cats button{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:7px 12px;font-weight:700;font-size:calc(14px*var(--fs));color:var(--ink)}
+.thai-cats button.on{background:var(--pri);color:var(--pri-ink);border-color:var(--pri)}
+.tp{display:block;width:100%;text-align:left;border:0;border-top:1px solid var(--line);background:transparent;padding:10px 2px;color:var(--ink)}
+.tp .ko{font-size:calc(14px*var(--fs));color:var(--sub)}
+.tp .say{font-size:calc(19px*var(--fs));font-weight:800;color:var(--pri);line-height:1.3}
+.tp .th{font-size:calc(15px*var(--fs));opacity:.8}
+.thai-big{text-align:center}
+.thai-big .th{font-size:calc(40px*var(--fs));font-weight:700;line-height:1.35;margin:10px 0;word-break:keep-all}
+.thai-big .say{font-size:calc(22px*var(--fs));font-weight:800;color:var(--pri)}
 @media print{.bnav,.tabs,header.top button,.seg-tabs,.no-print,.toast{display:none!important}body,html{background:#fff}.card{box-shadow:none}}
 .add-item{width:100%;margin-top:6px;border-style:dashed;color:var(--pri);border-color:var(--pri)}
 </style>
@@ -313,7 +332,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-4';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-5';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -575,7 +594,7 @@ function render() {
     { k: 'money', i: '💰', t: '경비' },
     { k: 'info', i: 'ℹ️', t: '정보' }
   ];
-  var secTitle = { all: '여행 요약', score: '골프 스코어', money: '경비 · 정산 · 회비', info: '숙소 · 연락처 · 팁' }[sec];
+  var secTitle = { all: '여행 요약', score: '골프 스코어', money: '경비 · 정산 · 회비', info: '태국어 · 숙소 · 연락처' }[sec];
 
   $app.innerHTML =
     '<div class="wrap">' +
@@ -626,13 +645,17 @@ function go(tab) {
 
 function renderMain() {
   var m = el('#main'); if (!m) return;
-  if (S.tab === 'all') m.innerHTML = viewAll();
-  else if (S.tab === 'score') m.innerHTML = viewScore();
-  else if (S.tab === 'info') m.innerHTML = viewInfo();
-  else if (S.tab === 'money') m.innerHTML = viewMoney();
-  else m.innerHTML = viewDay(S.tab);
+  var h;
+  if (S.tab === 'all') h = viewAll();
+  else if (S.tab === 'score') h = viewScore();
+  else if (S.tab === 'info') h = viewInfo();
+  else if (S.tab === 'money') h = viewMoney();
+  else h = viewDay(S.tab);
+  m.innerHTML = bahtSign(h);
   bindMain();
 }
+/* 화면의 "5,000바트", "200~300바트" → "฿5,000", "฿200~300" (태국 돈 표기) */
+function bahtSign(h) { return h.replace(/(\d[\d,.]*(?:\s?~\s?\d[\d,.]*)?)\s?바트/g, '฿$1'); }
 
 /* ─── 공통 카드: 항공 · 환율 ─── */
 function flightCard(f) {
@@ -662,7 +685,7 @@ function fxHtml() {
     : '<span class="muted">환율을 불러오는 중…</span>';
   return '<div class="card"><div class="row between" style="flex-wrap:nowrap"><b style="white-space:nowrap">💱 환율</b>' + head + '</div>' +
     (rate ? '<div class="small muted" style="text-align:right">' + esc(fx.date) + ' 기준' + (fx.fallback ? ' (고정값)' : '') + '</div>' : '') +
-    '<div class="fx-grid" style="margin-top:10px"><input class="inp" id="fxa" inputmode="decimal" placeholder="' + esc(cur) + '">' +
+    '<div class="fx-grid" style="margin-top:10px"><input class="inp" id="fxa" inputmode="decimal" placeholder="฿ THB">' +
     '<span>⇄</span><input class="inp" id="fxb" inputmode="numeric" placeholder="원"></div>' +
     '<p class="small muted" style="margin:6px 0 0;white-space:nowrap">정산 환율 1' + esc(cur) + ' = ' + esc(s.fallback_rate) + '원</p></div>';
 }
@@ -1350,7 +1373,7 @@ function showCards(rid) {
 var CATS = [['식사', '🍽️'], ['술·음료', '🍺'], ['마사지', '💆'], ['교통', '🚕'], ['팁', '💵'], ['골프', '⛳'], ['쇼핑', '🛍️'], ['기타', '⭐']];
 function catIcon(c) { for (var i = 0; i < CATS.length; i++) if (CATS[i][0] === c) return CATS[i][1]; return '⭐'; }
 function won(n) { return num(Math.round(n)) + '원'; }
-function baht(n) { var v = Math.round(Number(n) * 100) / 100; return num(v) + '바트'; }
+function baht(n) { var v = Math.round(Number(n) * 100) / 100; return '฿' + num(v); }
 function wonShort(n) { n = Math.round(n); if (Math.abs(n) >= 10000) return (Math.round(n / 1000) / 10) + '만원'; return num(n) + '원'; }
 function memberNames() { return S.D.members.map(function (m) { return m.name; }); }
 function settleRate() { return Number(S.D.settings.settle_rate || S.D.settings.fallback_rate || 41.65); }
@@ -1719,21 +1742,78 @@ function downloadCsv() {
 }
 
 /* ─── 정보 ─── */
+/* ─── 필수 태국어: [뜻, 읽는 법, 태국 글자] · 남자 말끝 '크랍' ─── */
+var THAI = {
+  '인사': [
+    ['안녕하세요', '싸왓디 크랍', 'สวัสดีครับ'], ['감사합니다', '컵쿤 크랍', 'ขอบคุณครับ'],
+    ['정말 감사합니다', '컵쿤 막 크랍', 'ขอบคุณมากครับ'], ['괜찮아요', '마이 뺀 라이 크랍', 'ไม่เป็นไรครับ'],
+    ['미안합니다 · 실례합니다', '커톳 크랍', 'ขอโทษครับ'], ['네 / 아니요', '차이 / 마이 차이', 'ใช่ / ไม่ใช่'],
+    ['한국 사람이에요', '폼 뺀 콘 까올리 크랍', 'ผมเป็นคนเกาหลีครับ'], ['몰라요 · 못 알아들어요', '마이 카오짜이 크랍', 'ไม่เข้าใจครับ']
+  ],
+  '식당': [
+    ['메뉴 주세요', '커 메누 너이 크랍', 'ขอเมนูหน่อยครับ'], ['이거 주세요', '아오 안니 크랍', 'เอาอันนี้ครับ'],
+    ['맵지 않게 해 주세요', '마이 펫 크랍', 'ไม่เผ็ดครับ'], ['조금만 맵게', '펫 닛너이 크랍', 'เผ็ดนิดหน่อยครับ'],
+    ['고수 빼 주세요', '마이 싸이 팍치 크랍', 'ไม่ใส่ผักชีครับ'], ['물 주세요', '커 남쁠라오 크랍', 'ขอน้ำเปล่าครับ'],
+    ['얼음 주세요', '커 남캥 크랍', 'ขอน้ำแข็งครับ'], ['맥주 한 병 더', '커 비아 익 쿠엇 크랍', 'ขอเบียร์อีกขวดครับ'],
+    ['맛있어요!', '아러이 크랍', 'อร่อยครับ'], ['계산할게요', '첵빈 크랍', 'เช็คบิลครับ'],
+    ['포장해 주세요', '싸이 퉁 크랍', 'ใส่ถุงครับ']
+  ],
+  '쇼핑': [
+    ['얼마예요?', '타오라이 크랍', 'เท่าไหร่ครับ'], ['너무 비싸요', '팽 빠이 크랍', 'แพงไปครับ'],
+    ['깎아 주세요', '롯 너이 다이 마이 크랍', 'ลดหน่อยได้ไหมครับ'], ['이거 주세요', '아오 안니 크랍', 'เอาอันนี้ครับ'],
+    ['카드 돼요?', '짜이 밧 다이 마이 크랍', 'จ่ายบัตรได้ไหมครับ'], ['그냥 볼게요', '두 츠어이 츠어이 크랍', 'ดูเฉยๆครับ']
+  ],
+  '이동': [
+    ['화장실 어디예요?', '헝남 유 티나이 크랍', 'ห้องน้ำอยู่ที่ไหนครับ'], ['여기로 가 주세요', '빠이 티니 크랍', 'ไปที่นี่ครับ'],
+    ['여기서 세워 주세요', '쩟 뜨롱니 크랍', 'จอดตรงนี้ครับ'], ['천천히 가 주세요', '차차 너이 크랍', 'ช้าๆหน่อยครับ'],
+    ['얼마나 걸려요?', '차이 웰라 나오 마이 크랍', 'ใช้เวลานานไหมครับ'], ['병원', '롱 파야반', 'โรงพยาบาล']
+  ],
+  '마사지': [
+    ['세게 해 주세요', '랭랭 크랍', 'แรงๆครับ'], ['약하게 해 주세요', '바오바오 크랍', 'เบาๆครับ'],
+    ['아파요', '쩹 크랍', 'เจ็บครับ'], ['딱 좋아요', '디 막 크랍', 'ดีมากครับ']
+  ],
+  '골프': [
+    ['나이스 샷! (아주 멋져요)', '쑤어이 막', 'สวยมาก'], ['왼쪽 / 오른쪽', '싸이 / 콰', 'ซ้าย / ขวา'],
+    ['똑바로', '뜨롱', 'ตรง'], ['오르막 / 내리막', '큰 / 롱', 'ขึ้น / ลง'],
+    ['몇 야드예요?', '끼 라 크랍', 'กี่หลาครับ'], ['공 좀 찾아 주세요', '추어이 하 룩 너이 크랍', 'ช่วยหาลูกหน่อยครับ'],
+    ['천천히 해요', '차차 꼰 크랍', 'ช้าๆก่อนครับ'], ['수고했어요 (캐디에게)', '컵쿤 막 크랍', 'ขอบคุณมากครับ']
+  ],
+  '숫자': [
+    ['1 · 2 · 3', '능 · 썽 · 쌈', 'หนึ่ง · สอง · สาม'], ['4 · 5 · 6', '씨 · 하 · 혹', 'สี่ · ห้า · หก'],
+    ['7 · 8 · 9', '쩻 · 뺏 · 까오', 'เจ็ด · แปด · เก้า'], ['10 · 20', '씹 · 이씹', 'สิบ · ยี่สิบ'],
+    ['100 · 1,000', '러이 · 판', 'ร้อย · พัน'], ['500바트', '하 러이 밧', 'ห้าร้อยบาท']
+  ]
+};
+function thaiHtml() {
+  var cat = S.thaiCat || '인사';
+  return '<div class="card thai"><b>🗣️ 필수 태국어</b><div class="small muted">문장을 누르면 크게 보여요. 상대에게 화면을 보여 주세요.</div>' +
+    '<div class="thai-cats">' + Object.keys(THAI).map(function (c) { return '<button data-tcat="' + c + '"' + (c === cat ? ' class="on"' : '') + '>' + c + '</button>'; }).join('') + '</div>' +
+    THAI[cat].map(function (p, i) {
+      return '<button class="tp" data-tp="' + i + '"><div class="ko">' + esc(p[0]) + '</div><div class="say">' + esc(p[1]) + '</div><div class="th">' + esc(p[2]) + '</div></button>';
+    }).join('') +
+    '<div class="small muted" style="margin-top:6px">말끝 \'크랍\'은 남자 말투예요. (여자는 \'카\')</div></div>';
+}
 function viewInfo() {
   var s = S.D.settings;
   var hotel = { lat: s.hotel_lat, lng: s.hotel_lng };
   var groups = {};
   S.D.contacts.forEach(function (c) { (groups[c.group] = groups[c.group] || []).push(c); });
+  var tel = function (p) { return 'tel:' + esc(String(p).replace(/[^\d+]/g, '')); };
   var html =
+    thaiHtml() +
+    '<h3 class="sec-title">🏨 숙소 · 연락처</h3>' +
     '<div class="card"><b>🏨 숙소</b><p style="margin:6px 0"><b>' + esc(s.hotel_name) + '</b><br><span class="small">' + esc(s.hotel_address) + '</span><br><span class="small muted">' + esc(s.hotel_memo) + '</span></p>' +
-      (s.hotel_lat ? '<a class="btn sm" target="_blank" href="' + esc(gmapOpen(hotel)) + '">🗺️ 지도 열기</a> <a class="btn sm" target="_blank" href="' + esc(gmapNearby(hotel)) + '">🍽️ 주변 맛집</a>' : '') + '</div>' +
-    flightsHtml() + fxHtml() +
+      '<div class="row wrap-row">' +
+      (s.hotel_phone ? '<a class="btn sm pri" href="' + tel(s.hotel_phone) + '">📞 숙소 전화 ' + esc(s.hotel_phone) + '</a>' : '') +
+      (s.hotel_lat ? '<a class="btn sm" target="_blank" href="' + esc(gmapOpen(hotel)) + '">🗺️ 지도 열기</a><a class="btn sm" target="_blank" href="' + esc(gmapNearby(hotel)) + '">🍽️ 주변 맛집</a>' : '') + '</div></div>' +
     Object.keys(groups).map(function (g) {
       return '<div class="card"><b>📞 ' + esc(g) + '</b>' + groups[g].map(function (c) {
         return '<div class="row between" style="border-top:1px solid var(--line);padding:8px 0;margin-top:6px"><div><div>' + esc(c.name) + '</div>' + (c.note ? '<div class="small muted">' + esc(c.note) + '</div>' : '') + '</div>' +
-          '<a class="btn sm pri" href="tel:' + esc(String(c.phone).replace(/[^\d+]/g, '')) + '">' + esc(c.phone) + '</a></div>';
+          '<a class="btn sm pri" href="' + tel(c.phone) + '">' + esc(c.phone) + '</a></div>';
       }).join('') + '</div>';
     }).join('') +
+    '<div class="card"><b>💡 현지 팁</b>' + S.D.tips.map(function (t) { return '<div style="border-top:1px solid var(--line);padding:8px 0;margin-top:6px"><b class="small">' + esc(t.title) + '</b><div class="small">' + esc(t.text) + '</div></div>'; }).join('') + '</div>' +
+    '<h3 class="sec-title">👤 내 정보 · 앱 설정</h3>' +
     '<div class="card home-guide"><b>📱 홈 화면에 앱 아이콘 만들기</b>' +
       '<p class="small muted" style="margin:4px 0">한 번만 해 두면 카톡 링크를 찾지 않고 아이콘만 눌러 바로 열립니다.</p>' +
       '<ol class="small" style="padding-left:20px;margin:6px 0">' +
@@ -1743,10 +1823,13 @@ function viewInfo() {
       '</ol><p class="small muted">⛳ 아이콘이 생깁니다. 처음 한 번은 PIN을 다시 넣어야 할 수 있습니다.</p>' +
       '<button class="btn sm" data-act="copy-link">🔗 앱 링크 복사</button>' +
       '<p class="small muted" style="margin-top:8px">화면 버전 ' + APP_VER + '</p></div>' +
-    '<div class="card"><b>💡 현지 팁</b>' + S.D.tips.map(function (t) { return '<div style="border-top:1px solid var(--line);padding:8px 0;margin-top:6px"><b class="small">' + esc(t.title) + '</b><div class="small">' + esc(t.text) + '</div></div>'; }).join('') + '</div>' +
     '<div class="card"><b>👤 내 정보 · ' + esc(S.me.name) + '</b><div class="row wrap-row" style="margin-top:8px"><button class="btn sm" data-act="pin">🔑 PIN 바꾸기</button><button class="btn sm" data-act="req">✋ 관리자에게 요청</button><button class="btn sm" data-act="logout">나가기</button></div>' +
       myRequests() + '</div>';
-  if (S.me.isAdmin) html += adminHtml();
+  if (S.me.isAdmin) {
+    var wait = S.D.requests.filter(function (r) { return r.status === '대기'; }).length;
+    html += '<details class="admin-box" data-admin' + (S.adminOpen ? ' open' : '') + '><summary>🛠️ 관리자 전용' + (wait ? ' <span class="chip warn">요청 ' + wait + '건</span>' : '') + '<span class="small muted adm-hint" style="margin-left:auto">눌러서 열기</span></summary>' +
+      adminHtml() + '</details>';
+  }
   return html;
 }
 function myRequests() {
@@ -1757,14 +1840,14 @@ function myRequests() {
 function itemLabel(id) { var it = S.D.items.filter(function (x) { return x.id === id; })[0]; return it ? md(it.date) + ' ' + it.time + ' ' + (it.display || it.title) : ''; }
 function adminHtml() {
   var reqs = S.D.requests.slice().reverse();
-  return '<div class="card"><b>🛠️ 관리자 · 수정 요청 (' + reqs.filter(function (r) { return r.status === '대기'; }).length + '건 대기)</b>' +
+  return '<div class="card"><b>✋ 수정 요청 (' + reqs.filter(function (r) { return r.status === '대기'; }).length + '건 대기)</b>' +
     (reqs.length ? reqs.map(function (r) {
       return '<div style="border-top:1px solid var(--line);padding:8px 0;margin-top:6px"><div class="small muted">' + esc(r.member) + ' · ' + esc(r.at.slice(5)) + (r.item_id ? ' · ' + esc(itemLabel(r.item_id)) : '') + '</div><div>' + esc(r.text) + '</div>' +
         (r.status === '대기' ? '<div class="row" style="margin-top:6px">' + (r.item_id ? '<button class="btn sm" data-ropen="' + esc(r.item_id) + '">일정 열기</button>' : '') + '<button class="btn sm pri" data-res="' + esc(r.id) + '" data-st="반영">반영함</button><button class="btn sm" data-res="' + esc(r.id) + '" data-st="반려">반려</button></div>' : '<span class="chip">' + esc(r.status) + '</span>') + '</div>';
     }).join('') : '<p class="small muted">요청이 없습니다.</p>') + '</div>' +
-    '<div class="card"><b>🔍 관리자 · 사진 인식 점검</b><p class="small muted">영수증·스코어카드 자동 인식이 안 될 때 눌러서 결과를 캡처해 주세요.</p><button class="btn sm" data-act="ai-check">점검하기</button></div>' +
-    '<div class="card"><b>🛠️ 관리자 · 변경 기록</b><div id="logbox"><button class="btn sm" data-act="log">불러오기</button></div></div>' +
-    '<div class="card"><b>🛠️ 관리자 · PIN 초기화</b><p class="small muted">PIN을 잊은 회원의 PIN을 임시 번호로 바꿉니다. 회원은 다음 입장 때 새 PIN을 정합니다.</p><div class="row wrap-row">' +
+    '<div class="card"><b>🔍 사진 인식 점검</b><p class="small muted">영수증·스코어카드 자동 인식이 안 될 때 눌러서 결과를 캡처해 주세요.</p><button class="btn sm" data-act="ai-check">점검하기</button></div>' +
+    '<div class="card"><b>📜 변경 기록</b><div id="logbox"><button class="btn sm" data-act="log">불러오기</button></div></div>' +
+    '<div class="card"><b>🔑 PIN 초기화</b><p class="small muted">PIN을 잊은 회원의 PIN을 임시 번호로 바꿉니다. 회원은 다음 입장 때 새 PIN을 정합니다.</p><div class="row wrap-row">' +
       S.D.members.map(function (m) { return '<button class="btn sm" data-reset="' + esc(m.name) + '">' + esc(m.name) + '</button>'; }).join('') + '</div></div>';
 }
 
@@ -1772,6 +1855,16 @@ function adminHtml() {
 function bindMain() {
   var m = el('#main');
   els('[data-go]', m).forEach(function (c) { c.onclick = function () { go(c.dataset.go); }; });
+  // 필수 태국어 · 관리자 상자
+  els('[data-tcat]', m).forEach(function (b) { b.onclick = function () { S.thaiCat = b.dataset.tcat; renderMain(); }; });
+  els('[data-tp]', m).forEach(function (b) {
+    b.onclick = function () {
+      var p = THAI[S.thaiCat || '인사'][Number(b.dataset.tp)];
+      sheet('<div class="thai-big"><div class="small muted">' + esc(p[0]) + '</div><div class="th">' + esc(p[2]) + '</div><div class="say">' + esc(p[1]) + '</div></div>' +
+        '<button class="btn" style="width:100%;margin-top:14px" onclick="this.closest(\'.sheet-bg\').remove()">닫기</button>');
+    };
+  });
+  els('[data-admin]', m).forEach(function (d) { d.ontoggle = function () { S.adminOpen = d.open; }; });
   els('[data-open]', m).forEach(function (b) {
     b.onclick = function () {
       if (dragState || Date.now() < suppressClickUntil) return;
