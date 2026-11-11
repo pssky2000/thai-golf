@@ -294,11 +294,22 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .admin-box>summary::-webkit-details-marker{display:none}
 .admin-box .card{margin-top:8px}
 .admin-box[open] .adm-hint{display:none}
+/* 스코어: 라운드 버튼 4칸 같은 크기 · 사진 버튼 2칸 같은 크기 */
+.rounds{display:grid!important;grid-template-columns:repeat(4,1fr);gap:6px;overflow:visible}
+.rounds .tab{min-width:0;padding:6px 4px;display:flex;flex-direction:column;justify-content:center}
+.rounds .tab .s{white-space:normal;word-break:keep-all;line-height:1.25;font-size:calc(11.5px*var(--fs))}
+.scan-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.scan-btns .btn{display:flex;align-items:center;justify-content:center;white-space:nowrap;padding:10px 4px;font-weight:700}
 /* 화면 가운데에 뜨는 창 (태국어 크게 보기) */
 .sheet-bg.center{align-items:center}
 .sheet-bg.center .sheet{border-radius:20px;border-bottom:1px solid var(--pri);margin:0 12px;padding-bottom:18px}
 /* 정보 탭 안쪽 탭 (4칸) */
 .seg-tabs.four{grid-template-columns:repeat(4,1fr)}
+.seg-tabs.five{grid-template-columns:repeat(5,1fr);gap:4px}
+.seg-tabs.five button{font-size:calc(13px*var(--fs))}
+.seg-tabs button.adm{border:2px dashed var(--warn);color:var(--warn)}
+.seg-tabs button.adm.on{background:var(--warn);color:#fff;border-style:solid}
+.adm-title{font-weight:800;color:var(--warn);padding:8px 2px 0}
 /* 회비: 회원별 연도 줄 */
 .fee-y{display:flex;justify-content:space-between;font-size:calc(14px*var(--fs));padding:2px 0 2px 8px;color:var(--sub)}
 .fee-tot{display:flex;justify-content:space-between;font-weight:700;margin:4px 0 2px}
@@ -345,7 +356,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-7';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-8';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1144,8 +1155,8 @@ function viewScore() {
 
   return '<div class="rounds">' + rs.map(function (x) { return '<button class="tab' + (x.round_id === r.round_id ? ' on' : '') + '" data-round="' + x.round_id + '"><span class="d">' + md(x.date) + '</span><span class="s">' + esc(x.course) + '</span></button>'; }).join('') + '</div>' +
     '<div class="card scan"><b>📋 스코어카드 사진으로 입력</b><div class="small muted" style="margin:4px 0 8px">종이 스코어카드를 찍으면 4명 점수를 읽어서 채워 줍니다. 저장 전에 확인할 수 있어요.</div>' +
-      '<div class="row"><label class="btn pri" style="flex:1;text-align:center">📷 스코어카드 찍기<input type="file" accept="image/*" capture="environment" data-scan hidden></label>' +
-      '<label class="btn" style="flex:1;text-align:center">🖼️ 사진에서<input type="file" accept="image/*" data-scan hidden></label></div>' +
+      '<div class="scan-btns"><label class="btn pri">📷 카드 찍기<input type="file" accept="image/*" capture="environment" data-scan hidden></label>' +
+      '<label class="btn">🖼️ 사진에서<input type="file" accept="image/*" data-scan hidden></label></div>' +
       (String(r.cards || '').split(',').filter(Boolean).length ? '<div class="small muted" style="margin-top:6px">이 라운드 스코어카드 ' + String(r.cards).split(',').filter(Boolean).length + '장 · <a href="#" data-cards="' + esc(r.round_id) + '">보기</a></div>' : '') +
     '</div>' +
     editor + '<div id="sc-tables">' + scoreTables(r) + '</div>';
@@ -1824,9 +1835,14 @@ function viewInfo() {
   S.D.contacts.forEach(function (c) { (groups[c.group] = groups[c.group] || []).push(c); });
   var tel = function (p) { return 'tel:' + esc(String(p).replace(/[^\d+]/g, '')); };
   var tab = S.infoTab || LS.get('trip_itab', 'thai');
-  var tabs = '<div class="seg-tabs four">' + [['thai', '태국어'], ['hotel', '숙소'], ['call', '연락처'], ['me', '내 정보']].map(function (t) {
-    return '<button class="' + (tab === t[0] ? 'on' : '') + '" data-itab="' + t[0] + '">' + t[1] + '</button>';
+  var list = [['thai', '태국어'], ['hotel', '숙소'], ['call', '연락처'], ['me', '내 정보']];
+  if (S.me.isAdmin) list.push(['admin', '관리자']);
+  else if (tab === 'admin') tab = 'me';
+  var wait = S.D.requests.filter(function (r) { return r.status === '대기'; }).length;
+  var tabs = '<div class="seg-tabs ' + (list.length === 5 ? 'five' : 'four') + '">' + list.map(function (t) {
+    return '<button class="' + (tab === t[0] ? 'on' : '') + (t[0] === 'admin' ? ' adm' : '') + '" data-itab="' + t[0] + '">' + t[1] + (t[0] === 'admin' && wait ? ' ' + wait : '') + '</button>';
   }).join('') + '</div>';
+  if (tab === 'admin') return tabs + '<div class="admin-box" style="margin-top:8px"><div class="adm-title">🛠️ 관리자만 보이는 화면</div>' + adminHtml() + '</div>';
   if (tab === 'thai') return tabs + thaiHtml();
   var hotelHtml =
     '<div class="card"><b>🏨 숙소</b><p style="margin:6px 0"><b>' + esc(s.hotel_name) + '</b><br><span class="small">' + esc(s.hotel_address) + '</span><br><span class="small muted">' + esc(s.hotel_memo) + '</span></p>' +
@@ -1854,11 +1870,6 @@ function viewInfo() {
       '<p class="small muted" style="margin-top:8px">화면 버전 ' + APP_VER + '</p></div>' +
     '<div class="card"><b>👤 내 정보 · ' + esc(S.me.name) + '</b><div class="row wrap-row" style="margin-top:8px"><button class="btn sm" data-act="pin">🔑 PIN 바꾸기</button><button class="btn sm" data-act="req">✋ 관리자에게 요청</button><button class="btn sm" data-act="logout">나가기</button></div>' +
       myRequests() + '</div>';
-  if (S.me.isAdmin) {
-    var wait = S.D.requests.filter(function (r) { return r.status === '대기'; }).length;
-    html += '<details class="admin-box" data-admin' + (S.adminOpen ? ' open' : '') + '><summary>🛠️ 관리자 전용' + (wait ? ' <span class="chip warn">요청 ' + wait + '건</span>' : '') + '<span class="small muted adm-hint" style="margin-left:auto">눌러서 열기</span></summary>' +
-      adminHtml() + '</details>';
-  }
   return html;
 }
 function myRequests() {
