@@ -6,6 +6,8 @@
 <base target="_top">
 <title>골프여행</title>
 <meta name="theme-color" content="#1f7a4d">
+<meta name="color-scheme" content="light dark">
+<script>try { var th = JSON.parse(localStorage.getItem('trip_theme')); if (th === 'light' || th === 'dark') document.documentElement.setAttribute('data-theme', th); } catch (e) {}</script>
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" href="icon-192.png">
@@ -30,11 +32,18 @@
   --flight:#3f51b5; --golf:#1f7a4d; --meal:#d35400; --move:#607d8b; --hotel:#6d4c9f; --massage:#ad1457; --shop:#00838f; --rest:#8d6e63;
   --shadow:0 1px 3px rgba(0,0,0,.08),0 4px 14px rgba(0,0,0,.05);
   --r:16px; --fs:1.3;
-  --nav-bg:#e6efe8; --nav-line:#9cc4ab;   /* 아래 메뉴: 본문과 구분되는 색 */
+  --nav-bg:#d6e8dc; --nav-line:#7fb394;   /* 아래 메뉴: 본문과 구분되는 색 */
   --day-bg:#ffffff; --day-line:#c9dccf;
 }
-@media (prefers-color-scheme: dark){
-  :root{
+@media (prefers-color-scheme: dark){:root:not([data-theme=light]){
+    --bg:#0f1511; --card:#18211b; --ink:#e8efe9; --sub:#9aa9a0; --line:#2a362e;
+    --pri:#48b47c; --pri-ink:#08130c; --pri-soft:#1d3326;
+    --warn:#ffb74d; --warn-soft:#3a2a10; --bad:#ef5350; --bad-soft:#3b1a19; --good:#66bb6a;
+    --shadow:none;
+    --nav-bg:#26342b; --nav-line:#3f6b4f;
+    --day-bg:#212e25; --day-line:#3a5143;
+  }}
+:root[data-theme=dark]{
     --bg:#0f1511; --card:#18211b; --ink:#e8efe9; --sub:#9aa9a0; --line:#2a362e;
     --pri:#48b47c; --pri-ink:#08130c; --pri-soft:#1d3326;
     --warn:#ffb74d; --warn-soft:#3a2a10; --bad:#ef5350; --bad-soft:#3b1a19; --good:#66bb6a;
@@ -42,7 +51,10 @@
     --nav-bg:#26342b; --nav-line:#3f6b4f;
     --day-bg:#212e25; --day-line:#3a5143;
   }
-}
+/* 화면 밝기: 자동(폰 설정) / 밝게 / 어둡게. color-scheme을 밝혀 두면 Chrome이 멋대로 어둡게 바꾸지 않음 */
+:root{color-scheme:light dark}
+:root[data-theme=light]{color-scheme:light}
+:root[data-theme=dark]{color-scheme:dark}
 *{box-sizing:border-box}
 html{background:var(--bg);min-height:100%}
 html,body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;font-size:calc(16px*var(--fs));line-height:1.45;-webkit-text-size-adjust:100%}
@@ -274,7 +286,8 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 /* 창이 떠 있을 때 뒤 화면은 흐리게 */
 /* 창이 떠 있을 때: 뒤는 어둡고 흐리게, 창은 한 단계 밝은 색 + 테두리로 또렷하게 */
 :root{--sheet:#ffffff;--veil:rgba(20,28,22,.55)}
-@media (prefers-color-scheme: dark){:root{--sheet:#26332a;--veil:rgba(0,0,0,.72)}}
+@media (prefers-color-scheme: dark){:root:not([data-theme=light]){--sheet:#26332a;--veil:rgba(0,0,0,.72)}}
+:root[data-theme=dark]{--sheet:#26332a;--veil:rgba(0,0,0,.72)}
 .sheet-bg{background:var(--veil);-webkit-backdrop-filter:blur(8px) saturate(.6);backdrop-filter:blur(8px) saturate(.6)}
 .sheet{background:var(--sheet);border:1px solid var(--pri);border-bottom:0;box-shadow:0 -6px 30px rgba(0,0,0,.5)}
 @media(min-width:720px){.sheet{border-bottom:1px solid var(--pri)}}
@@ -283,7 +296,8 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .money{font-size:calc(20px*var(--fs));font-weight:800;text-align:right}
 .money.main{border-color:var(--pri)}
 :root{--auto:#fff3b0}
-@media (prefers-color-scheme: dark){:root{--auto:#5a4a00}}
+@media (prefers-color-scheme: dark){:root:not([data-theme=light]){--auto:#5a4a00}}
+:root[data-theme=dark]{--auto:#5a4a00}
 .auto{background:var(--auto)!important}
 .holes input.auto{background:var(--auto)}
 .holes input.mismatch,.sum-bad{outline:2px solid var(--bad)}
@@ -360,7 +374,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-12';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-13';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1880,6 +1894,9 @@ function viewInfo() {
       '<p class="small muted" style="margin-top:8px">화면 버전 ' + APP_VER + '</p><p class="small muted" style="margin:2px 0 0;font-size:12px">상태: ' + esc(backState()) + '</p>' +
       (LS.get('trip_backlog', []).length ? '<p class="small muted" style="margin:2px 0 0;font-size:12px">최근 뒤로가기: ' + LS.get('trip_backlog', []).map(esc).join(' / ') + '</p>' : '') + '</div>' +
     '<div class="card"><b>👤 내 정보 · ' + esc(S.me.name) + '</b><div class="row wrap-row" style="margin-top:8px"><button class="btn sm" data-act="pin">🔑 PIN 바꾸기</button><button class="btn sm" data-act="req">✋ 관리자에게 요청</button><button class="btn sm" data-act="logout">나가기</button></div>' +
+      '<div class="small muted" style="margin-top:10px">🌙 화면 밝기</div><div class="seg-tabs" style="margin-top:4px">' + [['auto', '자동'], ['light', '밝게'], ['dark', '어둡게']].map(function (x) {
+        return '<button class="' + ((LS.get('trip_theme', 'auto') || 'auto') === x[0] ? 'on' : '') + '" data-theme="' + x[0] + '">' + x[1] + '</button>';
+      }).join('') + '</div>' +
       myRequests() + '</div>';
   return html;
 }
@@ -1916,6 +1933,13 @@ function bindMain() {
     };
   });
   els('[data-admin]', m).forEach(function (d) { d.ontoggle = function () { S.adminOpen = d.open; }; });
+  els('[data-theme]', m).forEach(function (b) {
+    b.onclick = function () {
+      var v = b.dataset.theme; LS.set('trip_theme', v);
+      if (v === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', v);
+      renderMain();
+    };
+  });
   els('[data-itab]', m).forEach(function (b) { b.onclick = function () { S.infoTab = b.dataset.itab; LS.set('trip_itab', S.infoTab); renderMain(); }; });
   els('[data-open]', m).forEach(function (b) {
     b.onclick = function () {
@@ -2214,8 +2238,11 @@ function onTrap() { return !!(history.state && history.state.tripTrap); }
 function armBack() {
   if (askingLeave && !el('.sheet-bg')) askingLeave = false;   // 확인창이 닫혔으면 다시 막이 준비
   if (!BACK_OK || leaving || askingLeave) return;
+  // Chrome은 '화면을 누르는 그 순간'이 아닐 때 넣은 기록·감지기를 건너뛰므로, 누를 때만 준비
+  var ua = navigator.userActivation, now = !ua || ua.isActive;
+  if (!now) return;
   if (USE_CW && !watcher) {
-    try { watcher = new CloseWatcher(); watcher.onclose = function () { watcher = null; backLog('CW'); onBack(); }; } catch (e) { watcher = null; }
+    try { watcher = new CloseWatcher(); watcher.onclose = function () { watcher = null; backLog('CW'); onBack(); }; } catch (e) { watcher = null; backLog('CW 실패 ' + e.name); }
   }
   if (!onTrap()) { try { history.pushState({ tripTrap: Date.now() }, ''); backLog('막이 넣음'); } catch (e) { backLog('막이 실패'); } }
 }
