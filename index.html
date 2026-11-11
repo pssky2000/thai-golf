@@ -332,7 +332,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-5';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-6';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1423,9 +1423,9 @@ function viewMoney() {
   var pct = c.cash ? Math.max(0, Math.min(100, c.cashLeft / c.cash * 100)) : 0;
   var head =
     '<div class="card cash"><b style="white-space:nowrap">💰 공금 남은 돈</b>' + (S.D.settings.common_cash_note ? '<div class="small muted">' + esc(S.D.settings.common_cash_note) + '</div>' : '') +
-    '<div class="big-num">' + baht(c.cashLeft) + ' <span class="small muted">/ ' + baht(c.cash) + '</span></div>' +
+    '<div class="big-num">' + baht(c.cashLeft) + ' <span class="small muted" style="white-space:nowrap">남음 · 처음 ' + baht(c.cash) + '</span></div>' +
     '<div class="bar-bg"><div class="bar-fg" style="width:' + pct + '%"></div></div>' +
-    '<div class="small muted">공금으로 쓴 돈 ' + baht(c.common) + ' · 약 ' + won(c.cashLeft * c.rate) + ' 남음</div></div>' +
+    '<div class="small muted">쓴 돈 ' + baht(c.common) + ' · 남은 돈은 약 ' + won(c.cashLeft * c.rate) + '</div></div>' +
     '<div class="seg-tabs">' + [['list', '🧾 지출 기록'], ['settle', '🤝 정산'], ['fee', '🏦 회비']].map(function (t) {
       return '<button class="' + (sub === t[0] ? 'on' : '') + '" data-mtab="' + t[0] + '">' + t[1] + '</button>';
     }).join('') + '</div>';
