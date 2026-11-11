@@ -31,6 +31,7 @@
   --shadow:0 1px 3px rgba(0,0,0,.08),0 4px 14px rgba(0,0,0,.05);
   --r:16px; --fs:1.3;
   --nav-bg:#e6efe8; --nav-line:#9cc4ab;   /* 아래 메뉴: 본문과 구분되는 색 */
+  --day-bg:#ffffff; --day-line:#c9dccf;
 }
 @media (prefers-color-scheme: dark){
   :root{
@@ -39,6 +40,7 @@
     --warn:#ffb74d; --warn-soft:#3a2a10; --bad:#ef5350; --bad-soft:#3b1a19; --good:#66bb6a;
     --shadow:none;
     --nav-bg:#26342b; --nav-line:#3f6b4f;
+    --day-bg:#212e25; --day-line:#3a5143;
   }
 }
 *{box-sizing:border-box}
@@ -75,10 +77,14 @@ header.top .title{font-size:calc(17px*var(--fs));line-height:1.25}
 /* 항공 카드 */
 .flights{display:grid;gap:10px}
 @media(min-width:720px){.flights{grid-template-columns:1fr 1fr}}
-.flight{border-radius:var(--r);padding:14px 16px;background:linear-gradient(135deg,#283593,#3f51b5);color:#fff}
-.flight.back{background:linear-gradient(135deg,#4a148c,#7b1fa2)}
-.flight .lbl{font-size:calc(13px*var(--fs));opacity:.85;font-weight:700}
-.flight .no{font-size:calc(15px*var(--fs));font-weight:800;letter-spacing:.5px}
+.flight{border-radius:var(--r);padding:14px 16px;background:linear-gradient(135deg,#0d47a1,#1e88e5);color:#fff}   /* 가는 날: 파랑 */
+.flight.back{background:linear-gradient(135deg,#b23c00,#ef7d00)}   /* 오는 날: 주황 */
+/* 요약 화면 날짜 상자: 바탕과 구분 */
+.daycard{background:var(--day-bg);border:1px solid var(--day-line);border-left:6px solid var(--pri)}
+.daycard .dhead{color:var(--pri)}
+.flight .lbl{font-size:calc(13px*var(--fs));opacity:.9;font-weight:700;white-space:nowrap}
+.flight .no{font-size:calc(15px*var(--fs));font-weight:800;letter-spacing:.5px;white-space:nowrap}
+.flight .fhead{flex-wrap:wrap;row-gap:2px}
 .flight .times{display:flex;align-items:center;justify-content:space-between;margin:8px 0 4px}
 .flight .t{font-size:calc(30px*var(--fs));font-weight:800;line-height:1}
 .flight .ap{font-size:calc(13px*var(--fs));opacity:.9}
@@ -307,7 +313,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-3';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-4';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -634,7 +640,7 @@ function flightCard(f) {
   function kr(t, code) { return code === 'ICN' ? '' : '<div class="kr">한국 ' + fromMin(toMin(t) - off * 60) + '</div>'; }
   var back = f.dir.indexOf('오는') >= 0;
   return '<div class="flight' + (back ? ' back' : '') + '">' +
-    '<div class="row between"><span class="lbl">' + (back ? '🛬 ' : '🛫 ') + esc(f.dir) + ' · ' + md(f.date) + '(' + wd(f.date) + ')</span><span class="no">' + esc(f.airline) + ' ' + esc(f.flight) + '</span></div>' +
+    '<div class="row between fhead"><span class="lbl">' + (back ? '🛬 ' : '🛫 ') + esc(f.dir) + ' · ' + md(f.date) + '(' + wd(f.date) + ')</span><span class="no">' + esc(f.airline) + ' ' + esc(f.flight) + '</span></div>' +
     '<div class="times"><div><div class="t">' + esc(f.dep) + '</div><div class="ap">' + esc(f.from) + ' ' + esc(f.from_code) + '</div>' + kr(f.dep, f.from_code) + '</div>' +
     '<div class="arrow">✈</div>' +
     '<div style="text-align:right"><div class="t">' + esc(f.arr) + '</div><div class="ap">' + esc(f.to) + ' ' + esc(f.to_code) + (f.arr_date && f.arr_date !== f.date ? ' (+1일)' : '') + '</div>' + kr(f.arr, f.to_code) + '</div></div>' +
@@ -652,12 +658,13 @@ function fxHtml() {
   var s = S.D.settings, fx = S.fx;
   var rate = fx && fx.rate, cur = s.currency_name || s.currency;
   var head = rate
-    ? '1' + esc(cur) + ' = <b>' + rate.toFixed(2) + '원</b> <span class="small muted">(' + esc(fx.date) + ' 기준' + (fx.fallback ? ', 고정값' : '') + ')</span>'
+    ? '<span style="white-space:nowrap">1' + esc(cur) + ' = <b>' + rate.toFixed(2) + '원</b></span>'
     : '<span class="muted">환율을 불러오는 중…</span>';
-  return '<div class="card"><div class="row between"><b>💱 환율</b><span>' + head + '</span></div>' +
+  return '<div class="card"><div class="row between" style="flex-wrap:nowrap"><b style="white-space:nowrap">💱 환율</b>' + head + '</div>' +
+    (rate ? '<div class="small muted" style="text-align:right">' + esc(fx.date) + ' 기준' + (fx.fallback ? ' (고정값)' : '') + '</div>' : '') +
     '<div class="fx-grid" style="margin-top:10px"><input class="inp" id="fxa" inputmode="decimal" placeholder="' + esc(cur) + '">' +
     '<span>⇄</span><input class="inp" id="fxb" inputmode="numeric" placeholder="원"></div>' +
-    '<p class="small muted" style="margin:6px 0 0">어느 쪽이든 적으면 다른 쪽이 계산됩니다. 정산 환율: ' + esc(s.fallback_rate) + '원</p></div>';
+    '<p class="small muted" style="margin:6px 0 0;white-space:nowrap">정산 환율 1' + esc(cur) + ' = ' + esc(s.fallback_rate) + '원</p></div>';
 }
 
 /* ─── 전체 요약 ─── */
@@ -665,7 +672,7 @@ function viewAll() {
   var html = flightsHtml() + fxHtml();
   dates().forEach(function (d) {
     var its = itemsOf(d).filter(function (i) { return i.fixed || i.type === 'golf' || i.type === 'flight' || i.type === 'hotel'; });
-    html += '<div class="card" data-go="' + d + '" style="cursor:pointer"><div class="row between"><b>' + md(d) + ' (' + wd(d) + ') · ' + esc(dayLabel(d)) + '</b><span class="muted small">자세히 ›</span></div>' +
+    html += '<div class="card daycard" data-go="' + d + '" style="cursor:pointer"><div class="row between"><b class="dhead">' + md(d) + ' (' + wd(d) + ') · ' + esc(dayLabel(d)) + '</b><span class="muted small">자세히 ›</span></div>' +
       its.map(function (i) { return '<div class="row small" style="margin-top:6px"><b style="width:46px">' + esc(i.time) + '</b><span>' + icon(i.type) + ' ' + esc(i.title) + (nameOf(i) ? ' · ' + esc(nameOf(i)) : '') + '</span></div>'; }).join('') +
       '</div>';
   });
@@ -2045,9 +2052,16 @@ document.addEventListener('visibilitychange', function () { if (!document.hidden
  * - Chrome은 화면을 만지기 전에 넣은 기록을 건너뛰므로 터치할 때 준비 */
 var leaving = false, trapArmed = false, askingLeave = false;
 var BACK_OK = window.top === window;   // 구글 화면(iframe) 안에서는 폰 뒤로가기를 잡을 수 없음
+var USE_CW = typeof window.CloseWatcher === 'function', watcher = null;
 function armBack() {
   if (askingLeave && !el('.sheet-bg')) askingLeave = false;   // 확인창이 닫혔으면 다시 막이 준비
   if (!BACK_OK || leaving || askingLeave) return;
+  // 안드로이드 Chrome: 뒤로가기를 직접 받는 CloseWatcher 사용 (기록 꼼수보다 확실)
+  if (USE_CW) {
+    if (watcher) return;
+    try { watcher = new CloseWatcher(); watcher.onclose = function () { watcher = null; onBack(); }; } catch (e) { watcher = null; }
+    return;
+  }
   // 지금 보고 있는 칸이 막이가 아니면 새로 넣음 (다시 열었을 때 기록이 어긋나도 복구)
   if (trapArmed && history.state && history.state.tripTrap) return;
   try { history.pushState({ tripTrap: Date.now() }, ''); trapArmed = true; } catch (e) {}
@@ -2057,6 +2071,8 @@ window.addEventListener('pageshow', function (e) {
   if (!e.persisted) return;
   leaving = false; askingLeave = false; closeSheet();
   trapArmed = !!(history.state && history.state.tripTrap);
+  if (watcher) { try { watcher.destroy(); } catch (x) {} watcher = null; }
+  armBack();
 });
 function onBack() {
   trapArmed = false;
@@ -2082,9 +2098,10 @@ function onBack() {
 ['touchend', 'click', 'keydown'].forEach(function (t) {
   document.addEventListener(t, armBack, { capture: true, passive: true });
 });
-if (BACK_OK) window.addEventListener('popstate', function () { onBack(); });
+if (BACK_OK && !USE_CW) window.addEventListener('popstate', function () { onBack(); });
 
 start();
+armBack();   // CloseWatcher는 첫 하나는 화면을 누르기 전에도 만들 수 있음
 })();
 </script>
 </body>
