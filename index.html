@@ -360,7 +360,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-10';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-11';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1877,7 +1877,8 @@ function viewInfo() {
         '<li>삼성 인터넷이라면: 아래 <b>≡</b> → <b>현재 페이지 추가</b> → <b>홈 화면</b></li>' +
       '</ol><p class="small muted">⛳ 아이콘이 생깁니다. 처음 한 번은 PIN을 다시 넣어야 할 수 있습니다.</p>' +
       '<button class="btn sm" data-act="copy-link">🔗 앱 링크 복사</button>' +
-      '<p class="small muted" style="margin-top:8px">화면 버전 ' + APP_VER + '</p></div>' +
+      '<p class="small muted" style="margin-top:8px">화면 버전 ' + APP_VER + ' · 뒤로가기 ' + (USE_CW ? 'CW+기록' : '기록') + '</p>' +
+      (LS.get('trip_backlog', []).length ? '<p class="small muted" style="margin:2px 0 0;font-size:12px">최근 뒤로가기: ' + LS.get('trip_backlog', []).map(esc).join(' / ') + '</p>' : '') + '</div>' +
     '<div class="card"><b>👤 내 정보 · ' + esc(S.me.name) + '</b><div class="row wrap-row" style="margin-top:8px"><button class="btn sm" data-act="pin">🔑 PIN 바꾸기</button><button class="btn sm" data-act="req">✋ 관리자에게 요청</button><button class="btn sm" data-act="logout">나가기</button></div>' +
       myRequests() + '</div>';
   return html;
@@ -2190,62 +2191,63 @@ setInterval(function () { if (S.D && /^\d{4}-/.test(S.tab)) rerenderSoft(); }, 6
 document.addEventListener('visibilitychange', function () { if (!document.hidden && S.D) { flushQueue(); call('data').then(function (d) { if (S.queue.length) d.scores = S.D.scores; S.D = d; saveCache(); rerenderSoft(); }).catch(function () {}); } });
 
 /* ═════════ 뒤로가기: 바로 나가지 않고 확인 ═════════ */
-/* 뒤로가기 막이 (앱이 최상위 페이지일 때: GitHub Pages · 홈 화면 앱)
- * - 기록을 한 칸 넣어 두고, 뒤로가기가 오면 열린 창 닫기 → 수정 모드 끄기 → "나갈까요?" 순서로 처리
- * - "나갈까요?"가 떠 있을 때는 막이를 다시 넣지 않아서, 뒤로가기를 한 번 더 누르면 그대로 나감
- * - Chrome은 화면을 만지기 전에 넣은 기록을 건너뛰므로 터치할 때 준비 */
-var leaving = false, trapArmed = false, askingLeave = false;
+/* 두 가지를 함께 씀 (어느 하나를 Chrome이 건너뛰어도 다른 쪽이 잡음)
+ *  ① CloseWatcher: Chrome이 뒤로가기를 직접 알려 줌
+ *  ② 기록 막이: 기록을 한 칸 넣어 두고, 뒤로가기로 그 칸이 빠지면(popstate) 알아챔
+ * 처리 순서: 열린 창 닫기 → 수정 모드 끄기 → "나갈까요?" (떠 있을 때 한 번 더 누르면 나감)
+ * 점검: 정보 › 내 정보 아래에 최근 뒤로가기 기록이 보임 */
+var leaving = false, askingLeave = false;
 var BACK_OK = window.top === window;   // 구글 화면(iframe) 안에서는 폰 뒤로가기를 잡을 수 없음
 var USE_CW = typeof window.CloseWatcher === 'function', watcher = null;
+function backLog(msg) {
+  var a = LS.get('trip_backlog', []);
+  a.push(new Date().toTimeString().slice(0, 8) + ' ' + msg + ' (기록 ' + history.length + ')');
+  LS.set('trip_backlog', a.slice(-6));
+}
+function onTrap() { return !!(history.state && history.state.tripTrap); }
 function armBack() {
   if (askingLeave && !el('.sheet-bg')) askingLeave = false;   // 확인창이 닫혔으면 다시 막이 준비
   if (!BACK_OK || leaving || askingLeave) return;
-  // 안드로이드 Chrome: 뒤로가기를 직접 받는 CloseWatcher 사용 (기록 꼼수보다 확실)
-  if (USE_CW) {
-    if (watcher) return;
-    try { watcher = new CloseWatcher(); watcher.onclose = function () { watcher = null; onBack(); }; } catch (e) { watcher = null; }
-    return;
+  if (USE_CW && !watcher) {
+    try { watcher = new CloseWatcher(); watcher.onclose = function () { watcher = null; backLog('CW'); onBack(); }; } catch (e) { watcher = null; }
   }
-  // 지금 보고 있는 칸이 막이가 아니면 새로 넣음 (다시 열었을 때 기록이 어긋나도 복구)
-  if (trapArmed && history.state && history.state.tripTrap) return;
-  try { history.pushState({ tripTrap: Date.now() }, ''); trapArmed = true; } catch (e) {}
+  if (!onTrap()) { try { history.pushState({ tripTrap: Date.now() }, ''); } catch (e) {} }
 }
 /* 앱을 나갔다가 다시 열면 Chrome이 이전 상태(나가는 중)를 그대로 되살리므로 초기화 */
 window.addEventListener('pageshow', function (e) {
   if (!e.persisted) return;
+  backLog('다시 열림');
   leaving = false; askingLeave = false; closeSheet();
-  trapArmed = !!(history.state && history.state.tripTrap);
   if (watcher) { try { watcher.destroy(); } catch (x) {} watcher = null; }
   armBack();
 });
+function leaveNow() {
+  leaving = true; closeSheet();
+  if (watcher) { try { watcher.destroy(); } catch (x) {} watcher = null; }
+  history.go(onTrap() ? -2 : -1);
+  // 첫 화면이라 더 갈 곳이 없으면 그대로 남음 → 안내
+  setTimeout(function () { if (!document.hidden) { leaving = false; askingLeave = false; toast('폰의 뒤로가기 버튼을 한 번 더 눌러 주세요.'); } }, 700);
+}
 function onBack() {
-  trapArmed = false;
   if (leaving) return;
-  if (askingLeave) { leaving = true; closeSheet(); history.back(); return; }   // 확인창에서 한 번 더 뒤로 → 나감
+  if (askingLeave) { leaveNow(); return; }                         // 확인창에서 한 번 더 뒤로 → 나감
   if (el('.sheet-bg')) { closeSheet(); armBack(); return; }       // 열린 창이 있으면 그것만 닫기 (앱은 그대로)
   if (S.editMode) { S.editMode = false; renderMain(); armBack(); return; }
   askingLeave = true;
   var s = sheet('<h3>앱을 나갈까요?</h3><p class="small muted">뒤로가기를 한 번 더 누르면 나갑니다.<br>입력한 스코어와 지출은 이미 저장되어 있습니다.</p>' +
-    '<div class="row" style="justify-content:flex-end"><button class="btn" data-stay>머무르기</button><button class="btn pri" data-leave>나가기</button></div>');
-  var stay = function () { askingLeave = false; closeSheet(); armBack(); };
-  s.querySelector('[data-stay]').onclick = stay;
+    '<div class="row" style="justify-content:flex-end"><button class="btn" data-stay>머무르기</button><button class="btn pri" data-leave>나가기</button></div>', null, true);
+  s.querySelector('[data-stay]').onclick = function () { askingLeave = false; closeSheet(); armBack(); };
   s.parentNode.addEventListener('click', function (e) { if (e.target === s.parentNode) askingLeave = false; });
-  s.querySelector('[data-leave]').onclick = function () {
-    leaving = true; closeSheet();
-    try { window.close(); } catch (e) {}
-    history.back();
-    // 첫 화면이라 더 갈 곳이 없으면 그대로 남음 → 안내
-    setTimeout(function () { if (!document.hidden) { leaving = false; askingLeave = false; toast('폰의 뒤로가기 버튼을 한 번 더 눌러 주세요.'); } }, 600);
-  };
+  s.querySelector('[data-leave]').onclick = leaveNow;
 }
 // Chrome은 '손을 뗄 때(터치 끝·클릭)'를 진짜 사용자 동작으로 쳐서, 그때 넣은 기록만 뒤로가기에 걸림
 ['touchend', 'click', 'keydown'].forEach(function (t) {
   document.addEventListener(t, armBack, { capture: true, passive: true });
 });
-if (BACK_OK && !USE_CW) window.addEventListener('popstate', function () { onBack(); });
+if (BACK_OK) window.addEventListener('popstate', function () { backLog('기록'); if (!onTrap()) onBack(); });
 
 start();
-armBack();   // CloseWatcher는 첫 하나는 화면을 누르기 전에도 만들 수 있음
+armBack();
 })();
 </script>
 </body>
