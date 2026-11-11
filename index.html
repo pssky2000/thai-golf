@@ -374,7 +374,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-14';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-15';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -2215,41 +2215,60 @@ setInterval(function () { if (S.D && /^\d{4}-/.test(S.tab)) rerenderSoft(); }, 6
 document.addEventListener('visibilitychange', function () { if (!document.hidden && S.D) { flushQueue(); call('data').then(function (d) { if (S.queue.length) d.scores = S.D.scores; S.D = d; saveCache(); rerenderSoft(); }).catch(function () {}); } });
 
 /* ═════════ 뒤로가기: 바로 나가지 않고 확인 ═════════ */
-/* 두 가지를 함께 씀 (어느 하나를 Chrome이 건너뛰어도 다른 쪽이 잡음)
- *  ① CloseWatcher: Chrome이 뒤로가기를 직접 알려 줌
- *  ② 기록 막이: 기록을 한 칸 넣어 두고, 뒤로가기로 그 칸이 빠지면(popstate) 알아챔
+/* 세 가지를 함께 씀 (어느 하나를 Chrome이 건너뛰어도 다른 쪽이 잡음)
+ *  ① CloseWatcher: Chrome이 뒤로가기를 직접 알려 줌. 페이지마다 '한 개'는 터치 없이도 만들 수 있어
+ *     앱을 열자마자 하나 만들어 둠 → 화면을 한 번도 안 누르고 뒤로가기를 눌러도 "나갈까요?"가 뜸
+ *  ② 기록 막이: 기록을 넣어 두고, 뒤로가기로 그 칸이 빠지면(popstate) 알아챔 (터치 순간에만 넣을 수 있음)
+ *  ③ 나갈 때: Navigation API로 '이 탭에 쌓인 앱 기록 전체'를 한 번에 건너뜀
+ *     (옛 버전이 같은 탭에 남긴 앱 기록 때문에 여러 번 눌러야 꺼지던 문제)
  * 처리 순서: 열린 창 닫기 → 수정 모드 끄기 → "나갈까요?" (떠 있을 때 한 번 더 누르면 나감)
- * 점검: 정보 › 내 정보 아래에 최근 뒤로가기 기록이 보임 */
+ * 점검: 정보 › 내 정보 아래에 상태 · 최근 뒤로가기 기록이 보임 */
 var leaving = false, askingLeave = false, lastPush = 0;
 var BACK_OK = window.top === window;   // 구글 화면(iframe) 안에서는 폰 뒤로가기를 잡을 수 없음
 var USE_CW = typeof window.CloseWatcher === 'function', watcher = null;
+var TOUCH = window.matchMedia && matchMedia('(pointer: coarse)').matches;   // 폰·태블릿 (PC에서는 Esc를 뺏지 않음)
+var NAV = window.navigation && typeof navigation.entries === 'function' ? navigation : null;
 function backLog(msg) {
   var a = LS.get('trip_backlog', []);
   a.push(new Date().toTimeString().slice(0, 8) + ' ' + msg + ' (기록 ' + history.length + ')');
-  LS.set('trip_backlog', a.slice(-8));
+  LS.set('trip_backlog', a.slice(-10));
 }
-/* 지금 상태 한 줄 (점검용): 기록 수 · 막이 · CloseWatcher · 화면을 만진 적 있는지 · 홈 화면 앱인지 */
+/* 이 탭의 앱 기록: 지금 몇 번째인지, 그 앞에 '다른 페이지(옛 앱)' 기록이 몇 개인지 */
+function navInfo() {
+  if (!NAV || !NAV.currentEntry) return null;
+  var es = NAV.entries(), cur = NAV.currentEntry, idx = cur.index, old = 0;
+  for (var i = 0; i < idx; i++) if (es[i] && !es[i].sameDocument) old++;
+  return { idx: idx, total: es.length, old: old };
+}
+/* 지금 상태 한 줄 (점검용) */
 function backState() {
-  var ua = navigator.userActivation;
-  return '기록 ' + history.length + ' · 막이 ' + trapDepth() + ' · CW ' + (USE_CW ? (watcher ? 'O' : '-') : '없음') +
+  var ua = navigator.userActivation, n = navInfo();
+  return '기록 ' + history.length + (n ? ' · 앱기록 ' + (n.idx + 1) + '/' + n.total + (n.old ? ' (옛 ' + n.old + ')' : '') : '') +
+    ' · 막이 ' + trapDepth() + ' · CW ' + (USE_CW ? (watcher ? 'O' : '-') : '없음') +
     ' · 터치 ' + (ua ? (ua.hasBeenActive ? 'O' : 'X') : '?') + ' · ' + (matchMedia('(display-mode: standalone)').matches ? '홈앱' : '브라우저');
 }
-function onTrap() { return !!(history.state && history.state.tripTrap); }
 function trapDepth() { var s = history.state; return s && s.tripTrap ? (Number(s.depth) || 1) : 0; }
+function makeWatcher(why) {
+  if (!USE_CW || watcher || leaving) return;
+  try {
+    var w = new CloseWatcher();
+    w.onclose = function () { if (watcher === w) watcher = null; backLog('CW'); onBack('cw'); };
+    watcher = w;
+  } catch (e) { watcher = null; backLog('CW 실패 ' + e.name); }
+}
 function armBack() {
-  if (askingLeave && !el('.sheet-bg')) askingLeave = false;   // 확인창이 닫혔으면 다시 막이 준비
-  if (!BACK_OK || leaving || askingLeave) return;
-  // Chrome은 '화면을 누르는 그 순간'이 아닐 때 넣은 기록·감지기를 건너뛰므로, 누를 때만 준비
+  if (askingLeave && !el('.sheet-bg')) askingLeave = false;   // 확인창이 닫혔으면 다시 준비
+  if (!BACK_OK || leaving) return;
+  // Chrome은 '화면을 누르는 그 순간'이 아닐 때 넣은 기록을 뒤로가기에서 건너뛰므로, 누를 때만 넣음
   var ua = navigator.userActivation, now = !ua || ua.isActive;
   if (!now) return;
-  if (USE_CW && !watcher) {
-    try { watcher = new CloseWatcher(); watcher.onclose = function () { watcher = null; backLog('CW'); onBack(); }; } catch (e) { watcher = null; backLog('CW 실패 ' + e.name); }
-  }
-  // 막이를 두 칸까지 쌓음: 첫 터치에 1칸, 다음 터치에 2칸째.
-  // (앱 첫 칸을 Chrome이 '건너뛸 칸'으로 표시해 둔 경우에도, 2칸째에서 1칸째로는 반드시 돌아와서 알아챌 수 있음)
-  // 한 번 누를 때 터치 끝·클릭이 같이 오므로, 2칸째는 '다른 터치'(1초 뒤)에서만 넣음
+  makeWatcher('touch');
+  if (askingLeave) return;
+  // 막이를 두 칸까지 쌓음: 첫 터치에 1칸, 다음 터치(1초 뒤)에 2칸째
   var d = trapDepth();
-  if (d < 2 && Date.now() - lastPush > 1000) { try { history.pushState({ tripTrap: Date.now(), depth: d + 1 }, ''); lastPush = Date.now(); backLog('막이 ' + (d + 1)); } catch (e) { backLog('막이 실패'); } }
+  if (d < 2 && Date.now() - lastPush > 1000) {
+    try { history.pushState({ tripTrap: Date.now(), depth: d + 1 }, ''); lastPush = Date.now(); backLog('막이 ' + (d + 1)); } catch (e) { backLog('막이 실패'); }
+  }
 }
 /* 앱을 나갔다가 다시 열면 Chrome이 이전 상태(나가는 중)를 그대로 되살리므로 초기화 */
 window.addEventListener('pageshow', function (e) {
@@ -2257,35 +2276,71 @@ window.addEventListener('pageshow', function (e) {
   backLog('다시 열림');
   leaving = false; askingLeave = false; closeSheet();
   if (watcher) { try { watcher.destroy(); } catch (x) {} watcher = null; }
-  armBack();
+  var jl = 0; try { jl = Number(sessionStorage.getItem('trip_leaving') || 0); } catch (x) {}
+  if (jl && Date.now() - jl < 8000) { leaving = true; lastStep(navInfo()); return; }   // 나가는 길에 옛 앱 기록이 되살아난 경우
+  if (BACK_OK && TOUCH) makeWatcher('reopen');
 });
 window.addEventListener('pagehide', function () { backLog('앱 나감'); });
 function leaveNow() {
-  leaving = true; closeSheet();
+  leaving = true; askingLeave = false; closeSheet();
   if (watcher) { try { watcher.destroy(); } catch (x) {} watcher = null; }
-  history.go(-(trapDepth() + 1));
-  // 첫 화면이라 더 갈 곳이 없으면 그대로 남음 → 안내
-  setTimeout(function () { if (!document.hidden) { leaving = false; askingLeave = false; toast('폰의 뒤로가기 버튼을 한 번 더 눌러 주세요.'); } }, 700);
+  try { sessionStorage.setItem('trip_leaving', String(Date.now())); } catch (e) {}
+  var n = navInfo();
+  // 앱 앞에 다른 페이지가 있는지: 전체 기록 수가 앱 기록 수보다 많으면 있음 (Navigation API가 없으면 일단 시도)
+  var before = n ? history.length > n.total : true;
+  if (before) {
+    // 이 탭의 앱 기록 전체(옛 앱 기록 포함)를 한 번에 건너뜀. Navigation API가 없으면 막이 칸 수만큼
+    var steps = n ? n.idx + 1 : trapDepth() + 1;
+    backLog('나가기 -' + steps);
+    history.go(-steps);
+    setTimeout(function () { if (!document.hidden) lastStep(navInfo()); }, 700);
+  } else {
+    backLog('나가기 (앞 기록 없음)');
+    if (history.length === 1) { try { window.close(); } catch (e) {} }
+    setTimeout(function () { if (!document.hidden) lastStep(n); }, 150);
+  }
 }
-function onBack() {
+/* 더 갈 곳이 없을 때(홈 화면 아이콘·새 탭): 첫 앱 기록으로 옮겨 두면 다음 뒤로가기 한 번에 바로 꺼짐 */
+function lastStep(n) {
+  var k = n ? n.idx : trapDepth();
+  if (k > 0) { try { history.go(-k); } catch (e) {} }
+  toast('뒤로가기를 한 번 더 누르면 앱이 꺼집니다.', null, 4000);
+  // 다음 뒤로가기는 막지 않음 (leaving 유지). 화면을 다시 누르면 평소처럼 돌아옴
+  setTimeout(function () {
+    var done = function () {
+      leaving = false;
+      try { sessionStorage.removeItem('trip_leaving'); } catch (e) {}
+      document.removeEventListener('touchend', done, true); document.removeEventListener('click', done, true);
+    };
+    document.addEventListener('touchend', done, true); document.addEventListener('click', done, true);
+  }, 300);
+}
+function onBack(src) {
   if (leaving) return;
   if (askingLeave) { leaveNow(); return; }                         // 확인창에서 한 번 더 뒤로 → 나감
-  if (el('.sheet-bg')) { closeSheet(); armBack(); return; }       // 열린 창이 있으면 그것만 닫기 (앱은 그대로)
-  if (S.editMode) { S.editMode = false; renderMain(); armBack(); return; }
+  if (el('.sheet-bg')) { closeSheet(); return; }                  // 열린 창이 있으면 그것만 닫기 (앱은 그대로)
+  if (S.editMode) { S.editMode = false; renderMain(); return; }
   askingLeave = true;
   var s = sheet('<h3>앱을 나갈까요?</h3><p class="small muted">뒤로가기를 한 번 더 누르면 나갑니다.<br>입력한 스코어와 지출은 이미 저장되어 있습니다.</p>' +
     '<div class="row" style="justify-content:flex-end"><button class="btn" data-stay>머무르기</button><button class="btn pri" data-leave>나가기</button></div>', null, true);
   s.querySelector('[data-stay]').onclick = function () { askingLeave = false; closeSheet(); armBack(); };
-  s.parentNode.addEventListener('click', function (e) { if (e.target === s.parentNode) askingLeave = false; });
+  s.parentNode.addEventListener('click', function (e) { if (e.target === s.parentNode) { askingLeave = false; armBack(); } });
   s.querySelector('[data-leave]').onclick = leaveNow;
+  // 확인창이 떠 있는 동안 한 번 더 뒤로가기 → 막이가 없어도 CloseWatcher로 잡아서 '앱 기록 전체'를 건너뛰고 나감
+  if (src === 'cw') makeWatcher('ask');
 }
 // Chrome은 '손을 뗄 때(터치 끝·클릭)'를 진짜 사용자 동작으로 쳐서, 그때 넣은 기록만 뒤로가기에 걸림
 ['touchend', 'click', 'keydown'].forEach(function (t) {
   document.addEventListener(t, armBack, { capture: true, passive: true });
 });
-if (BACK_OK) window.addEventListener('popstate', function () { backLog('기록 ' + trapDepth()); onBack(); });
+if (BACK_OK) window.addEventListener('popstate', function () { backLog('기록 ' + trapDepth()); onBack('pop'); });
 
 start();
+// 방금 '나가기' 중에 옛 앱 기록으로 넘어온 경우: 다시 막지 않고 한 번 더 누르면 꺼지게
+var justLeft = 0;
+try { justLeft = Number(sessionStorage.getItem('trip_leaving') || 0); } catch (e) {}
+if (justLeft && Date.now() - justLeft < 8000) { leaving = true; backLog('나가는 중 열림'); setTimeout(function () { lastStep(navInfo()); }, 300); }
+else if (BACK_OK && TOUCH) makeWatcher('load');   // 터치 없이 만들 수 있는 '첫 한 개'
 armBack();
 })();
 </script>
