@@ -360,7 +360,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-11';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-12';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1877,7 +1877,7 @@ function viewInfo() {
         '<li>삼성 인터넷이라면: 아래 <b>≡</b> → <b>현재 페이지 추가</b> → <b>홈 화면</b></li>' +
       '</ol><p class="small muted">⛳ 아이콘이 생깁니다. 처음 한 번은 PIN을 다시 넣어야 할 수 있습니다.</p>' +
       '<button class="btn sm" data-act="copy-link">🔗 앱 링크 복사</button>' +
-      '<p class="small muted" style="margin-top:8px">화면 버전 ' + APP_VER + ' · 뒤로가기 ' + (USE_CW ? 'CW+기록' : '기록') + '</p>' +
+      '<p class="small muted" style="margin-top:8px">화면 버전 ' + APP_VER + '</p><p class="small muted" style="margin:2px 0 0;font-size:12px">상태: ' + esc(backState()) + '</p>' +
       (LS.get('trip_backlog', []).length ? '<p class="small muted" style="margin:2px 0 0;font-size:12px">최근 뒤로가기: ' + LS.get('trip_backlog', []).map(esc).join(' / ') + '</p>' : '') + '</div>' +
     '<div class="card"><b>👤 내 정보 · ' + esc(S.me.name) + '</b><div class="row wrap-row" style="margin-top:8px"><button class="btn sm" data-act="pin">🔑 PIN 바꾸기</button><button class="btn sm" data-act="req">✋ 관리자에게 요청</button><button class="btn sm" data-act="logout">나가기</button></div>' +
       myRequests() + '</div>';
@@ -2202,7 +2202,13 @@ var USE_CW = typeof window.CloseWatcher === 'function', watcher = null;
 function backLog(msg) {
   var a = LS.get('trip_backlog', []);
   a.push(new Date().toTimeString().slice(0, 8) + ' ' + msg + ' (기록 ' + history.length + ')');
-  LS.set('trip_backlog', a.slice(-6));
+  LS.set('trip_backlog', a.slice(-8));
+}
+/* 지금 상태 한 줄 (점검용): 기록 수 · 막이 · CloseWatcher · 화면을 만진 적 있는지 · 홈 화면 앱인지 */
+function backState() {
+  var ua = navigator.userActivation;
+  return '기록 ' + history.length + ' · 막이 ' + (onTrap() ? 'O' : 'X') + ' · CW ' + (USE_CW ? (watcher ? 'O' : '-') : '없음') +
+    ' · 터치 ' + (ua ? (ua.hasBeenActive ? 'O' : 'X') : '?') + ' · ' + (matchMedia('(display-mode: standalone)').matches ? '홈앱' : '브라우저');
 }
 function onTrap() { return !!(history.state && history.state.tripTrap); }
 function armBack() {
@@ -2211,7 +2217,7 @@ function armBack() {
   if (USE_CW && !watcher) {
     try { watcher = new CloseWatcher(); watcher.onclose = function () { watcher = null; backLog('CW'); onBack(); }; } catch (e) { watcher = null; }
   }
-  if (!onTrap()) { try { history.pushState({ tripTrap: Date.now() }, ''); } catch (e) {} }
+  if (!onTrap()) { try { history.pushState({ tripTrap: Date.now() }, ''); backLog('막이 넣음'); } catch (e) { backLog('막이 실패'); } }
 }
 /* 앱을 나갔다가 다시 열면 Chrome이 이전 상태(나가는 중)를 그대로 되살리므로 초기화 */
 window.addEventListener('pageshow', function (e) {
@@ -2221,6 +2227,7 @@ window.addEventListener('pageshow', function (e) {
   if (watcher) { try { watcher.destroy(); } catch (x) {} watcher = null; }
   armBack();
 });
+window.addEventListener('pagehide', function () { backLog('앱 나감'); });
 function leaveNow() {
   leaving = true; closeSheet();
   if (watcher) { try { watcher.destroy(); } catch (x) {} watcher = null; }
