@@ -13,7 +13,7 @@
 <script>
   // GitHub Pages(홈 화면 앱)에서만 화면 파일을 저장해 둠
   if ('serviceWorker' in navigator && location.protocol === 'https:' && /github\.io$/.test(location.hostname)) {
-    window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+    window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(function () {}); });
   }
 </script>
 <script>
@@ -307,7 +307,8 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var IN_GAS = !!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
+var APP_VER = '11.12-3';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
   return new Promise(function (resolve, reject) {
@@ -1733,7 +1734,8 @@ function viewInfo() {
         '<li>Chrome 오른쪽 위 <b>⋮</b> → <b>홈 화면에 추가</b> → 이름 <b>골프여행</b> → <b>추가</b></li>' +
         '<li>삼성 인터넷이라면: 아래 <b>≡</b> → <b>현재 페이지 추가</b> → <b>홈 화면</b></li>' +
       '</ol><p class="small muted">⛳ 아이콘이 생깁니다. 처음 한 번은 PIN을 다시 넣어야 할 수 있습니다.</p>' +
-      '<button class="btn sm" data-act="copy-link">🔗 앱 링크 복사</button></div>' +
+      '<button class="btn sm" data-act="copy-link">🔗 앱 링크 복사</button>' +
+      '<p class="small muted" style="margin-top:8px">화면 버전 ' + APP_VER + '</p></div>' +
     '<div class="card"><b>💡 현지 팁</b>' + S.D.tips.map(function (t) { return '<div style="border-top:1px solid var(--line);padding:8px 0;margin-top:6px"><b class="small">' + esc(t.title) + '</b><div class="small">' + esc(t.text) + '</div></div>'; }).join('') + '</div>' +
     '<div class="card"><b>👤 내 정보 · ' + esc(S.me.name) + '</b><div class="row wrap-row" style="margin-top:8px"><button class="btn sm" data-act="pin">🔑 PIN 바꾸기</button><button class="btn sm" data-act="req">✋ 관리자에게 요청</button><button class="btn sm" data-act="logout">나가기</button></div>' +
       myRequests() + '</div>';
@@ -2044,9 +2046,18 @@ document.addEventListener('visibilitychange', function () { if (!document.hidden
 var leaving = false, trapArmed = false, askingLeave = false;
 var BACK_OK = window.top === window;   // 구글 화면(iframe) 안에서는 폰 뒤로가기를 잡을 수 없음
 function armBack() {
-  if (!BACK_OK || trapArmed || leaving || askingLeave) return;
+  if (askingLeave && !el('.sheet-bg')) askingLeave = false;   // 확인창이 닫혔으면 다시 막이 준비
+  if (!BACK_OK || leaving || askingLeave) return;
+  // 지금 보고 있는 칸이 막이가 아니면 새로 넣음 (다시 열었을 때 기록이 어긋나도 복구)
+  if (trapArmed && history.state && history.state.tripTrap) return;
   try { history.pushState({ tripTrap: Date.now() }, ''); trapArmed = true; } catch (e) {}
 }
+/* 앱을 나갔다가 다시 열면 Chrome이 이전 상태(나가는 중)를 그대로 되살리므로 초기화 */
+window.addEventListener('pageshow', function (e) {
+  if (!e.persisted) return;
+  leaving = false; askingLeave = false; closeSheet();
+  trapArmed = !!(history.state && history.state.tripTrap);
+});
 function onBack() {
   trapArmed = false;
   if (leaving) return;
@@ -2067,8 +2078,10 @@ function onBack() {
     setTimeout(function () { if (!document.hidden) { leaving = false; askingLeave = false; toast('폰의 뒤로가기 버튼을 한 번 더 눌러 주세요.'); } }, 600);
   };
 }
-document.addEventListener('pointerdown', armBack, true);
-document.addEventListener('touchstart', armBack, { capture: true, passive: true });
+// Chrome은 '손을 뗄 때(터치 끝·클릭)'를 진짜 사용자 동작으로 쳐서, 그때 넣은 기록만 뒤로가기에 걸림
+['touchend', 'click', 'keydown'].forEach(function (t) {
+  document.addEventListener(t, armBack, { capture: true, passive: true });
+});
 if (BACK_OK) window.addEventListener('popstate', function () { onBack(); });
 
 start();
