@@ -374,7 +374,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-13';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-14';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -2220,7 +2220,7 @@ document.addEventListener('visibilitychange', function () { if (!document.hidden
  *  ② 기록 막이: 기록을 한 칸 넣어 두고, 뒤로가기로 그 칸이 빠지면(popstate) 알아챔
  * 처리 순서: 열린 창 닫기 → 수정 모드 끄기 → "나갈까요?" (떠 있을 때 한 번 더 누르면 나감)
  * 점검: 정보 › 내 정보 아래에 최근 뒤로가기 기록이 보임 */
-var leaving = false, askingLeave = false;
+var leaving = false, askingLeave = false, lastPush = 0;
 var BACK_OK = window.top === window;   // 구글 화면(iframe) 안에서는 폰 뒤로가기를 잡을 수 없음
 var USE_CW = typeof window.CloseWatcher === 'function', watcher = null;
 function backLog(msg) {
@@ -2231,10 +2231,11 @@ function backLog(msg) {
 /* 지금 상태 한 줄 (점검용): 기록 수 · 막이 · CloseWatcher · 화면을 만진 적 있는지 · 홈 화면 앱인지 */
 function backState() {
   var ua = navigator.userActivation;
-  return '기록 ' + history.length + ' · 막이 ' + (onTrap() ? 'O' : 'X') + ' · CW ' + (USE_CW ? (watcher ? 'O' : '-') : '없음') +
+  return '기록 ' + history.length + ' · 막이 ' + trapDepth() + ' · CW ' + (USE_CW ? (watcher ? 'O' : '-') : '없음') +
     ' · 터치 ' + (ua ? (ua.hasBeenActive ? 'O' : 'X') : '?') + ' · ' + (matchMedia('(display-mode: standalone)').matches ? '홈앱' : '브라우저');
 }
 function onTrap() { return !!(history.state && history.state.tripTrap); }
+function trapDepth() { var s = history.state; return s && s.tripTrap ? (Number(s.depth) || 1) : 0; }
 function armBack() {
   if (askingLeave && !el('.sheet-bg')) askingLeave = false;   // 확인창이 닫혔으면 다시 막이 준비
   if (!BACK_OK || leaving || askingLeave) return;
@@ -2244,7 +2245,11 @@ function armBack() {
   if (USE_CW && !watcher) {
     try { watcher = new CloseWatcher(); watcher.onclose = function () { watcher = null; backLog('CW'); onBack(); }; } catch (e) { watcher = null; backLog('CW 실패 ' + e.name); }
   }
-  if (!onTrap()) { try { history.pushState({ tripTrap: Date.now() }, ''); backLog('막이 넣음'); } catch (e) { backLog('막이 실패'); } }
+  // 막이를 두 칸까지 쌓음: 첫 터치에 1칸, 다음 터치에 2칸째.
+  // (앱 첫 칸을 Chrome이 '건너뛸 칸'으로 표시해 둔 경우에도, 2칸째에서 1칸째로는 반드시 돌아와서 알아챌 수 있음)
+  // 한 번 누를 때 터치 끝·클릭이 같이 오므로, 2칸째는 '다른 터치'(1초 뒤)에서만 넣음
+  var d = trapDepth();
+  if (d < 2 && Date.now() - lastPush > 1000) { try { history.pushState({ tripTrap: Date.now(), depth: d + 1 }, ''); lastPush = Date.now(); backLog('막이 ' + (d + 1)); } catch (e) { backLog('막이 실패'); } }
 }
 /* 앱을 나갔다가 다시 열면 Chrome이 이전 상태(나가는 중)를 그대로 되살리므로 초기화 */
 window.addEventListener('pageshow', function (e) {
@@ -2258,7 +2263,7 @@ window.addEventListener('pagehide', function () { backLog('앱 나감'); });
 function leaveNow() {
   leaving = true; closeSheet();
   if (watcher) { try { watcher.destroy(); } catch (x) {} watcher = null; }
-  history.go(onTrap() ? -2 : -1);
+  history.go(-(trapDepth() + 1));
   // 첫 화면이라 더 갈 곳이 없으면 그대로 남음 → 안내
   setTimeout(function () { if (!document.hidden) { leaving = false; askingLeave = false; toast('폰의 뒤로가기 버튼을 한 번 더 눌러 주세요.'); } }, 700);
 }
@@ -2278,7 +2283,7 @@ function onBack() {
 ['touchend', 'click', 'keydown'].forEach(function (t) {
   document.addEventListener(t, armBack, { capture: true, passive: true });
 });
-if (BACK_OK) window.addEventListener('popstate', function () { backLog('기록'); if (!onTrap()) onBack(); });
+if (BACK_OK) window.addEventListener('popstate', function () { backLog('기록 ' + trapDepth()); onBack(); });
 
 start();
 armBack();
