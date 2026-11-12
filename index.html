@@ -326,7 +326,7 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .admin-box .btn:not(.pri){background:color-mix(in srgb,var(--warn) 16%,var(--card));border-color:color-mix(in srgb,var(--warn) 40%,var(--line))}
 /* 스코어: 라운드 버튼 4칸 같은 크기 · 사진 버튼 2칸 같은 크기 */
 .rounds{display:grid!important;grid-template-columns:repeat(4,1fr);gap:6px;overflow:visible}
-.rounds .tab{min-width:0;padding:6px 4px;display:flex;flex-direction:column;justify-content:center}
+.rounds .tab{min-width:0;padding:6px 4px;display:flex;flex-direction:column;justify-content:flex-start}   /* 날짜가 한 줄로 나란히 */
 .rounds .tab .s{white-space:normal;word-break:keep-all;line-height:1.25;font-size:calc(11.5px*var(--fs))}
 .scan-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .scan-btns .btn{display:flex;align-items:center;justify-content:center;white-space:nowrap;padding:10px 4px;font-weight:700}
@@ -386,7 +386,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-24';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-25';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1192,7 +1192,8 @@ function viewScore() {
         }).join('') + '</div>' +
         '<div class="row between" style="margin-top:10px"><span class="muted">합계</span><span class="sum" id="sum">' + (tt.f !== null || tt.b !== null ? tt.t : '-') + '</span></div>') +
     '<div class="row between" style="margin-top:8px"><span class="save-st muted" id="sst">' + esc(S.saveState) + '</span>' +
-      (who !== S.me.name ? '<button class="btn sm" data-for="">내 스코어로 돌아가기</button>' : '') + '</div></div>';
+      '<div class="row">' + (tt.f !== null || tt.b !== null || filled(holes) ? '<button class="btn sm bad" data-act="score-clear">🗑️ 지우기</button>' : '') +
+      (who !== S.me.name ? '<button class="btn sm" data-for="">내 스코어로 돌아가기</button>' : '') + '</div></div></div>';
 
   return '<div class="rounds">' + rs.map(function (x) { return '<button class="tab' + (x.round_id === r.round_id ? ' on' : '') + '" data-round="' + x.round_id + '"><span class="d">' + md(x.date) + '</span><span class="s">' + esc(x.course) + '</span></button>'; }).join('') + '</div>' +
     '<div class="card scan"><b>📋 스코어카드 사진으로 입력</b><div class="small muted" style="margin:4px 0 8px">종이 스코어카드를 찍으면 4명 점수를 읽어서 채워 줍니다. 저장 전에 확인할 수 있어요.</div>' +
@@ -1215,7 +1216,7 @@ function scoreTables(r) {
       var t = x.t;
       var crown = t && t.done && t.t === best ? ' 👑' : '';
       return '<tr' + (crown ? ' class="first"' : '') + '><td>' + esc(x.n) + crown + '</td><td>' + (t && t.f !== null ? t.f : '-') + '</td><td>' + (t && t.b !== null ? t.b : '-') + '</td><td><b>' + (t && (t.f !== null || t.b !== null) ? t.t : '-') + '</b>' + (t && t.holes !== null && t.holes < 18 ? '<div class="small muted">' + t.holes + '홀</div>' : '') + '</td>' +
-        '<td>' + (x.n !== S.me.name ? '<button class="btn sm ghost" data-for="' + esc(x.n) + '">대신 입력</button>' : '') + '</td></tr>';
+        '<td>' + (x.n !== S.me.name ? '<button class="btn sm ghost" data-for="' + esc(x.n) + '">대신 입력</button>' : '<button class="btn sm ghost" data-editme>고치기</button>') + '</td></tr>';
     }).join('') + '</table></div></div>';
   return table + overallHtml();
 }
@@ -1516,7 +1517,7 @@ function showCards(rid) {
   var ids = String(r.cards || '').split(',').filter(Boolean);
   var sh = sheet('<h3>📋 ' + esc(r.course) + ' 스코어카드</h3>' + ids.map(function (id, i) { return '<div data-cbox="' + i + '"></div>'; }).join('') + '<button class="btn" id="cx" style="margin-top:8px">닫기</button>');
   el('#cx', sh).onclick = closeSheet;
-  ids.forEach(function (id, i) { showReceipt(id, el('[data-cbox="' + i + '"]', sh), 'full'); });
+  ids.forEach(function (id, i) { showReceipt(id, el('[data-cbox="' + i + '"]', sh), 'full', (i + 1) + '번째 스코어카드'); });
 }
 
 /* ═════════ 경비 · 정산 · 회비 (2차본) ═════════ */
@@ -1856,11 +1857,12 @@ function shrinkImage(file, maxPx, q) {
   });
 }
 var receiptCache = {};
-function showReceipt(id, box, size) {
+function showReceipt(id, box, size, label) {
+  label = label || '영수증';
   var key = id + ':' + size;
   if (receiptCache[key]) { box.innerHTML = '<img class="rimg" src="' + receiptCache[key] + '" data-full="' + esc(id) + '">'; bindFull(box); return; }
-  box.innerHTML = '<span class="small muted">영수증 불러오는 중…</span>';
-  call('getReceipt', { id: id, size: size }).then(function (r) { receiptCache[key] = r.dataUrl; showReceipt(id, box, size); }).catch(function () { box.innerHTML = '<span class="small muted">영수증을 불러오지 못했습니다.</span>'; });
+  box.innerHTML = '<span class="small muted">' + label + ' 불러오는 중…</span>';
+  call('getReceipt', { id: id, size: size }).then(function (r) { receiptCache[key] = r.dataUrl; showReceipt(id, box, size, label); }).catch(function () { box.innerHTML = '<span class="small muted">' + label + ': 불러오지 못했습니다.</span>'; });
 }
 function bindFull(box) {
   els('[data-full]', box).forEach(function (im) {
@@ -2079,6 +2081,14 @@ function bindMain() {
       else if (a === 'req') requestEdit(null);
       else if (a === 'logout') confirmBox('이 폰에서 나갈까요? 다시 들어올 때 PIN이 필요합니다.', '나가기').then(function (y) { if (!y) return; call('logout').catch(function () {}); logoutLocal(); renderLogin(); });
       else if (a === 'log') loadLog();
+      else if (a === 'score-clear') {
+        var who = S.scoreFor || S.me.name;
+        confirmBox('이 라운드 ' + (who === S.me.name ? '내' : who + ' 님') + ' 점수를 모두 지울까요? (전·후반·홀별 모두)', '지우기').then(function (y) {
+          if (!y) return;
+          var sc = currentScore(); sc.front = ''; sc.back = ''; sc.holes = '';
+          queueSave(sc); renderMain(); toast('점수를 지웠습니다.');
+        });
+      }
       else if (a === 'exp-add') expenseForm(null);
       else if (a === 'exp-csv') downloadCsv();
       else if (a === 'exp-print') window.print();
@@ -2195,6 +2205,10 @@ function bindMain() {
 }
 
 function bindFor(root) {
+  // 순위표의 내 줄 '고치기' → 위의 내 스코어 칸으로
+  els('[data-editme]', root).forEach(function (b) {
+    b.onclick = function () { S.scoreFor = null; renderMain(); var c = el('.sc-me'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+  });
   els('[data-for]', root).forEach(function (b) {
     b.onclick = function () {
       var n = b.dataset.for;
