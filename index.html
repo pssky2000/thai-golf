@@ -374,7 +374,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-15';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-16';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -2276,8 +2276,8 @@ window.addEventListener('pageshow', function (e) {
   backLog('다시 열림');
   leaving = false; askingLeave = false; closeSheet();
   if (watcher) { try { watcher.destroy(); } catch (x) {} watcher = null; }
-  var jl = 0; try { jl = Number(sessionStorage.getItem('trip_leaving') || 0); } catch (x) {}
-  if (jl && Date.now() - jl < 8000) { leaving = true; lastStep(navInfo()); return; }   // 나가는 길에 옛 앱 기록이 되살아난 경우
+  var why = arrivedLeaving();
+  if (why) { continueLeaving(why); return; }   // 나가는 길에 옛 앱 기록이 되살아난 경우
   if (BACK_OK && TOUCH) makeWatcher('reopen');
 });
 window.addEventListener('pagehide', function () { backLog('앱 나감'); });
@@ -2299,6 +2299,30 @@ function leaveNow() {
     if (history.length === 1) { try { window.close(); } catch (e) {} }
     setTimeout(function () { if (!document.hidden) lastStep(n); }, 150);
   }
+}
+/* 이 페이지가 '앱을 나가는 길'에 열렸는지
+ *  - 방금 나가기를 눌렀음 (sessionStorage, 8초)
+ *  - 더 새 앱 기록에서 뒤로가기로 넘어옴: 같은 탭에 쌓인 옛 앱 기록. 화면을 누르기 전에는
+ *    Chrome(안드로이드)이 뒤로가기를 막지 못하게 해서 옛 앱이 하나씩 다시 열리던 문제 */
+function arrivedLeaving() {
+  var a = NAV && NAV.activation;
+  // 새로 연 경우(주소·아이콘으로 열기, 새로고침)는 절대 나가지 않음 — 뒤로가기로 온 경우만
+  if (a && a.navigationType !== 'traverse') { try { sessionStorage.removeItem('trip_leaving'); } catch (x) {} return ''; }
+  var jl = 0; try { jl = Number(sessionStorage.getItem('trip_leaving') || 0); } catch (x) {}
+  if (jl && Date.now() - jl < 8000) return '나가는 중 열림';
+  if (a && a.navigationType === 'traverse' && a.from && a.entry && a.from.index > a.entry.index) return '뒤로 옴(옛 기록)';
+  return '';
+}
+/* 남은 앱 기록을 한 번에 건너뛰어 나감. 앞에 갈 곳이 없으면 첫 기록으로 옮기고 안내 */
+function continueLeaving(why) {
+  leaving = true; askingLeave = false; backLog(why);
+  try { sessionStorage.setItem('trip_leaving', String(Date.now())); } catch (e) {}
+  var n = navInfo();
+  if (n && history.length > n.total) {
+    backLog('나가기 -' + (n.idx + 1));
+    history.go(-(n.idx + 1));
+    setTimeout(function () { if (!document.hidden) lastStep(navInfo()); }, 700);
+  } else lastStep(n);
 }
 /* 더 갈 곳이 없을 때(홈 화면 아이콘·새 탭): 첫 앱 기록으로 옮겨 두면 다음 뒤로가기 한 번에 바로 꺼짐 */
 function lastStep(n) {
@@ -2336,10 +2360,9 @@ function onBack(src) {
 if (BACK_OK) window.addEventListener('popstate', function () { backLog('기록 ' + trapDepth()); onBack('pop'); });
 
 start();
-// 방금 '나가기' 중에 옛 앱 기록으로 넘어온 경우: 다시 막지 않고 한 번 더 누르면 꺼지게
-var justLeft = 0;
-try { justLeft = Number(sessionStorage.getItem('trip_leaving') || 0); } catch (e) {}
-if (justLeft && Date.now() - justLeft < 8000) { leaving = true; backLog('나가는 중 열림'); setTimeout(function () { lastStep(navInfo()); }, 300); }
+// 나가는 길에 옛 앱 기록으로 넘어온 경우: 막지 않고 남은 앱 기록을 건너뜀
+var leaveWhy = BACK_OK ? arrivedLeaving() : '';
+if (leaveWhy) setTimeout(function () { continueLeaving(leaveWhy); }, 300);
 else if (BACK_OK && TOUCH) makeWatcher('load');   // 터치 없이 만들 수 있는 '첫 한 개'
 armBack();
 })();
