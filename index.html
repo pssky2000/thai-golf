@@ -273,6 +273,20 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .sum3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center;margin:8px 0}
 .sum3>div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 4px}
 .sum3 .lab{font-size:calc(12px*var(--fs));color:var(--sub)}
+/* 경비 아래 탭: 폴더 모양 (고른 탭이 아래 선과 이어짐) */
+.seg-tabs.folder{gap:4px;margin:14px 0 0;border-bottom:3px solid var(--pri)}
+.seg-tabs.folder button{border-radius:12px 12px 0 0;border-bottom:0;padding:10px 0 8px;font-size:calc(13.5px*var(--fs));letter-spacing:-.05em;color:var(--sub);background:var(--bg)}
+.seg-tabs.folder button.on{background:var(--pri);color:var(--pri-ink);border-color:var(--pri);padding-top:12px;margin-top:-2px}
+.folder-body{padding-top:10px}
+/* 회비 탭 세 칸: 누르면 아래 내용이 바뀜 */
+.sum3 button.fv{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 2px;font:inherit;color:inherit;cursor:pointer;min-width:0}
+.sum3 button.fv b{display:block;font-size:calc(17px*var(--fs));white-space:nowrap}
+.sum3 button.fv .small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:calc(11px*var(--fs));letter-spacing:-.04em}
+.sum3 button.fv.on{border:2px solid var(--pri);background:color-mix(in srgb,var(--pri) 12%,var(--card))}
+.sum3 button.fv.on .lab{color:var(--pri);font-weight:700}
+.kv{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:5px 0;border-top:1px solid var(--line)}
+.kv:first-of-type{border-top:0}
+.kv b{white-space:nowrap}
 .tr{border-top:1px solid var(--line);padding:10px 0;margin-top:6px}
 .tr .amt-big{font-size:calc(22px*var(--fs));font-weight:900;color:var(--pri);margin:2px 0 6px}
 .mrow{display:flex;justify-content:space-between;gap:10px;border-top:1px solid var(--line);padding:10px 0;margin-top:6px}
@@ -403,7 +417,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-38';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-39';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1688,12 +1702,12 @@ function viewMoney() {
       '<div class="small muted" style="text-align:right">' + esc(S.D.settings.fee_asof || '') + ' 기준</div></div>' +
     '<div class="cbox ctotal"><div class="ctop"><span class="lab">회비 예상 잔액</span><b class="big">' + won(Math.round(c.cashLeft * c.rate) + fs.balance) + '</b></div>' +
       '<div class="small muted">통장 ' + won(fs.balance) + ' + 남은 바트 ' + baht(c.cashLeft) + '을 ' + c.rate + '원에 바꾼 ' + won(Math.round(c.cashLeft * c.rate)) + '</div></div></div>' +
-    '<div class="seg-tabs">' + [['list', '🧾 지출 기록'], ['settle', '🤝 정산'], ['fee', '🏦 회비']].map(function (t) {
+    '<div class="seg-tabs folder">' + [['list', '🧾 지출 기록'], ['settle', '🤝 정산'], ['fee', '🏦 회비']].map(function (t) {
       return '<button class="' + (sub === t[0] ? 'on' : '') + '" data-mtab="' + t[0] + '">' + t[1] + '</button>';
-    }).join('') + '</div>';
-  if (sub === 'settle') return head + viewSettle(c);
-  if (sub === 'fee') return head + viewFee();
-  return head + viewExpenseList();
+    }).join('') + '</div><div class="folder-body">';
+  if (sub === 'settle') return head + viewSettle(c) + '</div>';
+  if (sub === 'fee') return head + viewFee() + '</div>';
+  return head + viewExpenseList() + '</div>';
 }
 
 /* 공금 카드의 사람별 줄: "👛 박상천 ฿23,000 · 표상민 ฿29,600 남음" (지갑을 안 고른 공금이 있으면 따로) */
@@ -1843,29 +1857,51 @@ function viewFee() {
   var fees = F.fees, uses = F.uses, paidBy = F.paidBy, paidTotal = F.paidTotal, useTotal = F.useTotal;
   var interest = F.interest, balance = F.balance;
   var unpaid = names.reduce(function (a, n) { return a + Math.max(0, target - paidBy[n]); }, 0);
-  var html =
-    '<div class="sum3"><div><div class="lab">총 납부</div><b>' + wonShort(paidTotal) + '</b><div class="small muted">목표 ' + wonShort(target * names.length) + '</div></div>' +
-    '<div><div class="lab">사용</div><b>' + wonShort(useTotal) + '</b><div class="small muted">이자 등 ' + (interest >= 0 ? '+' : '') + num(interest) + '원</div></div>' +
-    '<div><div class="lab">통장 잔고</div><b>' + wonShort(balance) + '</b><div class="small muted">' + esc(s.fee_asof || '') + ' 기준</div></div></div>' +
-    (unpaid ? '<p class="small" style="color:var(--warn)">아직 들어오지 않은 회비 ' + won(unpaid) + ' — 다 들어오면 잔고 ' + won(balance + unpaid) + '</p>' : '<p class="small" style="color:var(--good)">✅ 모두 완납</p>');
-  html += '<div class="card"><b>👥 회원별 납부 현황</b> <span class="small muted">(1인 목표 ' + won(target) + ')</span>';
-  names.forEach(function (n) {
-    var p = paidBy[n], left = target - p, pct = target ? Math.min(100, p / target * 100) : 0;
-    var rows = fees.filter(function (f) { return f.member === n; });
-    html += '<div class="fee-m"><div class="row between"><b>' + esc(n) + '</b>' +
-      (left > 0 ? '<span class="chip bad">' + won(left) + ' 남음</span>' : '<span class="chip">✅ 완납</span>') + '</div>' +
-      '<div class="bar-bg"><div class="bar-fg' + (left > 0 ? ' warn' : '') + '" style="width:' + pct + '%"></div></div>' +
-      '<div class="fee-tot"><span>총 납부</span><span>' + won(p) + '</span></div>' +
-      rows.slice().sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); }).map(function (f) {
-        var d = String(f.date), lab = /^\d{4}$/.test(d) ? d + '년' : d;
-        return '<div class="fee-y"><span>' + esc(lab) + (S.me.isAdmin ? ' <a href="#" data-feedel="in:' + esc(f.id) + '">✕</a>' : '') + '</span><span>' + won(f.amount) + '</span></div>';
-      }).join('') + '</div>';
-  });
-  html += (S.me.isAdmin ? '<button class="btn sm" data-act="fee-in" style="margin-top:8px">＋ 입금 기록 (관리자)</button>' : '') + '</div>';
-  html += '<div class="card"><b>📤 회비 사용 내역</b>' + uses.map(function (u) {
-    return '<div class="mrow"><div><b>' + esc(u.title) + '</b><div class="small muted">' + esc(u.date) + ' · ' + esc(u.by) + (u.memo ? ' · ' + esc(u.memo) : '') + (S.me.isAdmin ? ' <a href="#" data-feedel="use:' + esc(u.id) + '">✕</a>' : '') + '</div></div><div class="bal">' + won(u.amount) + '</div></div>';
-  }).join('') + (S.me.isAdmin ? '<button class="btn sm" data-act="fee-use" style="margin-top:8px">＋ 사용 기록 (관리자)</button> <button class="btn sm" data-act="fee-bank" style="margin-top:8px">🏦 통장 잔고 맞추기 (관리자)</button>' : '') +
-  '<p class="small muted">환전한 바트(공금)는 여행에서 쓰고, 남은 공금은 돌아와서 회비로 다시 넣으면 됩니다.</p></div>';
+  var fv = S.feeView || 'paid', asof = s.fee_asof ? md(s.fee_asof) + ' 기준' : '';
+  function box(k, lab, val, sub) { return '<button class="fv' + (fv === k ? ' on' : '') + '" data-fv="' + k + '"><div class="lab">' + lab + '</div><b>' + val + '</b><div class="small muted">' + sub + '</div></button>'; }
+  var html = '<div class="sum3">' +
+    box('paid', '총 납부', wonShort(paidTotal), '목표 ' + wonShort(target * names.length)) +
+    box('use', '사용', wonShort(useTotal), uses.length + '건') +
+    box('bank', '통장 잔고', wonShort(balance), asof) + '</div>' +
+    '<p class="small muted" style="margin:0 2px 6px;text-align:center">위 칸을 누르면 아래 내용이 바뀌어요</p>';
+  var unpaidRows = unpaid
+    ? '<div class="kv" style="color:var(--warn)"><span>안 들어온 회비</span><b>' + won(unpaid) + '</b></div>' +
+      '<div class="kv" style="color:var(--warn)"><span>다 들어오면 잔고</span><b>' + won(balance + unpaid) + '</b></div>'
+    : '<div class="kv" style="color:var(--good)"><span>✅ 모두 완납</span><b></b></div>';
+  if (fv === 'paid') {
+    html += '<div class="card"><div class="row between" style="flex-wrap:wrap"><b>👥 회원별 납부 현황</b><span class="small muted" style="white-space:nowrap">1인 목표 ' + won(target) + '</span></div>' +
+      '<div style="margin-top:6px">' + '<div class="kv"><span>총 납부</span><b>' + won(paidTotal) + '</b></div>' + unpaidRows + '</div>';
+    names.forEach(function (n) {
+      var p = paidBy[n], left = target - p, pct = target ? Math.min(100, p / target * 100) : 0;
+      var rows = fees.filter(function (f) { return f.member === n; });
+      html += '<div class="fee-m"><div class="row between"><b>' + esc(n) + '</b>' +
+        (left > 0 ? '<span class="chip bad">' + won(left) + ' 남음</span>' : '<span class="chip">✅ 완납</span>') + '</div>' +
+        '<div class="bar-bg"><div class="bar-fg' + (left > 0 ? ' warn' : '') + '" style="width:' + pct + '%"></div></div>' +
+        '<div class="fee-tot"><span>총 납부</span><span>' + won(p) + '</span></div>' +
+        rows.slice().sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); }).map(function (f) {
+          var d = String(f.date), lab = /^\d{4}$/.test(d) ? d + '년' : d;
+          return '<div class="fee-y"><span>' + esc(lab) + (S.me.isAdmin ? ' <a href="#" data-feedel="in:' + esc(f.id) + '">✕</a>' : '') + '</span><span>' + won(f.amount) + '</span></div>';
+        }).join('') + '</div>';
+    });
+    html += (S.me.isAdmin ? '<button class="btn sm" data-act="fee-in" style="margin-top:8px">＋ 입금 기록 (관리자)</button>' : '') + '</div>';
+  } else if (fv === 'use') {
+    html += '<div class="card"><b>📤 회비 사용 내역</b>' +
+      '<div style="margin-top:6px"><div class="kv"><span>사용 합계</span><b>' + won(useTotal) + '</b></div></div>' +
+      (uses.length ? uses.map(function (u) {
+        return '<div class="mrow"><div><b>' + esc(u.title) + '</b><div class="small muted">' + esc(u.date) + ' · ' + esc(u.by) + (u.memo ? ' · ' + esc(u.memo) : '') + (S.me.isAdmin ? ' <a href="#" data-feedel="use:' + esc(u.id) + '">✕</a>' : '') + '</div></div><div class="bal">' + won(u.amount) + '</div></div>';
+      }).join('') : '<p class="muted small">아직 사용 기록이 없습니다.</p>') +
+      (S.me.isAdmin ? '<button class="btn sm" data-act="fee-use" style="margin-top:8px">＋ 사용 기록 (관리자)</button>' : '') + '</div>';
+  } else {
+    html += '<div class="card"><b>🏦 통장 잔고</b>' + (asof ? ' <span class="small muted">(' + esc(s.fee_asof) + ' 기준)</span>' : '') +
+      '<div style="margin-top:6px">' +
+      '<div class="kv"><span>총 납부</span><b>' + won(paidTotal) + '</b></div>' +
+      '<div class="kv"><span>이자 등</span><b>' + (interest >= 0 ? '+' : '−') + won(Math.abs(interest)) + '</b></div>' +
+      '<div class="kv"><span>사용</span><b>−' + won(useTotal) + '</b></div>' +
+      '<div class="kv" style="font-size:calc(17px*var(--fs))"><span><b>통장 잔고</b></span><b style="color:var(--pri)">' + won(balance) + '</b></div>' +
+      unpaidRows + '</div>' +
+      (S.me.isAdmin ? '<button class="btn sm" data-act="fee-bank" style="margin-top:8px">🏦 통장 잔고 맞추기 (관리자)</button>' : '') +
+      '<p class="small muted" style="margin-top:8px">환전한 바트(공금)는 여행에서 쓰고, 남은 공금은 돌아와서 회비로 다시 넣으면 됩니다.</p></div>';
+  }
   return html;
 }
 
@@ -2365,6 +2401,7 @@ function bindMain() {
   els('[data-scan]', m).forEach(function (inp) { inp.onchange = function () { var f = inp.files && inp.files[0]; if (f) scanScorecard(f); inp.value = ''; }; });
   els('[data-cards]', m).forEach(function (a) { a.onclick = function (ev) { ev.preventDefault(); showCards(a.dataset.cards); }; });
   // 경비
+  els('[data-fv]', m).forEach(function (b) { b.onclick = function () { S.feeView = b.dataset.fv; renderMain(); }; });
   els('[data-mtab]', m).forEach(function (b) { b.onclick = function () { S.moneyTab = b.dataset.mtab; S.expSel = null; renderMain(); }; });
   els('[data-exp]', m).forEach(function (b) {
     var find = function () { return (S.D.expenses || []).filter(function (x) { return x.id === b.dataset.exp; })[0]; };
