@@ -375,7 +375,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-19';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-20';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -739,7 +739,7 @@ function fxHtml() {
     (rate ? '<div class="small muted" style="text-align:right">' + esc(fx.date) + ' 기준' + (fx.fallback ? ' (고정값)' : '') + '</div>' : '') +
     '<div class="fx-grid" style="margin-top:10px"><input class="inp" id="fxa" inputmode="decimal" placeholder="฿ THB">' +
     '<span>⇄</span><input class="inp" id="fxb" inputmode="numeric" placeholder="원"></div>' +
-    '<p class="small muted" style="margin:6px 0 0;white-space:nowrap">정산 환율 1' + esc(cur) + ' = ' + esc(s.fallback_rate) + '원</p></div>';
+    '<p class="small muted" style="margin:6px 0 0;white-space:nowrap">정산 환율 1' + esc(cur) + ' = ' + esc(settleRate()) + '원</p></div>';
 }
 
 /* ─── 전체 요약 ─── */
@@ -1724,6 +1724,10 @@ function expenseForm(e, preset) {
   if (el('#x-ok', sh)) el('#x-ok', sh).onclick = function () {
     var thb = parseFloat(tIn.value.replace(/,/g, '')), krw = parseFloat(kIn.value.replace(/,/g, ''));
     if (!(thb > 0)) { el('#x-msg', sh).textContent = '금액을 적어 주세요.'; return; }
+    if (st.payer !== '공금' && st.kind === '일부지원') {
+      var sup = parseFloat(el('#x-sup', sh).value.replace(/,/g, ''));
+      if (!(sup > 0) || sup >= thb) { el('#x-msg', sh).textContent = '지원한 금액은 0보다 크고 전체 금액(' + thb + '바트)보다 작게 적어 주세요.'; return; }
+    }
     var out = { id: isNew ? undefined : e.id, date: el('#x-date', sh).value, item_id: e.item_id || '', category: st.cat, title: el('#x-title', sh).value,
       thb: thb, krw: krw || Math.round(thb * st.rate), rate: st.rate, input_cur: st.inCur, payer: st.payer, kind: st.kind,
       support_thb: st.kind === '일부지원' ? parseFloat(el('#x-sup', sh).value.replace(/,/g, '')) : '', participants: st.parts, memo: el('#x-memo', sh).value, receipt_id: st.receipt || '' };
@@ -1877,12 +1881,17 @@ function viewInfo() {
       '<div class="row wrap-row">' +
       (s.hotel_phone ? '<a class="btn sm pri" href="' + tel(s.hotel_phone) + '">📞 숙소 전화 ' + esc(s.hotel_phone) + '</a>' : '') +
       (s.hotel_lat ? '<a class="btn sm" target="_blank" href="' + esc(gmapOpen(hotel)) + '">🗺️ 지도 열기</a><a class="btn sm" target="_blank" href="' + esc(gmapNearby(hotel)) + '">🍽️ 주변 맛집</a>' : '') + '</div></div>' +
-    '<div class="card"><b>💡 현지 팁</b>' + S.D.tips.map(function (t) { return '<div style="border-top:1px solid var(--line);padding:8px 0;margin-top:6px"><b class="small">' + esc(t.title) + '</b><div class="small">' + esc(t.text) + '</div></div>'; }).join('') + '</div>';
+    '<div class="card"><b>💡 현지 팁</b>' + S.D.tips.filter(function (t) { return !/태국어/.test(t.title); }).map(function (t) { /* 태국어는 '태국어' 탭에 따로 있음 */ return '<div style="border-top:1px solid var(--line);padding:8px 0;margin-top:6px"><b class="small">' + esc(t.title) + '</b><div class="small">' + esc(t.text) + '</div></div>'; }).join('') + '</div>';
   if (tab === 'hotel') return tabs + hotelHtml;
   var callHtml = Object.keys(groups).map(function (g) {
       return '<div class="card"><b>📞 ' + esc(g) + '</b>' + groups[g].map(function (c) {
-        return '<div class="row between" style="border-top:1px solid var(--line);padding:8px 0;margin-top:6px;flex-wrap:nowrap"><div style="flex:1;min-width:0"><div>' + esc(c.name) + '</div>' + (c.note ? '<div class="small muted">' + esc(c.note) + '</div>' : '') + '</div>' +
-          '<a class="btn sm pri" style="white-space:nowrap;flex-shrink:0" href="' + tel(c.phone) + '">' + esc(c.phone) + '</a></div>';
+        // "공항 미팅 담당 (05~19시)" → 이름 한 줄 + 괄호 안 내용은 메모 줄로 (좁은 폰 화면에서 어색하게 줄바꿈되지 않게)
+        var mm = String(c.name).match(/^(.*?)\s*\(([^)]*)\)\s*$/), nm = mm ? mm[1] : c.name;
+        var sub = [mm ? mm[2] : '', c.note].filter(Boolean).join(' · ');
+        // 이름은 한 줄 전체, 그 아래 왼쪽 메모 · 오른쪽 전화 버튼
+        return '<div style="border-top:1px solid var(--line);padding:8px 0;margin-top:6px"><div>' + esc(nm) + '</div>' +
+          '<div class="row between" style="flex-wrap:nowrap;align-items:center;margin-top:2px"><div class="small muted" style="flex:1;min-width:0">' + esc(sub) + '</div>' +
+          '<a class="btn sm pri" style="white-space:nowrap;flex-shrink:0" href="' + tel(c.phone) + '">' + esc(c.phone) + '</a></div></div>';
       }).join('') + '</div>';
     }).join('');
   if (tab === 'call') return tabs + callHtml;
@@ -1891,7 +1900,7 @@ function viewInfo() {
       '<p class="small muted" style="margin:4px 0">한 번만 해 두면 카톡 링크를 찾지 않고 아이콘만 눌러 바로 열립니다.</p>' +
       '<ol class="small" style="padding-left:20px;margin:6px 0">' +
         '<li><b>카톡에서 열었다면</b>: 오른쪽 아래(또는 위) <b>⋮</b> → <b>다른 브라우저로 열기</b> → <b>Chrome</b></li>' +
-        '<li>Chrome 오른쪽 위 <b>⋮</b> → <b>홈 화면에 추가</b> → 이름 <b>골프여행</b> → <b>추가</b></li>' +
+        '<li>Chrome 오른쪽 위 <b>⋮</b> → <b>홈 화면에 추가</b> → <b>설치</b> (설치가 없으면 추가)</li>' +
         '<li>삼성 인터넷이라면: 아래 <b>≡</b> → <b>현재 페이지 추가</b> → <b>홈 화면</b></li>' +
       '</ol><p class="small muted">⛳ 아이콘이 생깁니다. 처음 한 번은 PIN을 다시 넣어야 할 수 있습니다.</p>' +
       '<button class="btn sm" data-act="copy-link">🔗 앱 링크 복사</button>' +
