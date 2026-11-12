@@ -191,7 +191,8 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .stepper button{width:36px;height:44px;flex:0 0 36px;border-radius:10px;border:1px solid var(--line);background:var(--bg);font-size:calc(20px*var(--fs));padding:0}
 .stepper input{width:54px;min-width:0;height:50px;text-align:center;font-size:calc(24px*var(--fs));font-weight:800;border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:0}
 .sum{font-size:calc(30px*var(--fs));font-weight:900;color:var(--pri)}
-.holes{display:grid;grid-template-columns:repeat(9,1fr);gap:4px;margin-top:8px}
+.holes{display:grid;grid-template-columns:repeat(9,1fr) 1.35fr;gap:4px;margin-top:8px}
+.holes .h.sum output{display:flex;align-items:center;justify-content:center;width:100%;height:42px;border-radius:8px;background:var(--pri-soft);color:var(--pri);font-weight:800;font-size:calc(16px*var(--fs))}
 .holes .h{display:flex;flex-direction:column;align-items:center}
 .holes .h span{font-size:calc(11px*var(--fs));color:var(--sub)}
 .holes input{width:100%;height:42px;text-align:center;font-size:calc(17px*var(--fs));font-weight:700;border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:0}
@@ -375,7 +376,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-21';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-22';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1175,9 +1176,10 @@ function viewScore() {
       ? '<div class="sc-big" style="margin-top:12px"><div><div class="lab">전반</div>' + stepper('front', tt.f) + '</div><div><div class="lab">후반</div>' + stepper('back', tt.b) + '</div>' +
         '<div class="sc-total"><div class="lab">합계</div><div class="sum" id="sum">' + (tt.f !== null || tt.b !== null ? tt.t : '-') + '</div></div></div>'
       : '<div class="holes">' + holes.map(function (h, i) {
-          return (i === 9 ? '</div><div class="holes">' : '') + '<div class="h"><span>' + (i + 1) + (pars[i] ? ' (P' + pars[i] + ')' : '') + '</span><input inputmode="numeric" maxlength="2" data-hole="' + i + '" value="' + esc(h) + '"></div>';
+          return (i === 9 ? '</div><div class="holes">' : '') + '<div class="h"><span>' + (i + 1) + (pars[i] ? ' (P' + pars[i] + ')' : '') + '</span><input inputmode="numeric" maxlength="2" data-hole="' + i + '" value="' + esc(h) + '"></div>' +
+            (i === 8 ? sumCell('전반', 'id="hf"', tt.f) : i === 17 ? sumCell('후반', 'id="hb"', tt.b) : '');
         }).join('') + '</div>' +
-        '<div class="row between" style="margin-top:10px"><span>전반 <b id="hf">' + (tt.f === null ? '-' : tt.f) + '</b> · 후반 <b id="hb">' + (tt.b === null ? '-' : tt.b) + '</b></span><span class="sum" id="sum">' + (tt.f !== null || tt.b !== null ? tt.t : '-') + '</span></div>') +
+        '<div class="row between" style="margin-top:10px"><span class="muted">합계</span><span class="sum" id="sum">' + (tt.f !== null || tt.b !== null ? tt.t : '-') + '</span></div>') +
     '<div class="row between" style="margin-top:8px"><span class="save-st muted" id="sst">' + esc(S.saveState) + '</span>' +
       (who !== S.me.name ? '<button class="btn sm" data-for="">내 스코어로 돌아가기</button>' : '') + '</div></div>';
 
@@ -1321,7 +1323,8 @@ function reviewScorecard(res, r, shot) {
       '<button class="pick" data-v="relative">파 기준 ± (파 0, 보기 +1, 버디 −1)</button></div>' +
     '<p class="small muted" id="rv-mode-help"></p>' +
     '<div class="card" id="rv-pars"><b>⛳ 홀별 파(PAR)</b> <span class="small muted" id="rv-pars-help"></span>' +
-      '<div class="holes">' + pars.map(function (v, k) { return (k === 9 ? '</div><div class="holes">' : '') + '<div class="h"><span>' + (k + 1) + '</span><input inputmode="numeric" maxlength="1" class="' + (cardPars ? 'auto' : '') + '" data-par="' + k + '" value="' + (v || '') + '"></div>'; }).join('') + '</div>' +
+      '<div class="holes">' + pars.map(function (v, k) { return (k === 9 ? '</div><div class="holes">' : '') + '<div class="h"><span>' + (k + 1) + '</span><input inputmode="numeric" maxlength="1" class="' + (cardPars ? 'auto' : '') + '" data-par="' + k + '" value="' + (v || '') + '"></div>' +
+        (k === 8 ? sumCell('전반', 'data-parsum="f"') : k === 17 ? sumCell('후반', 'data-parsum="b"') : ''); }).join('') + '</div>' +
       '<div class="small" id="rv-par-sum" style="margin-top:4px"></div></div>' +
     '<p class="small"><b style="background:var(--auto);padding:0 4px;border-radius:4px">노란 칸</b>은 자동으로 읽은 값(카드에 적힌 그대로)입니다. 틀린 칸은 눌러서 고쳐 주세요.</p>' +
     (shot ? '<details><summary class="small">찍은 사진 보기</summary><img class="rimg" src="' + shot + '"></details>' : '');
@@ -1329,10 +1332,11 @@ function reviewScorecard(res, r, shot) {
     var h = p.raw.slice(0, 18); while (h.length < 18) h.push(null);
     var mem = names.indexOf(p.member) >= 0 ? p.member : '';
     html += '<div class="card" data-pl="' + i + '"><div class="row between"><span class="small muted">카드 이름: ' + esc(p.written || '?') + '</span>' +
-      '<select class="inp" data-plm style="width:auto;min-height:40px">' + ['<option value="">(저장 안 함)</option>'].concat(names.map(function (n) { return '<option' + (n === mem ? ' selected' : '') + '>' + esc(n) + '</option>'; })).join('') + '</select></div>' +
+      '<select class="inp" data-plm style="width:auto;min-height:40px">' + ['<option value="">(회원 선택)</option>'].concat(names.map(function (n) { return '<option' + (n === mem ? ' selected' : '') + '>' + esc(n) + '</option>'; })).join('') + '</select></div>' +
       '<div class="holes">' + h.map(function (v, k) {
         var shown = v === null || v === undefined ? '' : (Number(v) > 0 && st.mode === 'relative' ? '+' + v : String(v));
-        return (k === 9 ? '</div><div class="holes">' : '') + '<div class="h"><span>' + (k + 1) + '</span><input inputmode="tel" maxlength="3" class="' + (shown !== '' ? 'auto' : '') + '" data-ph="' + k + '" value="' + shown + '"></div>';
+        return (k === 9 ? '</div><div class="holes">' : '') + '<div class="h"><span>' + (k + 1) + '</span><input inputmode="tel" maxlength="3" class="' + (shown !== '' ? 'auto' : '') + '" data-ph="' + k + '" value="' + shown + '"></div>' +
+          (k === 8 ? sumCell('전반', 'data-psum="f"') : k === 17 ? sumCell('후반', 'data-psum="b"') : '');
       }).join('') + '</div>' +
       '<div class="small" data-pchk style="margin-top:6px"></div></div>';
   });
@@ -1365,6 +1369,8 @@ function reviewScorecard(res, r, shot) {
     var empty = raw.filter(function (v) { return v === null; }).length;
     card.querySelector('[data-pchk]').innerHTML = msg + (needPar ? ' <span style="color:var(--bad)">⚠️ 파가 빈 홀이 있어 계산할 수 없습니다</span>' : '') +
       (bad.length ? ' <span style="color:var(--bad)">⚠️ ' + bad.join(', ') + '와 다름</span>' : '') + (empty ? ' <span style="color:var(--warn)">빈 칸 ' + empty + '개</span>' : '');
+    card.querySelector('[data-psum="f"]').textContent = f === null ? '-' : f;
+    card.querySelector('[data-psum="b"]').textContent = b === null ? '-' : b;
     card.classList.toggle('sum-bad', bad.length > 0 || needPar);
     return { strokes: s, needPar: needPar };
   }
@@ -1374,6 +1380,8 @@ function reviewScorecard(res, r, shot) {
       ? '파 기준으로 적은 카드입니다. 아래 홀별 파에 더해서 실제 타수로 바꿔 저장합니다. (파 = 0 또는 -, 보기 = 1, 버디 = -1)'
       : '적힌 숫자를 그대로 타수로 저장합니다.';
     var pv = parVals(), filledPars = pv.filter(Boolean).length;
+    var pf = sumN(pv, 0, 9), pb = sumN(pv, 9, 18);
+    el('[data-parsum="f"]', sh).textContent = pf === null ? '-' : pf; el('[data-parsum="b"]', sh).textContent = pb === null ? '-' : pb;
     el('#rv-pars-help', sh).textContent = st.mode === 'relative' ? (filledPars < 18 ? '- 파 기준 방식은 18홀 파가 모두 있어야 합니다' : '') : '(참고용, 비어 있어도 됨)';
     el('#rv-par-sum', sh).innerHTML = filledPars === 18 ? '파 합계 <b>' + pv.reduce(function (a, b) { return a + b; }, 0) + '</b>' + (cardPars ? ' · 카드에서 읽음' : savedPars.length === 18 ? ' · 저장된 값' : '') : '';
     el('#rv-pars', sh).classList.toggle('sum-bad', st.mode === 'relative' && filledPars < 18);
@@ -1421,6 +1429,8 @@ function holes18(raw) {
   if (a.length >= 19) a = a.slice(0, 18);                         // 그 뒤 TOTAL 등
   return a;
 }
+/* 9홀 옆 합계 칸 (전반 · 후반) */
+function sumCell(label, attr, v) { return '<div class="h sum"><span>' + label + '</span><output ' + attr + '>' + (v === null || v === undefined || v === '' ? '-' : v) + '</output></div>'; }
 function sumN(a, s, e) { var t = 0, any = false; for (var i = s; i < e; i++) if (a[i] !== null && a[i] !== undefined && a[i] !== '') { t += Number(a[i]); any = true; } return any ? t : null; }
 function showCards(rid) {
   var r = S.D.rounds.filter(function (x) { return x.round_id === rid; })[0];
