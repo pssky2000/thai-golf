@@ -192,6 +192,16 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .stepper input{width:54px;min-width:0;height:50px;text-align:center;font-size:calc(24px*var(--fs));font-weight:800;border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:0}
 .sum{font-size:calc(30px*var(--fs));font-weight:900;color:var(--pri)}
 .holes{display:grid;grid-template-columns:repeat(9,1fr) 1.35fr;gap:4px;margin-top:8px}
+.picker{position:fixed;left:0;right:0;bottom:0;z-index:70;background:var(--card);border-top:3px solid var(--pri);border-radius:18px 18px 0 0;padding:12px 14px calc(14px + env(safe-area-inset-bottom));box-shadow:0 -8px 24px rgba(0,0,0,.3);max-width:720px;margin:0 auto}
+.picker .pk-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.picker button.v{min-height:58px;border-radius:12px;border:1px solid var(--line);background:var(--bg);font-size:calc(20px*var(--fs));font-weight:800;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1}
+.picker button.v small{font-size:calc(11px*var(--fs));font-weight:600;color:var(--sub);margin-top:2px}
+.picker button.v.par{border:2px solid var(--pri)}
+.picker button.v.on{background:var(--pri);color:var(--pri-ink);border-color:var(--pri)}
+.picker button.v.on small{color:var(--pri-ink)}
+.pk-open .sheet,.pk-open .wrap{padding-bottom:55vh}   /* 고르기 창이 떠도 아래 칸까지 올려 볼 수 있게 */
+.holes input[readonly]{cursor:pointer;caret-color:transparent}
+.holes input.picking{outline:3px solid var(--pri);outline-offset:1px}
 .holes .h.sum output{display:flex;align-items:center;justify-content:center;width:100%;height:42px;border-radius:8px;background:var(--pri-soft);color:var(--pri);font-weight:800;font-size:calc(16px*var(--fs))}
 .holes .h{display:flex;flex-direction:column;align-items:center}
 .holes .h span{font-size:calc(11px*var(--fs));color:var(--sub)}
@@ -376,7 +386,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-23';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-24';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -475,7 +485,7 @@ function sheet(html, onMount, center) {
   if (onMount) onMount(bg.firstChild);
   return bg.firstChild;
 }
-function removeSheets() { els('.sheet-bg').forEach(function (b) { b.remove(); }); }
+function removeSheets() { closePicker(); els('.sheet-bg').forEach(function (b) { b.remove(); }); }
 function closeSheet() { removeSheets(); dropSheetEntry(); }
 function confirmBox(msg, okLabel) {
   return new Promise(function (res) {
@@ -692,6 +702,7 @@ function go(tab) {
 
 function renderMain() {
   var m = el('#main'); if (!m) return;
+  closePicker();
   var h;
   if (S.tab === 'all') h = viewAll();
   else if (S.tab === 'score') h = viewScore();
@@ -1176,7 +1187,7 @@ function viewScore() {
       ? '<div class="sc-big" style="margin-top:12px"><div><div class="lab">전반</div>' + stepper('front', tt.f) + '</div><div><div class="lab">후반</div>' + stepper('back', tt.b) + '</div>' +
         '<div class="sc-total"><div class="lab">합계</div><div class="sum" id="sum">' + (tt.f !== null || tt.b !== null ? tt.t : '-') + '</div></div></div>'
       : '<div class="holes">' + holes.map(function (h, i) {
-          return (i === 9 ? '</div><div class="holes">' : '') + '<div class="h"><span>' + (i + 1) + (pars[i] ? ' (P' + pars[i] + ')' : '') + '</span><input inputmode="numeric" maxlength="2" data-hole="' + i + '" value="' + esc(h) + '"></div>' +
+          return (i === 9 ? '</div><div class="holes">' : '') + '<div class="h"><span>' + (i + 1) + (pars[i] ? ' (P' + pars[i] + ')' : '') + '</span><input readonly maxlength="2" data-hole="' + i + '" data-pv="' + (pars[i] || '') + '" value="' + esc(h) + '"></div>' +
             (i === 8 ? sumCell('전반', 'id="hf"', tt.f) : i === 17 ? sumCell('후반', 'id="hb"', tt.b) : '');
         }).join('') + '</div>' +
         '<div class="row between" style="margin-top:10px"><span class="muted">합계</span><span class="sum" id="sum">' + (tt.f !== null || tt.b !== null ? tt.t : '-') + '</span></div>') +
@@ -1325,7 +1336,7 @@ function reviewScorecard(res, r, shot) {
       '<button class="pick" data-v="relative">파 기준 ± (파 0, 보기 +1, 버디 −1)</button></div>' +
     '<p class="small muted" id="rv-mode-help"></p>' +
     '<div class="card" id="rv-pars"><b>⛳ 홀별 파(PAR)</b> <span class="small muted" id="rv-pars-help"></span>' +
-      '<div class="holes">' + pars.map(function (v, k) { return (k === 9 ? '</div><div class="holes">' : '') + '<div class="h"><span>' + (k + 1) + '</span><input inputmode="numeric" maxlength="1" class="' + (cardPars ? 'auto' : '') + '" data-par="' + k + '" value="' + (v || '') + '"></div>' +
+      '<div class="holes">' + pars.map(function (v, k) { return (k === 9 ? '</div><div class="holes">' : '') + '<div class="h"><span>' + (k + 1) + '</span><input readonly maxlength="1" class="' + (cardPars ? 'auto' : '') + '" data-par="' + k + '" value="' + (v || '') + '"></div>' +
         (k === 8 ? sumCell('전반', 'data-parsum="f"') : k === 17 ? sumCell('후반', 'data-parsum="b"') : ''); }).join('') + '</div>' +
       '<div class="small" id="rv-par-sum" style="margin-top:4px"></div></div>' +
     '<p class="small"><b style="background:var(--auto);padding:0 4px;border-radius:4px">노란 칸</b>은 자동으로 읽은 값(카드에 적힌 그대로)입니다. 틀린 칸은 눌러서 고쳐 주세요.</p>' +
@@ -1337,7 +1348,7 @@ function reviewScorecard(res, r, shot) {
       '<select class="inp" data-plm style="width:auto;min-height:40px">' + ['<option value="">(회원 선택)</option>'].concat(names.map(function (n) { return '<option' + (n === mem ? ' selected' : '') + '>' + esc(n) + '</option>'; })).join('') + '</select></div>' +
       '<div class="holes">' + h.map(function (v, k) {
         var shown = v === null || v === undefined ? '' : (Number(v) > 0 && st.mode === 'relative' ? '+' + v : String(v));
-        return (k === 9 ? '</div><div class="holes">' : '') + '<div class="h"><span>' + (k + 1) + '</span><input inputmode="tel" maxlength="3" class="' + (shown !== '' ? 'auto' : '') + '" data-ph="' + k + '" value="' + shown + '"></div>' +
+        return (k === 9 ? '</div><div class="holes">' : '') + '<div class="h"><span>' + (k + 1) + '</span><input readonly maxlength="3" class="' + (shown !== '' ? 'auto' : '') + '" data-ph="' + k + '" value="' + shown + '"></div>' +
           (k === 8 ? sumCell('전반', 'data-psum="f"') : k === 17 ? sumCell('후반', 'data-psum="b"') : '');
       }).join('') + '</div>' +
       '<div class="small" data-pchk style="margin-top:6px"></div></div>';
@@ -1431,6 +1442,72 @@ function holes18(raw) {
   if (a.length >= 19) a = a.slice(0, 18);                         // 그 뒤 TOTAL 등
   return a;
 }
+/* ═════════ 타수 고르기 창 (홀 칸을 누르면 숫자 목록이 아래에서 올라옴) ═════════
+ * 키보드 대신 큰 버튼으로 고름. 고르면 다음 홀로 자동으로 넘어감.
+ *  - 내 스코어 홀별(data-hole): 타수 1~12, 파를 알면 버디·파·보기 이름도 표시
+ *  - 사진 인식 확인(data-ph): 카드 방식이 '파 기준 ±'면 -2~+6, 아니면 타수
+ *  - 홀별 파(data-par): 3~6 */
+var PK_NAME = { '-3': '알바트로스', '-2': '이글', '-1': '버디', '0': '파', '1': '보기', '2': '더블', '3': '트리플' };
+function closePicker() { var p = el('.picker'); if (p) p.remove(); document.body.classList.remove('pk-open'); els('.picking').forEach(function (x) { x.classList.remove('picking'); }); }
+function pickerFor(inp) {
+  var sh = inp.closest('.sheet') || document;
+  if (inp.hasAttribute('data-par')) {
+    var k = Number(inp.dataset.par);
+    return { title: (k + 1) + '번 홀 파', vals: [3, 4, 5, 6].map(function (v) { return { v: String(v), big: v }; }), next: el('[data-par="' + (k + 1) + '"]', sh) };
+  }
+  var rel = false, par = 0, i, next;
+  if (inp.hasAttribute('data-ph')) {
+    i = Number(inp.dataset.ph);
+    var m = el('#rv-mode .pick.on', sh); rel = !!m && m.dataset.v === 'relative';
+    var pi = el('[data-par="' + i + '"]', sh); par = pi ? Number(pi.value) || 0 : 0;
+    next = el('[data-ph="' + (i + 1) + '"]', inp.closest('[data-pl]') || sh);
+  } else {
+    i = Number(inp.dataset.hole); par = Number(inp.dataset.pv) || 0;
+    next = el('[data-hole="' + (i + 1) + '"]');
+  }
+  var vals = [];
+  if (rel) for (var d = -2; d <= 6; d++) vals.push({ v: d > 0 ? '+' + d : String(d), big: d > 0 ? '+' + d : d, sub: PK_NAME[d] || '', par: d === 0 });
+  else for (var n = 1; n <= 12; n++) vals.push({ v: String(n), big: n, sub: par ? (PK_NAME[n - par] || '') : '', par: par && n === par });
+  return { title: (i + 1) + '번 홀' + (par ? ' · 파 ' + par : ''), vals: vals, next: next };
+}
+function openPicker(inp) {
+  closePicker();
+  var cfg = pickerFor(inp), cur = String(inp.value).trim();
+  inp.classList.add('picking');
+  var p = document.createElement('div');
+  p.className = 'picker';
+  p.innerHTML = '<div class="row between" style="flex-wrap:nowrap"><b style="white-space:nowrap">' + esc(cfg.title) + '</b><span class="small muted" style="white-space:nowrap">고르면 다음 홀로</span></div>' +
+    '<div class="pk-grid">' + cfg.vals.map(function (x) {
+      return '<button class="v' + (x.par ? ' par' : '') + (String(x.v) === cur ? ' on' : '') + '" data-pv="' + esc(x.v) + '">' + esc(x.big) + (x.sub ? '<small>' + esc(x.sub) + '</small>' : '') + '</button>';
+    }).join('') + '</div>' +
+    '<div class="row" style="margin-top:10px"><button class="btn" data-pk="clear" style="flex:1">지우기</button><button class="btn pri" data-pk="close" style="flex:1">닫기</button></div>';
+  document.body.appendChild(p);
+  document.body.classList.add('pk-open');
+  // 고르는 칸이 고르기 창에 가리지 않게 위로 올림
+  var pr = p.getBoundingClientRect(), ir = inp.getBoundingClientRect(), box = inp.closest('.sheet');
+  var dy = ir.bottom > pr.top - 16 ? ir.bottom - (pr.top - 16) : ir.top < 70 ? ir.top - 70 : 0;
+  if (dy) { if (box) box.scrollTop += dy; else window.scrollBy(0, dy); }
+  function set(v) {
+    inp.value = v;
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  els('[data-pv]', p).forEach(function (b) {
+    b.onclick = function () {
+      set(b.dataset.pv);
+      var nx = cfg.next;
+      if (nx && document.body.contains(nx)) openPicker(nx); else closePicker();
+    };
+  });
+  el('[data-pk="clear"]', p).onclick = function () { set(''); openPicker(inp); };
+  el('[data-pk="close"]', p).onclick = closePicker;
+}
+document.addEventListener('click', function (e) {
+  var inp = e.target.closest && e.target.closest('input[data-hole],input[data-ph],input[data-par]');
+  if (inp) { e.preventDefault(); openPicker(inp); return; }
+  // 다른 곳을 누르면 고르기 창만 닫음 (뒤의 확인 창까지 닫히지 않게 그 누름은 여기서 끝냄)
+  if (el('.picker') && !e.target.closest('.picker')) { closePicker(); e.preventDefault(); e.stopPropagation(); }
+}, true);
+
 /* 9홀 옆 합계 칸 (전반 · 후반) */
 function sumCell(label, attr, v) { return '<div class="h sum"><span>' + label + '</span><output ' + attr + '>' + (v === null || v === undefined || v === '' ? '-' : v) + '</output></div>'; }
 function sumN(a, s, e) { var t = 0, any = false; for (var i = s; i < e; i++) if (a[i] !== null && a[i] !== undefined && a[i] !== '') { t += Number(a[i]); any = true; } return any ? t : null; }
@@ -2273,6 +2350,7 @@ if (BACK_OK) window.addEventListener('popstate', function () {
     if (el('.sheet-bg')) openSheetEntry();   // 그 사이 다른 창이 열렸으면 다시 칸을 넣음
     return;
   }
+  if (el('.picker')) { closePicker(); if (el('.sheet-bg')) openSheetEntry(); return; }   // 타수 고르기 창만 닫기
   if (el('.sheet-bg')) { removeSheets(); return; }   // 뒤로가기 → 창만 닫기
   if (history.state && (history.state.tripTrap || history.state.tripSheet)) history.back();   // 남은 빈 칸은 건너뜀
 });
@@ -2286,7 +2364,10 @@ function appEntries() {
   var path = function (u) { try { return new URL(u).pathname.replace(/index\.html$/i, '').replace(/Index\.html$/, ''); } catch (e) { return ''; } };
   var me = path(location.href);
   while (j > 0 && es[j - 1] && path(es[j - 1].url) === me) j--;
-  return { idx: idx, first: j, before: j > 0 || history.length > es.length };
+  // 옛 앱 기록 = 다른 페이지 로드의 기록. 같은 페이지 안의 기록(창 열 때 넣은 칸)은 옛 기록이 아님
+  var old = false;
+  for (var k = j; k < idx; k++) if (es[k] && !es[k].sameDocument) old = true;
+  return { idx: idx, first: j, old: old, before: j > 0 || history.length > es.length };
 }
 var jumpAt = 0;
 (function fixOldEntries() {
@@ -2300,15 +2381,16 @@ var jumpAt = 0;
     else if (r.idx > r.first) history.go(-(r.idx - r.first));
     return;
   }
-  if (r.idx > r.first) {   // 새로 열었는데 앞에 옛 앱 기록이 있음
+  if (r.old && r.idx > r.first) {   // 새로 열었는데 앞에 옛 앱 기록이 있음
     try { sessionStorage.setItem('trip_jump', String(Date.now())); } catch (e) {}
     jumpAt = Date.now();
     history.go(-(r.idx - r.first));
   }
 })();
 
-if (jumpAt) setTimeout(function () { if (!S.D && !el('.login')) start(); }, 2000);   // 옮기기가 안 되면 그냥 시작
-else start();
+start();   // 옮기는 중이어도 일단 시작 (옮기기가 안 돼도 화면이 멈추지 않게)
+// 창이 열린 채 새로고침하면 창 없는 '창 칸'이 남음 → 조용히 빼 둠 (뒤로가기 한 번 헛누름 방지)
+if (BACK_OK && !jumpAt && history.state && (history.state.tripSheet || history.state.tripTrap)) { popIgnore = 1; history.back(); }
 })();
 </script>
 </body>
