@@ -205,7 +205,7 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .grp-chips button{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:5px 0;font:inherit;font-size:calc(12px*var(--fs));font-weight:700;color:var(--sub)}
 .grp-chips button.full{background:var(--pri-soft);color:var(--pri);border-color:var(--pri-soft)}
 .grp-chips button.part{background:var(--auto)}
-.grp-chips button.on{outline:3px solid var(--pri);outline-offset:-1px;color:var(--ink)}
+.grp-chips button.on{background:var(--pri);color:var(--pri-ink);border-color:var(--pri);box-shadow:0 0 0 3px var(--card),0 0 0 5px var(--pri);font-size:calc(14px*var(--fs));font-weight:900;position:relative;z-index:1}   /* 지금 홀: 꽉 찬 초록 + 바깥 고리 */
 .grp-row{display:grid;grid-template-columns:minmax(0,1fr) 84px;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
 .grp-row .nm{font-weight:800;font-size:calc(17px*var(--fs));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .grp-row .nm small{display:block;font-weight:500;font-size:calc(12px*var(--fs));color:var(--sub)}
@@ -461,7 +461,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-46';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-47';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1383,7 +1383,7 @@ function scoreTables(r) {
     rows.sort(function (a, b) { return (a.t && a.t.done ? a.t.t : 999) - (b.t && b.t.done ? b.t.t : 999); }).map(function (x) {
       var t = x.t;
       var crown = t && t.done && t.t === best ? ' 👑' : '';
-      return '<tr' + (crown ? ' class="first"' : '') + '><td>' + esc(x.n) + crown + '</td><td>' + (t && t.f !== null ? t.f : '-') + '</td><td>' + (t && t.b !== null ? t.b : '-') + '</td><td><b>' + (t && (t.f !== null || t.b !== null) ? t.t : '-') + '</b>' + (t && t.holes !== null && t.holes < 18 ? '<div class="small muted">' + t.holes + '홀</div>' : '') + '</td>' +
+      return '<tr' + (crown ? ' class="first"' : '') + '><td>' + esc(x.n) + crown + '</td><td>' + (t && t.f !== null ? t.f : '-') + '</td><td>' + (t && t.b !== null ? t.b : '-') + '</td><td><b>' + (t && (t.f !== null || t.b !== null) ? t.t : '-') + '</b>' + (t && t.holes !== null && t.holes > 0 && t.holes < 18 ? '<div class="small muted">' + t.holes + '홀</div>' : '') + '</td>' +
         '<td>' + (x.n !== S.me.name ? '<button class="btn sm ghost" data-for="' + esc(x.n) + '">대신 입력</button>' : '<button class="btn sm ghost" data-editme>수정</button>') + '</td></tr>';
     }).join('') + '</table></div></div>';
   return table + overallHtml();
