@@ -202,6 +202,7 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .pk-open .sheet,.pk-open .wrap{padding-bottom:55vh}   /* 고르기 창이 떠도 아래 칸까지 올려 볼 수 있게 */
 .holes input[readonly]{cursor:pointer;caret-color:transparent}
 .holes input.picking{outline:3px solid var(--pri);outline-offset:1px}
+.cash2 .spent{color:var(--warn);font-weight:800;font-size:calc(16px*var(--fs))}   /* 쓴 돈은 주황으로 구분 */
 .holes .h.sum output{display:flex;align-items:center;justify-content:center;width:100%;height:42px;border-radius:8px;background:var(--pri-soft);color:var(--pri);font-weight:800;font-size:calc(16px*var(--fs))}
 .holes .h{display:flex;flex-direction:column;align-items:center}
 .holes .h span{font-size:calc(11px*var(--fs));color:var(--sub)}
@@ -386,7 +387,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-27';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-28';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1596,7 +1597,7 @@ function viewMoney() {
   var pct = c.cash ? Math.max(0, Math.min(100, c.cashLeft / c.cash * 100)) : 0;
   var head =
     '<div class="card cash"><b style="white-space:nowrap">💰 공금 남은 돈</b>' + (S.D.settings.common_cash_note ? '<div class="small muted">' + esc(S.D.settings.common_cash_note) + '</div>' : '') +
-    '<div class="cash2"><div><div class="lab">💵 바트 현금</div><b>' + baht(c.cashLeft) + '</b><div class="small muted">처음 ' + baht(c.cash) + '</div><div class="small">쓴 돈 <b>' + baht(c.common) + '</b></div></div>' +
+    '<div class="cash2"><div><div class="lab">💵 바트 현금</div><div class="small muted">남은 돈</div><b>' + baht(c.cashLeft) + '</b><div class="small muted">처음 ' + baht(c.cash) + '</div><div class="small">쓴 돈 <span class="spent">' + baht(c.common) + '</span></div></div>' +
     '<div><div class="lab">🏦 회비 통장</div><b>' + won(fs.balance) + '</b><div class="small muted">' + esc(S.D.settings.fee_asof || '') + ' 기준</div></div></div>' +
     '<div class="bar-bg" style="margin-top:10px"><div class="bar-fg" style="width:' + pct + '%"></div></div>' +
     '<div style="margin-top:6px">회비 예상 잔액 <b>' + won(Math.round(c.cashLeft * c.rate) + fs.balance) + '</b></div>' +
@@ -1737,6 +1738,7 @@ function expenseForm(e, preset) {
   var st = { cat: e.category, payer: e.payer, kind: e.kind, parts: partsOf(e).slice(), receipt: e.receipt_id, inCur: e.input_cur || 'THB', rate: Number(e.rate) || liveRate() };
   var html =
     '<h3>' + (isNew ? '＋ 지출 적기' : (canEdit ? '✏️ 지출 고치기' : '🧾 지출')) + '</h3>' +
+    '<div class="row" style="margin-bottom:8px"><label class="lb" style="margin:0;white-space:nowrap">📅 날짜</label><select class="inp" id="x-date" style="flex:1">' + ds.map(function (d) { return '<option value="' + d + '"' + (d === e.date ? ' selected' : '') + '>' + md(d) + '(' + wd(d) + ')</option>'; }).join('') + '</select></div>' +
     '<div class="rc-box"><div class="row wrap-row"><label class="btn pri sm">📷 영수증 찍기<input type="file" accept="image/*" capture="environment" id="x-cam" hidden></label>' +
       '<label class="btn sm">🖼️ 사진에서<input type="file" accept="image/*" id="x-pic" hidden></label></div>' +
       '<div class="rc-row"><div id="x-rimg"></div><span class="small" id="x-rst">' + (st.receipt ? '영수증 있음' : '영수증을 찍으면 금액을 자동으로 채워 드려요') + '</span></div></div>' +
@@ -1751,7 +1753,6 @@ function expenseForm(e, preset) {
     '<p class="small muted" id="x-kind-help"></p></div>' + '<p class="small muted" id="x-cash-note">💰 공금은 다 같이 낸 돈이라 회원끼리 정산하지 않습니다.</p>' +
     '<div id="x-sup-box"><label class="lb">지원한 금액 (바트) — 나머지만 나눕니다</label><input class="inp money" id="x-sup" inputmode="decimal" value="' + esc(e.support_thb) + '"></div>' +
     '<div id="x-parts-box"><label class="lb">함께한 사람 (빠진 사람은 눌러서 해제)</label><div class="grid4" id="x-parts">' + names.map(function (n) { return '<button class="pick' + (st.parts.indexOf(n) >= 0 ? ' on' : '') + '" data-v="' + esc(n) + '">' + esc(n) + '</button>'; }).join('') + '</div></div>' +
-    '<div class="row" style="margin-top:8px"><div style="flex:1"><label class="lb">날짜</label><select class="inp" id="x-date">' + ds.map(function (d) { return '<option value="' + d + '"' + (d === e.date ? ' selected' : '') + '>' + md(d) + '(' + wd(d) + ')</option>'; }).join('') + '</select></div></div>' +
     '<label class="lb">메모</label><textarea class="inp" id="x-memo" rows="2">' + esc(e.memo) + '</textarea>' +
     (e.created_by ? '<p class="small muted">적은 사람: ' + esc(e.created_by) + (e.updated_at ? ' · ' + esc(e.updated_at) : '') + '</p>' : '') +
     '<p class="small" id="x-msg" style="color:var(--bad);min-height:18px"></p>' +
@@ -2050,6 +2051,10 @@ function adminHtml() {
     }).join('') : '<p class="small muted">요청이 없습니다.</p>') + '</div>' +
     '<div class="card"><b>🔍 사진 인식 점검</b><p class="small muted">영수증·스코어카드 자동 인식이 안 될 때 눌러서 결과를 캡처해 주세요.</p><button class="btn sm" data-act="ai-check">점검하기</button></div>' +
     '<div class="card"><b>📜 변경 기록</b><div id="logbox"><button class="btn sm" data-act="log">불러오기</button></div></div>' +
+    '<div class="card"><b>✏️ 회원 이름 바꾸기</b><p class="small muted">점수·지출·회비·정산 기록의 이름도 함께 바뀝니다. 바꾼 회원은 임시 PIN으로 다시 입장합니다(입장해 있는 폰은 그대로).</p>' +
+      '<div class="row" style="margin-top:6px"><select class="inp" id="rn-from" style="flex:1">' + S.D.members.map(function (m) { return '<option>' + esc(m.name) + '</option>'; }).join('') + '</select>' +
+      '<span>→</span><input class="inp" id="rn-to" placeholder="새 이름" style="flex:1;min-width:0"></div>' +
+      '<button class="btn sm pri" data-act="rename" style="margin-top:8px">이름 바꾸기</button></div>' +
     '<div class="card"><b>🔑 PIN 초기화</b><p class="small muted">PIN을 잊은 회원의 PIN을 임시 번호로 바꿉니다. 회원은 다음 입장 때 새 PIN을 정합니다.</p><div class="row wrap-row">' +
       S.D.members.map(function (m) { return '<button class="btn sm" data-reset="' + esc(m.name) + '">' + esc(m.name) + '</button>'; }).join('') + '</div></div>';
 }
@@ -2104,6 +2109,22 @@ function bindMain() {
       else if (a === 'req') requestEdit(null);
       else if (a === 'logout') confirmBox('이 폰에서 나갈까요? 다시 들어올 때 PIN이 필요합니다.', '나가기').then(function (y) { if (!y) return; call('logout').catch(function () {}); logoutLocal(); renderLogin(); });
       else if (a === 'log') loadLog();
+      else if (a === 'rename') {
+        var from = el('#rn-from').value, to = el('#rn-to').value.trim();
+        if (!to) { toast('새 이름을 적어 주세요.'); return; }
+        confirmBox('"' + from + '" → "' + to + '"로 바꿀까요? 모든 기록의 이름이 함께 바뀌고, 이 회원의 PIN은 임시 번호로 바뀝니다.', '바꾸기').then(function (y) {
+          if (!y) return;
+          call('renameMember', { from: from, to: to }).then(function (r) {
+            if (LS.get('trip_last_name', '') === r.from) LS.set('trip_last_name', r.to);
+            if (S.scoreFor === r.from) S.scoreFor = r.to;
+            return loadAll().then(function () {
+              sheet('<h3>✏️ 이름을 바꿨습니다</h3><p><b>' + esc(r.from) + '</b> → <b>' + esc(r.to) + '</b> (기록 ' + r.changed + '칸)</p>' +
+                '<p>' + esc(r.to) + ' 님 임시 PIN: <b style="font-size:24px;letter-spacing:4px">' + esc(r.tempPin) + '</b></p>' +
+                '<p class="small muted">다음에 입장할 때 이 번호를 넣고 새 PIN을 정합니다. 지금 입장해 있는 폰은 그대로 쓸 수 있습니다.</p><button class="btn pri" data-close>확인</button>');
+            });
+          }).catch(function (e) { toast(e.message); });
+        });
+      }
       else if (a === 'score-clear') {
         var who = S.scoreFor || S.me.name;
         confirmBox('이 라운드 ' + (who === S.me.name ? '내' : who + ' 님') + ' 점수를 모두 지울까요? (전·후반·홀별 모두)', '지우기').then(function (y) {
