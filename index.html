@@ -376,7 +376,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-22';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-23';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1282,8 +1282,9 @@ function sumHoles(h, a, b) { var s = 0, any = false; for (var i = a; i < b; i++)
 /* ═════════ 스코어카드 사진 인식 ═════════ */
 function scanScorecard(file) {
   var rid = S.scoreRound, r = S.D.rounds.filter(function (x) { return x.round_id === rid; })[0];
-  var sh = sheet('<h3>📋 스코어카드 읽는 중…</h3><p class="small muted">20~40초 걸릴 수 있습니다. 창을 닫지 말아 주세요.</p><div id="sc-img"></div><p class="small" id="sc-st"></p>');
-  var shot;
+  var sh = sheet('<h3>📋 스코어카드 읽는 중… <span id="sc-sec" class="small muted"></span></h3><p class="small muted">20~40초 걸릴 수 있습니다. 창을 닫지 말아 주세요.</p><div id="sc-img"></div><p class="small" id="sc-st"></p>');
+  var shot, t0 = Date.now();
+  var tick = setInterval(function () { var e = el('#sc-sec', sh); if (!e || !document.body.contains(sh)) return clearInterval(tick); e.textContent = Math.round((Date.now() - t0) / 1000) + '초'; }, 1000);
   shrinkImage(file, 2000, 0.85).then(function (dataUrl) {
     shot = dataUrl;
     el('#sc-img', sh).innerHTML = '<img class="rimg" src="' + dataUrl + '">';
@@ -1291,6 +1292,7 @@ function scanScorecard(file) {
     var rec = call('recognize', { kind: 'scorecard', dataUrl: dataUrl }).then(function (x) { return x.result; }, function (e) { return { _err: e.message }; });
     return Promise.all([up, rec]);
   }).then(function (both) {
+    clearInterval(tick);
     var res = both[1] || {};
     var pars = Array.isArray(res.pars) && res.pars.length === 18 ? res.pars : null;
     call('addCard', { round_id: rid, id: both[0].id, pars: pars }).then(function (x) { S.D.rounds = x.rounds; saveCache(); }).catch(function () {});
@@ -1299,7 +1301,7 @@ function scanScorecard(file) {
       return;
     }
     reviewScorecard(res, r, shot);
-  }).catch(function (e) { el('#sc-st', sh).textContent = '실패: ' + e.message; });
+  }).catch(function (e) { clearInterval(tick); el('#sc-st', sh).textContent = '실패: ' + e.message; });
 }
 
 function reviewScorecard(res, r, shot) {
