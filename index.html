@@ -203,6 +203,10 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .holes input[readonly]{cursor:pointer;caret-color:transparent}
 .holes input.picking{outline:3px solid var(--pri);outline-offset:1px}
 .exp.pressing{background:var(--pri-soft);transition:background .4s}
+.exp .ck{font-size:22px;margin-right:4px;flex-shrink:0}
+.exp.sel{background:var(--bad-soft);border-color:var(--bad)}
+.exp.dis{opacity:.5}
+.sel-bar{position:sticky;top:0;z-index:15;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;background:var(--card);border:2px solid var(--bad);border-radius:14px;padding:8px 10px;margin-top:8px}
 .exp{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .wallets{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:4px}
 .wallets span{white-space:nowrap}
@@ -391,7 +395,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-33';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-34';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -695,6 +699,7 @@ function render() {
 }
 
 function go(tab) {
+  S.expSel = null;
   var wasDay = /^\d{4}-/.test(S.tab), isDay = /^\d{4}-/.test(tab);
   S.tab = tab; LS.set('trip_tab', tab);
   if (isDay) LS.set('trip_day', tab);
@@ -1704,14 +1709,22 @@ function cashMoveForm() {
   };
 }
 
+/* 지출 고르기 모드: 꾹 누르면 시작, 눌러서 여러 개 고르고 한꺼번에 삭제 */
+function canDelExp(e) { return e.created_by === S.me.name || S.me.isAdmin; }
 function viewExpenseList() {
-  var list = expenses(), html = '<button class="btn pri big-btn" data-act="exp-add">＋ 지출 적기</button>';
+  var list = expenses(), sel = S.expSel;
+  var html = sel
+    ? '<div class="sel-bar"><b>☑️ ' + sel.length + '개 골랐어요</b><div class="row"><button class="btn sm" data-act="exp-sel-all">전체</button>' +
+      '<button class="btn sm bad" data-act="exp-sel-del"' + (sel.length ? '' : ' disabled') + '>🗑️ 삭제</button><button class="btn sm" data-act="exp-sel-x">취소</button></div></div>' +
+      '<p class="small muted" style="margin:4px 2px 0">지울 항목을 눌러서 고르세요. ' + (S.me.isAdmin ? '' : '내가 적은 지출만 고를 수 있습니다.') + '</p>'
+    : '<button class="btn pri big-btn" data-act="exp-add">＋ 지출 적기</button><p class="small muted" style="margin:4px 2px 0">💡 지출을 꾹 누르면 여러 개를 골라 지울 수 있어요.</p>';
   if (!list.length) return html + '<p class="muted" style="text-align:center;margin:20px 0">아직 적은 지출이 없습니다.<br>계산할 때마다 위 버튼으로 적어 주세요.</p>';
   var day = '';
   list.forEach(function (e) {
     if (e.date !== day) { day = e.date; html += '<h4 class="day-h">' + md(day) + ' (' + wd(day) + ')</h4>'; }
     var kindChip = e.kind === '지원' ? '<span class="chip gold">🙏 ' + esc(e.payer) + ' 지원</span>' : e.kind === '일부지원' ? '<span class="chip gold">🙏 ' + baht(e.support_thb) + ' 지원</span>' : '';
-    html += '<div class="exp" data-exp="' + esc(e.id) + '"><div class="ic">' + catIcon(e.category) + '</div>' +
+    var on = sel && sel.indexOf(e.id) >= 0, dis = sel && !canDelExp(e);
+    html += '<div class="exp' + (on ? ' sel' : '') + (dis ? ' dis' : '') + '" data-exp="' + esc(e.id) + '">' + (sel ? '<div class="ck">' + (on ? '✅' : dis ? '🔒' : '⬜') + '</div>' : '') + '<div class="ic">' + catIcon(e.category) + '</div>' +
       '<div class="body"><div class="ttl">' + esc(e.title || e.category) + (e.receipt_id ? ' 🧾' : '') + '</div>' +
       '<div class="small muted">' + (e.payer === '공금' ? '💰 공금' + (e.cash_from ? '(' + esc(e.cash_from) + ')' : '') : '👤 ' + esc(e.payer)) + ' · ' + (e.kind === '지원' ? '정산 제외' : partsOf(e).length + '명') + '</div>' + kindChip + '</div>' +
       '<div class="amt"><b>' + baht(e.thb) + '</b><div class="small muted">' + won(e.krw || e.thb * settleRate()) + '</div></div></div>';
@@ -1840,8 +1853,6 @@ function expenseForm(e, preset) {
       '<div class="rc-row"><div id="x-rimg"></div><span class="small" id="x-rst">' + (st.receipt ? '영수증 있음' : '영수증을 찍으면 금액을 자동으로 채워 드려요') + '</span></div></div>' +
     '<label class="lb">금액 (어느 쪽이든 적으면 자동 계산 · 1바트 ≈ ' + st.rate.toFixed(2) + '원)</label>' +
     '<div class="fx-grid x-money"><label class="mwrap"><span class="unit">THB</span><input class="inp money" id="x-thb" inputmode="decimal" placeholder="0" value="' + esc(e.thb) + '"></label><span>⇄</span><label class="mwrap won"><span class="unit">원</span><input class="inp money" id="x-krw" inputmode="numeric" placeholder="0" value="' + esc(e.krw ? num(e.krw) : '') + '"></label></div>' +
-    '<label class="lb">무엇에</label><div class="grid4" id="x-cat">' + CATS.map(function (c) { return '<button class="pick tile' + (c[0] === st.cat ? ' on' : '') + '" data-v="' + c[0] + '"><span class="ti">' + c[1] + '</span><span>' + c[0] + '</span></button>'; }).join('') + '</div>' +
-    '<input class="inp" id="x-title" placeholder="가게 이름이나 내용 (선택)" value="' + esc(e.title) + '" style="margin-top:8px">' +
     '<label class="lb">누가 냈나요</label><div id="x-payer"><button class="pick wide' + (st.payer === '공금' ? ' on' : '') + '" data-v="공금">💰 공금으로 냈어요</button>' +
       '<div class="grid4" style="margin-top:6px">' + names.map(function (n) { return '<button class="pick' + (n === st.payer ? ' on' : '') + '" data-v="' + esc(n) + '">' + esc(n) + '</button>'; }).join('') + '</div></div>' +
     '<div id="x-kind-box"><label class="lb">어떻게 나눌까요</label><div class="grid3" id="x-kind">' +
@@ -1851,6 +1862,8 @@ function expenseForm(e, preset) {
     '<p class="small muted" id="x-cash-note">💰 공금은 다 같이 낸 돈이라 회원끼리 정산하지 않습니다.</p>' +
     '<div id="x-sup-box"><label class="lb">지원한 금액 (바트) — 나머지만 나눕니다</label><input class="inp money" id="x-sup" inputmode="decimal" value="' + esc(e.support_thb) + '"></div>' +
     '<div id="x-parts-box"><label class="lb">함께한 사람 (빠진 사람은 눌러서 해제)</label><div class="grid4" id="x-parts">' + names.map(function (n) { return '<button class="pick' + (st.parts.indexOf(n) >= 0 ? ' on' : '') + '" data-v="' + esc(n) + '">' + esc(n) + '</button>'; }).join('') + '</div></div>' +
+    '<label class="lb">무엇에</label><div class="grid4" id="x-cat">' + CATS.map(function (c) { return '<button class="pick tile' + (c[0] === st.cat ? ' on' : '') + '" data-v="' + c[0] + '"><span class="ti">' + c[1] + '</span><span>' + c[0] + '</span></button>'; }).join('') + '</div>' +
+    '<input class="inp" id="x-title" placeholder="가게 이름이나 내용 (선택)" value="' + esc(e.title) + '" style="margin-top:8px">' +
     '<label class="lb">메모</label><textarea class="inp" id="x-memo" rows="2">' + esc(e.memo) + '</textarea>' +
     (e.created_by ? '<p class="small muted">적은 사람: ' + esc(e.created_by) + (e.updated_at ? ' · ' + esc(e.updated_at) : '') + '</p>' : '') +
     '<p class="small" id="x-msg" style="color:var(--bad);min-height:18px"></p>' +
@@ -1982,22 +1995,6 @@ function expLongPress(row, fire) {
   row.addEventListener('touchend', cancel);
   row.addEventListener('touchcancel', cancel);
   row.addEventListener('contextmenu', function (e) { e.preventDefault(); cancel(); fire(); });
-}
-function expQuickMenu(e) {
-  var mine = e.created_by === S.me.name || S.me.isAdmin;
-  var sh = sheet('<h3>' + catIcon(e.category) + ' ' + esc(e.title || e.category) + '</h3>' +
-    '<p class="muted" style="margin:0 0 12px">' + md(e.date) + '(' + wd(e.date) + ') · ' + baht(e.thb) + ' · ' + (e.payer === '공금' ? '💰 공금' : '👤 ' + esc(e.payer)) + '</p>' +
-    (mine ? '<button class="btn bad" style="width:100%;margin:4px 0" id="q-del">🗑️ 이 지출 삭제</button>'
-          : '<p class="small muted">이 지출은 ' + esc(e.created_by || '다른 회원') + ' 님이 적어서 그분이나 관리자만 지울 수 있습니다.</p>') +
-    '<button class="btn" style="width:100%;margin:4px 0" id="q-edit">✏️ 열어서 보기·고치기</button>' +
-    '<button class="btn ghost" style="width:100%;margin:4px 0" data-close>취소</button>', null, true);
-  el('#q-edit', sh).onclick = function () { expenseForm(e); };
-  if (mine) el('#q-del', sh).onclick = function () {
-    confirmBox(md(e.date) + ' ' + (e.title || e.category) + ' ' + baht(e.thb) + ' 지출을 지울까요?', '삭제').then(function (y) {
-      if (!y) return;
-      call('deleteExpense', { id: e.id }).then(function (r) { S.D.expenses = r.expenses; saveCache(); renderMain(); toast('지웠습니다.'); }).catch(function (err) { toast(err.message); });
-    });
-  };
 }
 
 /* 사진 줄이기 (긴 쪽 maxPx, JPEG) */
@@ -2301,6 +2298,17 @@ function bindMain() {
       else if (a === 'fee-use') feeForm('use');
       else if (a === 'fee-bank') feeBankForm();
       else if (a === 'cash-move') cashMoveForm();
+      else if (a === 'exp-sel-x') { S.expSel = null; renderMain(); }
+      else if (a === 'exp-sel-all') { var mineAll = expenses().filter(canDelExp).map(function (x) { return x.id; }); S.expSel = S.expSel && S.expSel.length === mineAll.length ? [] : mineAll; renderMain(); }
+      else if (a === 'exp-sel-del') {
+        var ids = (S.expSel || []).slice(); if (!ids.length) return;
+        var picked = expenses().filter(function (x) { return ids.indexOf(x.id) >= 0; });
+        var sumT = picked.reduce(function (t, x) { return t + (Number(x.thb) || 0); }, 0);
+        confirmBox('고른 지출 ' + ids.length + '건 (합계 ' + baht(sumT) + ')을 지울까요? 되돌릴 수 없습니다.', ids.length + '건 삭제').then(function (y) {
+          if (!y) return;
+          call('deleteExpenses', { ids: ids }).then(function (r) { S.D.expenses = r.expenses; S.expSel = null; saveCache(); renderMain(); toast(r.deleted + '건 지웠습니다.'); }).catch(function (err) { toast(err.message); });
+        });
+      }
       else if (a === 'copy-link') {
         var url = IN_GAS ? (S.D.app_url || '') : location.href.split(/[?#]/)[0];
         var done = function () { toast('링크를 복사했습니다. Chrome 주소창에 붙여넣으세요.'); };
@@ -2319,11 +2327,25 @@ function bindMain() {
   els('[data-scan]', m).forEach(function (inp) { inp.onchange = function () { var f = inp.files && inp.files[0]; if (f) scanScorecard(f); inp.value = ''; }; });
   els('[data-cards]', m).forEach(function (a) { a.onclick = function (ev) { ev.preventDefault(); showCards(a.dataset.cards); }; });
   // 경비
-  els('[data-mtab]', m).forEach(function (b) { b.onclick = function () { S.moneyTab = b.dataset.mtab; renderMain(); }; });
+  els('[data-mtab]', m).forEach(function (b) { b.onclick = function () { S.moneyTab = b.dataset.mtab; S.expSel = null; renderMain(); }; });
   els('[data-exp]', m).forEach(function (b) {
     var find = function () { return (S.D.expenses || []).filter(function (x) { return x.id === b.dataset.exp; })[0]; };
-    b.onclick = function () { if (Date.now() < expSuppressUntil) return; var e = find(); if (e) expenseForm(e); };
-    expLongPress(b, function () { var e = find(); if (e) expQuickMenu(e); });
+    b.onclick = function () {
+      if (Date.now() < expSuppressUntil) return;
+      var e = find(); if (!e) return;
+      if (S.expSel) {   // 고르기 모드: 누를 때마다 고르기/빼기
+        if (!canDelExp(e)) { toast((e.created_by || '다른 회원') + ' 님이 적은 지출이라 고를 수 없습니다.'); return; }
+        var i = S.expSel.indexOf(e.id); if (i >= 0) S.expSel.splice(i, 1); else S.expSel.push(e.id);
+        renderMain(); return;
+      }
+      expenseForm(e);
+    };
+    expLongPress(b, function () {
+      var e = find(); if (!e) return;
+      if (!S.expSel) S.expSel = [];
+      if (canDelExp(e) && S.expSel.indexOf(e.id) < 0) S.expSel.push(e.id);
+      renderMain();
+    });
   });
   els('[data-mark]', m).forEach(function (b) {
     b.onclick = function () {
