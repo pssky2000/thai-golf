@@ -212,9 +212,6 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .exp.dis{opacity:.5}
 .sel-bar{position:sticky;top:0;z-index:15;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;background:var(--card);border:2px solid var(--bad);border-radius:14px;padding:8px 10px;margin-top:8px}
 .exp{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
-.wallets{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:4px}
-.wallets span{white-space:nowrap}
-.cash2 .spent{color:var(--warn);font-weight:800;font-size:calc(16px*var(--fs))}   /* 쓴 돈은 주황으로 구분 */
 .holes .h.sum output{display:flex;align-items:center;justify-content:center;width:100%;height:42px;border-radius:8px;background:var(--pri-soft);color:var(--pri);font-weight:800;font-size:calc(16px*var(--fs))}
 .holes .h{display:flex;flex-direction:column;align-items:center}
 .holes .h span{font-size:calc(11px*var(--fs));color:var(--sub)}
@@ -357,10 +354,17 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .fee-y{display:flex;justify-content:space-between;font-size:calc(14px*var(--fs));padding:2px 0 2px 8px;color:var(--sub)}
 .fee-tot{display:flex;justify-content:space-between;font-weight:700;margin:4px 0 2px}
 /* 공금 카드: 바트 현금 · 통장 */
-.cash2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;margin-top:8px}
-.cash2>div{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:8px 10px}
-.cash2 .lab{font-size:calc(13px*var(--fs));color:var(--sub);white-space:nowrap}
-.cash2 b{font-size:calc(20px*var(--fs));white-space:nowrap}
+/* 공금 카드: ① 바트 현금(+누가 갖고 있나) ② 회비 통장 ③ 회비 예상 잔액 */
+.cbox{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:8px}
+.ctop{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:0 8px}
+.ctop>b,.ctop>span:last-child{margin-left:auto}
+.cbox .lab{font-size:calc(15px*var(--fs));font-weight:700;white-space:nowrap}
+.cbox .big{font-size:calc(22px*var(--fs));white-space:nowrap}
+.cbox .spent{color:var(--warn);font-weight:800;font-size:calc(17px*var(--fs))}   /* 쓴 돈은 주황으로 구분 */
+.wsub{margin-top:10px;padding-top:8px;border-top:1px dashed var(--line);font-size:calc(13px*var(--fs));color:var(--sub)}
+.wrow{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:4px}
+.wrow b{font-size:calc(17px*var(--fs));white-space:nowrap}
+.ctotal{border:1.5px solid var(--pri)}
 /* 필수 태국어 */
 .thai{border:2px solid var(--pri)}
 .thai-cats{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px}
@@ -399,7 +403,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-37';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-38';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1675,12 +1679,15 @@ function viewMoney() {
   var c = calcSettle(), sub = S.moneyTab || 'list', fs = feeStats();
   var pct = c.cash ? Math.max(0, Math.min(100, c.cashLeft / c.cash * 100)) : 0;
   var head =
-    '<div class="card cash"><b style="white-space:nowrap">💰 공금 남은 돈</b>' + walletLine() +
-    '<div class="cash2"><div><div class="lab">💵 남은 바트</div><b>' + baht(c.cashLeft) + '</b><div class="small muted">처음 ' + baht(c.cash) + '</div><div class="small">쓴 돈 <span class="spent">' + baht(c.common) + '</span></div></div>' +
-    '<div><div class="lab">🏦 회비 통장</div><b>' + won(fs.balance) + '</b><div class="small muted">' + esc(S.D.settings.fee_asof || '') + ' 기준</div></div></div>' +
-    '<div class="bar-bg" style="margin-top:10px"><div class="bar-fg" style="width:' + pct + '%"></div></div>' +
-    '<div style="margin-top:6px">회비 예상 잔액 <b>' + won(Math.round(c.cashLeft * c.rate) + fs.balance) + '</b></div>' +
-    '<div class="small muted">(남은 바트를 ' + c.rate + '원에 바꿔 통장에 넣으면)</div></div>' +
+    '<div class="card cash"><b style="white-space:nowrap">💰 공금 남은 돈</b>' +
+    '<div class="cbox"><div class="ctop"><span class="lab">💵 남은 바트 현금</span><b class="big">' + baht(c.cashLeft) + '</b></div>' +
+      '<div class="ctop" style="margin-top:2px"><span class="muted">처음 ' + baht(c.cash) + '</span><span>쓴 돈 <span class="spent">' + baht(c.common) + '</span></span></div>' +
+      '<div class="bar-bg" style="margin-top:8px"><div class="bar-fg" style="width:' + pct + '%"></div></div>' +
+      walletLine() + '</div>' +
+    '<div class="cbox"><div class="ctop"><span class="lab">🏦 회비 통장</span><b class="big">' + won(fs.balance) + '</b></div>' +
+      '<div class="small muted" style="text-align:right">' + esc(S.D.settings.fee_asof || '') + ' 기준</div></div>' +
+    '<div class="cbox ctotal"><div class="ctop"><span class="lab">회비 예상 잔액</span><b class="big">' + won(Math.round(c.cashLeft * c.rate) + fs.balance) + '</b></div>' +
+      '<div class="small muted">통장 ' + won(fs.balance) + ' + 남은 바트 ' + baht(c.cashLeft) + '을 ' + c.rate + '원에 바꾼 ' + won(Math.round(c.cashLeft * c.rate)) + '</div></div></div>' +
     '<div class="seg-tabs">' + [['list', '🧾 지출 기록'], ['settle', '🤝 정산'], ['fee', '🏦 회비']].map(function (t) {
       return '<button class="' + (sub === t[0] ? 'on' : '') + '" data-mtab="' + t[0] + '">' + t[1] + '</button>';
     }).join('') + '</div>';
@@ -1692,11 +1699,11 @@ function viewMoney() {
 /* 공금 카드의 사람별 줄: "👛 박상천 ฿23,000 · 표상민 ฿29,600 남음" (지갑을 안 고른 공금이 있으면 따로) */
 function walletLine() {
   var w = cashByHolder();
-  if (!w.list.length) return S.D.settings.common_cash_note ? '<div class="small muted">' + esc(S.D.settings.common_cash_note) + '</div>' : '';
-  return '<div class="wallets">' + w.list.map(function (h) {
-    return '<span>👛 ' + esc(h.name) + ' <b>' + baht(h.left) + '</b></span>';
-  }).join('') + '</div>' +
-    (w.none ? '<div class="small muted">지갑을 안 고른 공금 ' + baht(w.none) + ' (지출을 눌러 "누구 지갑에서"를 골라 주세요)</div>' : '<div class="small muted">사람별 남은 공금 (처음 ' + w.list.filter(function (h) { return h.start; }).map(function (h) { return esc(h.name) + ' ' + baht(h.start); }).join(' · ') + ')</div>') +
+  if (!w.list.length) return S.D.settings.common_cash_note ? '<div class="wsub">' + esc(S.D.settings.common_cash_note) + '</div>' : '';
+  return '<div class="wsub">👛 이 돈을 누가 갖고 있나요</div>' + w.list.map(function (h) {
+    return '<div class="wrow"><span>' + esc(h.name) + (h.start && h.start !== h.left ? ' <span class="small muted">처음 ' + baht(h.start) + '</span>' : '') + '</span><b>' + baht(h.left) + '</b></div>';
+  }).join('') +
+    (w.none ? '<div class="wrow"><span class="small" style="color:var(--warn)">지갑을 안 고른 지출 (눌러서 "누구 지갑"을 골라 주세요)</span><b style="color:var(--warn)">−' + baht(w.none) + '</b></div>' : '') +
     movesHtml();
 }
 /* 공금 넘겨준 기록 + [🔁 공금 넘겨주기] 버튼 */
@@ -1743,8 +1750,8 @@ function viewExpenseList() {
     ? '<div class="sel-bar"><b>☑️ ' + sel.length + '개 골랐어요</b><div class="row"><button class="btn sm" data-act="exp-sel-all">전체</button>' +
       '<button class="btn sm bad" data-act="exp-sel-del"' + (sel.length ? '' : ' disabled') + '>🗑️ 삭제</button><button class="btn sm" data-act="exp-sel-x">취소</button></div></div>' +
       '<p class="small muted" style="margin:4px 2px 0">지울 항목을 눌러서 고르세요. ' + (S.me.isAdmin ? '' : '내가 적은 지출만 고를 수 있습니다.') + '</p>'
-    : '<button class="btn pri big-btn" data-act="exp-add">＋ 지출 적기</button><p class="small muted" style="margin:4px 2px 0">💡 지출을 꾹 누르면 여러 개를 골라 지울 수 있어요.</p>';
-  if (!list.length) return html + '<p class="muted" style="text-align:center;margin:20px 0">아직 적은 지출이 없습니다.<br>계산할 때마다 위 버튼으로 적어 주세요.</p>';
+    : '<button class="btn pri big-btn" data-act="exp-add">＋ 지출 적기</button>';
+  if (!list.length) return html + '<p class="muted" style="text-align:center;margin:20px 0">아직 적은 지출이 없습니다.</p>';
   var day = '';
   list.forEach(function (e) {
     if (e.date !== day) { day = e.date; html += '<h4 class="day-h">' + md(day) + ' (' + wd(day) + ')</h4>'; }
