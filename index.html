@@ -417,7 +417,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-42';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-43';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1690,7 +1690,16 @@ function calcSettle() {
   return { names: names, paid: paid, owed: owed, bal: bal, enjoyed: enjoyed, support: support, total: total, common: common, cashLeft: cash - common, cash: cash, cash0: cash0, exThb: exThb,
     personalShared: personalShared, supportTotal: supportTotal, byCat: byCat, byDay: byDay, transfers: transfers, rate: rate };
 }
-function settleOn(key, who) { return (S.D.settle || []).some(function (r) { return r.key === key && r.member === (who || '') && r.value === 'Y'; }); }
+/* 정산 표시: 누를 때의 금액(stamp)과 지금 금액이 같아야 ✓. 지출이 바뀌어 금액이 달라지면 stale(다시 눌러야 함) */
+function settleRow(key, who) { return (S.D.settle || []).filter(function (r) { return r.key === key && r.member === (who || ''); })[0]; }
+function settleOn(key, who, stamp) { var r = settleRow(key, who); return !!r && r.value === 'Y' + (stamp ? ':' + stamp : ''); }
+function settleStale(key, who, stamp) { var r = settleRow(key, who); return !!r && /^Y/.test(r.value) && !settleOn(key, who, stamp); }
+/* 정산 내용 요약 (확인 버튼용): 송금 목록이 같으면 같은 값 */
+function settleSig(c) {
+  var t = c.transfers.map(function (x) { return x.from + '>' + x.to + ':' + x.krw; }).join('|') + '#' + Math.round(c.total), h = 5381;
+  for (var i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
 
 function viewMoney() {
   var c = calcSettle(), sub = S.moneyTab || 'list', fs = feeStats();
@@ -1702,7 +1711,7 @@ function viewMoney() {
       '<div class="bar-bg" style="margin-top:8px"><div class="bar-fg" style="width:' + pct + '%"></div></div>' +
       walletLine() + '</div>' +
     '<div class="cbox"><div class="ctop"><span class="lab">🏦 회비 통장</span><b class="big">' + won(fs.balance) + '</b></div>' +
-      '<div class="small muted" style="text-align:right">' + esc(S.D.settings.fee_asof || '') + ' 기준</div></div>' +
+      '<div class="small muted" style="text-align:right">' + esc(S.D.settings.fee_asof || '') + ' 기준' + (c.exThb ? ' + 현지 환전 반영' : '') + '</div></div>' +
     '<div class="cbox ctotal"><div class="ctop"><span class="lab">회비 예상 잔액</span><b class="big">' + won(Math.round(c.cashLeft * c.rate) + fs.balance) + '</b></div>' +
       '<div class="small muted">통장 ' + won(fs.balance) + ' + 남은 바트 ' + baht(c.cashLeft) + '을 ' + c.rate + '원에 바꾼 ' + won(Math.round(c.cashLeft * c.rate)) + '</div></div></div>' +
     '<div class="seg-tabs folder">' + [['fee', '🏦 회비'], ['list', '🧾 지출 기록'], ['settle', '🤝 정산']].map(function (t) {
@@ -1810,7 +1819,7 @@ function viewExpenseList() {
 }
 
 function viewSettle(c) {
-  var names = c.names, confirmed = names.filter(function (n) { return settleOn('confirm', n); });
+  var names = c.names, sig = settleSig(c), confirmed = names.filter(function (n) { return settleOn('confirm', n, sig); });
   var allOk = confirmed.length === names.length;
   var maxCat = Math.max.apply(null, Object.keys(c.byCat).map(function (k) { return c.byCat[k]; }).concat([1]));
   var html =
@@ -1824,14 +1833,28 @@ function viewSettle(c) {
   html += '<div class="card"><b>💸 이렇게 보내면 끝</b>';
   if (!c.transfers.length) html += '<p class="muted">주고받을 돈이 없습니다. 👍</p>';
   c.transfers.forEach(function (t) {
-    var k = t.from + '>' + t.to, sent = settleOn('sent:' + k), recv = settleOn('recv:' + k);
+    var k = t.from + '>' + t.to, amt = String(t.krw), sent = settleOn('sent:' + k, '', amt), recv = settleOn('recv:' + k, '', amt);
+    var stale = settleStale('sent:' + k, '', amt) || settleStale('recv:' + k, '', amt);
     html += '<div class="tr"><div class="who"><b>' + esc(t.from) + '</b> → <b>' + esc(t.to) + '</b></div><div class="amt-big">' + won(t.krw) + '</div>' +
+      (stale ? '<p class="small" style="color:var(--warn);margin:0 0 6px">⚠️ 표시한 뒤에 금액이 바뀌었어요. 차액을 주고받고 다시 눌러 주세요.</p>' : '') +
       '<div class="row wrap-row">' +
-        (t.from === S.me.name || S.me.isAdmin ? '<button class="btn sm' + (sent ? ' pri' : '') + '" data-mark="sent:' + esc(k) + '" data-on="' + (sent ? '' : '1') + '">' + (sent ? '✓ 보냈어요' : '보냈어요') + '</button>' : '<span class="chip' + (sent ? '' : ' warn') + '">' + (sent ? '✓ 보냄' : '보내기 전') + '</span>') +
-        (t.to === S.me.name || S.me.isAdmin ? '<button class="btn sm' + (recv ? ' pri' : '') + '" data-mark="recv:' + esc(k) + '" data-on="' + (recv ? '' : '1') + '">' + (recv ? '✓ 받았어요' : '받았어요') + '</button>' : '<span class="chip' + (recv ? '' : ' warn') + '">' + (recv ? '✓ 받음' : '받기 전') + '</span>') +
+        (t.from === S.me.name || S.me.isAdmin ? '<button class="btn sm' + (sent ? ' pri' : '') + '" data-mark="sent:' + esc(k) + '" data-stamp="' + amt + '" data-on="' + (sent ? '' : '1') + '">' + (sent ? '✓ 보냈어요' : '보냈어요') + '</button>' : '<span class="chip' + (sent ? '' : ' warn') + '">' + (sent ? '✓ 보냄' : '보내기 전') + '</span>') +
+        (t.to === S.me.name || S.me.isAdmin ? '<button class="btn sm' + (recv ? ' pri' : '') + '" data-mark="recv:' + esc(k) + '" data-stamp="' + amt + '" data-on="' + (recv ? '' : '1') + '">' + (recv ? '✓ 받았어요' : '받았어요') + '</button>' : '<span class="chip' + (recv ? '' : ' warn') + '">' + (recv ? '✓ 받음' : '받기 전') + '</span>') +
       '</div></div>';
   });
-  var allDone = c.transfers.length && c.transfers.every(function (t) { return settleOn('recv:' + t.from + '>' + t.to); });
+  var allDone = c.transfers.length && c.transfers.every(function (t) { return settleOn('recv:' + t.from + '>' + t.to, '', String(t.krw)); });
+  // 전에 '보냈어요/받았어요'를 눌렀는데, 지출이 바뀌어 지금 송금 목록에서 빠진 것
+  var nowPairs = c.transfers.map(function (t) { return t.from + '>' + t.to; }), gone = {};
+  (S.D.settle || []).forEach(function (r) {
+    var m = /^(sent|recv):(.+>.+)$/.exec(r.key);
+    if (!m || !/^Y/.test(r.value) || nowPairs.indexOf(m[2]) >= 0) return;
+    var g = gone[m[2]] = gone[m[2]] || { amt: '', what: [] };
+    g.what.push(m[1] === 'sent' ? '보냈어요' : '받았어요'); if (r.value.indexOf('Y:') === 0) g.amt = r.value.slice(2);
+  });
+  Object.keys(gone).forEach(function (k) {
+    var g = gone[k];
+    html += '<p class="small" style="color:var(--warn);margin:8px 0 0">⚠️ 전에 <b>' + esc(k.replace('>', ' → ')) + '</b>' + (g.amt ? ' ' + won(Number(g.amt)) : '') + '을 "' + g.what.join('·') + '"로 표시했지만, 지출이 바뀌어 지금 계산에는 없어요. 이미 주고받은 돈이면 서로 돌려주거나 관리자와 맞춰 주세요.</p>';
+  });
   if (allDone) html += '<p class="chip" style="margin-top:8px">🎉 송금이 모두 끝났습니다. 정산 종료!</p>';
   html += '</div>';
 
@@ -1839,7 +1862,7 @@ function viewSettle(c) {
   html += '<div class="card"><b>👥 회원별</b>';
   names.forEach(function (n) {
     var b = c.bal[n] * c.rate, cls = b > 50 ? 'good' : b < -50 ? 'bad' : '';
-    html += '<div class="mrow"><div><b>' + esc(n) + '</b>' + (settleOn('confirm', n) ? ' <span class="chip">✓ 확인</span>' : '') +
+    html += '<div class="mrow"><div><b>' + esc(n) + '</b>' + (settleOn('confirm', n, sig) ? ' <span class="chip">✓ 확인</span>' : '') +
       '<div class="small muted">낸 공동경비 ' + baht(c.paid[n]) + ' · 내 몫 ' + baht(c.owed[n]) + '</div>' +
       '<div class="small muted">여행에서 누린 금액 ' + baht(Math.round(c.enjoyed[n])) + ' (약 ' + wonShort(c.enjoyed[n] * c.rate) + ')</div></div>' +
       '<div class="bal ' + cls + '">' + (Math.abs(b) < 50 ? '0원' : (b > 0 ? '받을 돈<br>' : '보낼 돈<br>') + won(Math.abs(Math.round(b / 100) * 100))) + '</div></div>';
@@ -1865,8 +1888,9 @@ function viewSettle(c) {
 
   // 확인 · 출력
   html += '<div class="card"><b>✅ 정산 확인</b><p class="small muted">내용을 확인했으면 눌러 주세요. 4명 모두 누르면 정산 확정입니다. 이상한 지출은 그 지출을 눌러 메모를 남겨 주세요.</p>' +
-    '<div class="row wrap-row">' + names.map(function (n) { return '<span class="chip' + (settleOn('confirm', n) ? '' : ' warn') + '">' + esc(n) + (settleOn('confirm', n) ? ' ✓' : ' …') + '</span>'; }).join('') + '</div>' +
-    '<button class="btn ' + (settleOn('confirm', S.me.name) ? '' : 'pri ') + 'big-btn" data-mark="confirm" data-on="' + (settleOn('confirm', S.me.name) ? '' : '1') + '">' + (settleOn('confirm', S.me.name) ? '확인 취소' : '확인했어요') + '</button>' +
+    '<div class="row wrap-row">' + names.map(function (n) { return '<span class="chip' + (settleOn('confirm', n, sig) ? '' : ' warn') + '">' + esc(n) + (settleOn('confirm', n, sig) ? ' ✓' : ' …') + '</span>'; }).join('') + '</div>' +
+    (names.some(function (n) { return settleStale('confirm', n, sig); }) ? '<p class="small" style="color:var(--warn);margin:6px 0 0">⚠️ 확인한 뒤에 지출이 바뀌어서, 바뀌기 전에 확인한 사람은 다시 눌러야 합니다.</p>' : '') +
+    '<button class="btn ' + (settleOn('confirm', S.me.name, sig) ? '' : 'pri ') + 'big-btn" data-mark="confirm" data-stamp="' + sig + '" data-on="' + (settleOn('confirm', S.me.name, sig) ? '' : '1') + '">' + (settleOn('confirm', S.me.name, sig) ? '확인 취소' : '확인했어요') + '</button>' +
     (allOk ? '<p class="chip" style="margin-top:8px">🎉 4명 모두 확인 — 정산 확정</p>' : '') + '</div>' +
     '<div class="row wrap-row no-print"><button class="btn" data-act="exp-csv">📊 엑셀(CSV) 받기</button><button class="btn" data-act="exp-print">🖨️ 인쇄 · PDF</button></div>';
   return html;
@@ -2457,7 +2481,7 @@ function bindMain() {
   });
   els('[data-mark]', m).forEach(function (b) {
     b.onclick = function () {
-      call('settleMark', { key: b.dataset.mark, on: !!b.dataset.on }).then(function (r) { S.D.settle = r.settle; saveCache(); renderMain(); }).catch(function (e) { toast(e.message); });
+      call('settleMark', { key: b.dataset.mark, on: !!b.dataset.on, stamp: b.dataset.stamp || '' }).then(function (r) { S.D.settle = r.settle; saveCache(); renderMain(); }).catch(function (e) { toast(e.message); });
     };
   });
   els('[data-mvdel]', m).forEach(function (a) {
