@@ -204,6 +204,8 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .holes input.picking{outline:3px solid var(--pri);outline-offset:1px}
 .exp.pressing{background:var(--pri-soft);transition:background .4s}
 .exp{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.wallets{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:4px}
+.wallets span{white-space:nowrap}
 .cash2 .spent{color:var(--warn);font-weight:800;font-size:calc(16px*var(--fs))}   /* 쓴 돈은 주황으로 구분 */
 .holes .h.sum output{display:flex;align-items:center;justify-content:center;width:100%;height:42px;border-radius:8px;background:var(--pri-soft);color:var(--pri);font-weight:800;font-size:calc(16px*var(--fs))}
 .holes .h{display:flex;flex-direction:column;align-items:center}
@@ -389,7 +391,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-31';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-32';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1575,6 +1577,24 @@ function liveRate() { return (S.fx && S.fx.rate) || settleRate(); }
 function expenses() { return (S.D.expenses || []).slice().sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : (a.updated_at < b.updated_at ? 1 : -1); }); }
 function partsOf(e) { var p = String(e.participants || '').split(',').filter(Boolean); return p.length ? p : memberNames(); }
 
+/* 공금 보관자 [{name, start}] — 설정 common_cash_note의 "이름 숫자바트"를 읽음 (회원 이름만) */
+function cashHolders() {
+  var note = String(S.D.settings.common_cash_note || ''), names = memberNames(), out = [], m, re = /([가-힣A-Za-z]+)\s*฿?\s*([\d,]+)\s*(?:바트|฿|THB)?/g;
+  while ((m = re.exec(note))) { if (names.indexOf(m[1]) >= 0) out.push({ name: m[1], start: Number(m[2].replace(/,/g, '')) || 0 }); }
+  return out;
+}
+/* 사람별 남은 공금: 처음 맡은 돈 − 그 사람 지갑에서 낸 공금. 지갑을 안 고른 공금은 따로 */
+function cashByHolder() {
+  var hs = cashHolders(), used = {}, none = 0;
+  hs.forEach(function (h) { used[h.name] = 0; });
+  (S.D.expenses || []).forEach(function (e) {
+    if (e.payer !== '공금') return;
+    var t = Number(e.thb) || 0;
+    if (e.cash_from && used[e.cash_from] !== undefined) used[e.cash_from] += t; else none += t;
+  });
+  return { list: hs.map(function (h) { return { name: h.name, start: h.start, used: used[h.name], left: h.start - used[h.name] }; }), none: none };
+}
+
 /* 정산 계산 (바트 기준) */
 function calcSettle() {
   var names = memberNames(), paid = {}, owed = {}, enjoyed = {}, support = {};
@@ -1616,7 +1636,7 @@ function viewMoney() {
   var c = calcSettle(), sub = S.moneyTab || 'list', fs = feeStats();
   var pct = c.cash ? Math.max(0, Math.min(100, c.cashLeft / c.cash * 100)) : 0;
   var head =
-    '<div class="card cash"><b style="white-space:nowrap">💰 공금 남은 돈</b>' + (S.D.settings.common_cash_note ? '<div class="small muted">' + esc(S.D.settings.common_cash_note) + '</div>' : '') +
+    '<div class="card cash"><b style="white-space:nowrap">💰 공금 남은 돈</b>' + walletLine() +
     '<div class="cash2"><div><div class="lab">💵 남은 바트</div><b>' + baht(c.cashLeft) + '</b><div class="small muted">처음 ' + baht(c.cash) + '</div><div class="small">쓴 돈 <span class="spent">' + baht(c.common) + '</span></div></div>' +
     '<div><div class="lab">🏦 회비 통장</div><b>' + won(fs.balance) + '</b><div class="small muted">' + esc(S.D.settings.fee_asof || '') + ' 기준</div></div></div>' +
     '<div class="bar-bg" style="margin-top:10px"><div class="bar-fg" style="width:' + pct + '%"></div></div>' +
@@ -1630,6 +1650,16 @@ function viewMoney() {
   return head + viewExpenseList();
 }
 
+/* 공금 카드의 사람별 줄: "👛 박상천 ฿23,000 · 표상민 ฿29,600 남음" (지갑을 안 고른 공금이 있으면 따로) */
+function walletLine() {
+  var w = cashByHolder();
+  if (!w.list.length) return S.D.settings.common_cash_note ? '<div class="small muted">' + esc(S.D.settings.common_cash_note) + '</div>' : '';
+  return '<div class="wallets">' + w.list.map(function (h) {
+    return '<span>👛 ' + esc(h.name) + ' <b>' + baht(h.left) + '</b></span>';
+  }).join('') + '</div>' +
+    (w.none ? '<div class="small muted">지갑을 안 고른 공금 ' + baht(w.none) + ' (지출을 눌러 "누구 지갑에서"를 골라 주세요)</div>' : '<div class="small muted">사람별 남은 공금 (처음 ' + w.list.map(function (h) { return esc(h.name) + ' ' + baht(h.start); }).join(' · ') + ')</div>');
+}
+
 function viewExpenseList() {
   var list = expenses(), html = '<button class="btn pri big-btn" data-act="exp-add">＋ 지출 적기</button>';
   if (!list.length) return html + '<p class="muted" style="text-align:center;margin:20px 0">아직 적은 지출이 없습니다.<br>계산할 때마다 위 버튼으로 적어 주세요.</p>';
@@ -1639,7 +1669,7 @@ function viewExpenseList() {
     var kindChip = e.kind === '지원' ? '<span class="chip gold">🙏 ' + esc(e.payer) + ' 지원</span>' : e.kind === '일부지원' ? '<span class="chip gold">🙏 ' + baht(e.support_thb) + ' 지원</span>' : '';
     html += '<div class="exp" data-exp="' + esc(e.id) + '"><div class="ic">' + catIcon(e.category) + '</div>' +
       '<div class="body"><div class="ttl">' + esc(e.title || e.category) + (e.receipt_id ? ' 🧾' : '') + '</div>' +
-      '<div class="small muted">' + (e.payer === '공금' ? '💰 공금' : '👤 ' + esc(e.payer)) + ' · ' + (e.kind === '지원' ? '정산 제외' : partsOf(e).length + '명') + '</div>' + kindChip + '</div>' +
+      '<div class="small muted">' + (e.payer === '공금' ? '💰 공금' + (e.cash_from ? '(' + esc(e.cash_from) + ')' : '') : '👤 ' + esc(e.payer)) + ' · ' + (e.kind === '지원' ? '정산 제외' : partsOf(e).length + '명') + '</div>' + kindChip + '</div>' +
       '<div class="amt"><b>' + baht(e.thb) + '</b><div class="small muted">' + won(e.krw || e.thb * settleRate()) + '</div></div></div>';
   });
   return html;
@@ -1755,7 +1785,9 @@ function expenseForm(e, preset) {
   var today = localNow().date, ds = dates();
   e = e || Object.assign({ date: ds.indexOf(today) >= 0 ? today : (/^\d{4}-/.test(S.tab) ? S.tab : ds[0]), category: '식사', title: '', thb: '', krw: '', payer: '공금', kind: '공동', support_thb: '', participants: names.join(','), memo: '', receipt_id: '', item_id: '' }, preset || {});
   var canEdit = isNew || e.created_by === S.me.name || S.me.isAdmin;
-  var st = { cat: e.category, payer: e.payer, kind: e.kind, parts: partsOf(e).slice(), receipt: e.receipt_id, inCur: e.input_cur || 'THB', rate: Number(e.rate) || liveRate() };
+  var holders = cashHolders().map(function (h) { return h.name; });
+  var defFrom = e.cash_from || (holders.indexOf(S.me.name) >= 0 ? S.me.name : (isNew ? (LS.get('trip_cash_from', '') || holders[0] || '') : ''));
+  var st = { cat: e.category, payer: e.payer, kind: e.kind, parts: partsOf(e).slice(), receipt: e.receipt_id, inCur: e.input_cur || 'THB', rate: Number(e.rate) || liveRate(), from: defFrom };
   var html =
     '<h3>' + (isNew ? '＋ 지출 적기' : (canEdit ? '✏️ 지출 고치기' : '🧾 지출')) + '</h3>' +
     '<div class="row" style="margin-bottom:8px"><label class="lb" style="margin:0;white-space:nowrap">📅 날짜</label><select class="inp" id="x-date" style="flex:1">' + ds.map(function (d) { return '<option value="' + d + '"' + (d === e.date ? ' selected' : '') + '>' + md(d) + '(' + wd(d) + ')</option>'; }).join('') + '</select></div>' +
@@ -1770,7 +1802,9 @@ function expenseForm(e, preset) {
       '<div class="grid4" style="margin-top:6px">' + names.map(function (n) { return '<button class="pick' + (n === st.payer ? ' on' : '') + '" data-v="' + esc(n) + '">' + esc(n) + '</button>'; }).join('') + '</div></div>' +
     '<div id="x-kind-box"><label class="lb">어떻게 나눌까요</label><div class="grid3" id="x-kind">' +
       [['공동', '👥', '다 같이'], ['지원', '🙏', '지원(쏨)'], ['일부지원', '🙏', '일부 지원']].map(function (k) { return '<button class="pick tile' + (k[0] === st.kind ? ' on' : '') + '" data-v="' + k[0] + '"><span class="ti">' + k[1] + '</span><span>' + k[2] + '</span></button>'; }).join('') + '</div>' +
-    '<p class="small muted" id="x-kind-help"></p></div>' + '<p class="small muted" id="x-cash-note">💰 공금은 다 같이 낸 돈이라 회원끼리 정산하지 않습니다.</p>' +
+    '<p class="small muted" id="x-kind-help"></p></div>' +
+    (holders.length ? '<div id="x-from-box"><label class="lb">👛 누구 지갑의 공금에서?</label><div class="grid4" id="x-from">' + holders.map(function (n) { return '<button class="pick' + (n === st.from ? ' on' : '') + '" data-v="' + esc(n) + '">' + esc(n) + '</button>'; }).join('') + '</div></div>' : '') +
+    '<p class="small muted" id="x-cash-note">💰 공금은 다 같이 낸 돈이라 회원끼리 정산하지 않습니다.</p>' +
     '<div id="x-sup-box"><label class="lb">지원한 금액 (바트) — 나머지만 나눕니다</label><input class="inp money" id="x-sup" inputmode="decimal" value="' + esc(e.support_thb) + '"></div>' +
     '<div id="x-parts-box"><label class="lb">함께한 사람 (빠진 사람은 눌러서 해제)</label><div class="grid4" id="x-parts">' + names.map(function (n) { return '<button class="pick' + (st.parts.indexOf(n) >= 0 ? ' on' : '') + '" data-v="' + esc(n) + '">' + esc(n) + '</button>'; }).join('') + '</div></div>' +
     '<label class="lb">메모</label><textarea class="inp" id="x-memo" rows="2">' + esc(e.memo) + '</textarea>' +
@@ -1785,7 +1819,7 @@ function expenseForm(e, preset) {
   function pickOne(id, key) {
     els('#' + id + ' .pick', sh).forEach(function (b) { b.onclick = function () { if (!canEdit) return; st[key] = b.dataset.v; els('#' + id + ' .pick', sh).forEach(function (x) { x.classList.toggle('on', x === b); }); sync(); }; });
   }
-  pickOne('x-cat', 'cat'); pickOne('x-payer', 'payer'); pickOne('x-kind', 'kind');
+  pickOne('x-cat', 'cat'); pickOne('x-payer', 'payer'); pickOne('x-kind', 'kind'); if (holders.length) pickOne('x-from', 'from');
   els('#x-parts .pick', sh).forEach(function (b) {
     b.onclick = function () { if (!canEdit) return; var i = st.parts.indexOf(b.dataset.v); if (i >= 0) st.parts.splice(i, 1); else st.parts.push(b.dataset.v); b.classList.toggle('on', i < 0); };
   });
@@ -1795,6 +1829,7 @@ function expenseForm(e, preset) {
     els('#x-kind .pick', sh).forEach(function (x) { x.classList.toggle('on', x.dataset.v === st.kind); });
     el('#x-kind-box', sh).style.display = cash ? 'none' : '';
     el('#x-cash-note', sh).style.display = cash ? '' : 'none';
+    if (el('#x-from-box', sh)) el('#x-from-box', sh).style.display = cash ? '' : 'none';
     el('#x-kind-help', sh).textContent = st.kind === '공동' ? '낸 사람이 받을 돈으로 계산되고, 함께한 사람끼리 똑같이 나눕니다.'
       : st.kind === '지원' ? '기록만 남고 정산에서는 빠집니다. 감사 보드에 이름이 올라갑니다. 🙏'
       : '지원한 금액만 빼고 나머지를 함께한 사람끼리 나눕니다.';
@@ -1873,7 +1908,9 @@ function expenseForm(e, preset) {
     }
     var out = { id: isNew ? undefined : e.id, date: el('#x-date', sh).value, item_id: e.item_id || '', category: st.cat, title: el('#x-title', sh).value,
       thb: thb, krw: krw || Math.round(thb * st.rate), rate: st.rate, input_cur: st.inCur, payer: st.payer, kind: st.kind,
-      support_thb: st.kind === '일부지원' ? parseFloat(el('#x-sup', sh).value.replace(/,/g, '')) : '', participants: st.parts, memo: el('#x-memo', sh).value, receipt_id: st.receipt || '' };
+      support_thb: st.kind === '일부지원' ? parseFloat(el('#x-sup', sh).value.replace(/,/g, '')) : '', participants: st.parts, memo: el('#x-memo', sh).value, receipt_id: st.receipt || '', cash_from: st.payer === '공금' ? (st.from || '') : '' };
+    if (st.payer === '공금' && holders.length && !st.from) { el('#x-msg', sh).textContent = '누구 지갑의 공금에서 냈는지 골라 주세요.'; return; }
+    if (st.payer === '공금' && st.from) LS.set('trip_cash_from', st.from);
     el('#x-msg', sh).textContent = '저장 중…';
     call('saveExpense', { expense: out }).then(function (r) {
       S.D.expenses = r.expenses; saveCache(); closeSheet(); renderMain(); toast('저장했습니다. 모두에게 보입니다.');
