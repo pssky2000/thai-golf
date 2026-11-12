@@ -395,7 +395,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-34';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-36';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -619,6 +619,8 @@ function loadAll() {
   });
 }
 
+/* 경비 탭을 볼 수 있는지 (관리자, 또는 설정에서 회원에게도 연 경우) */
+function canMoney() { return !!(S.me && (S.me.isAdmin || (S.D && S.D.moneyOpen))); }
 function dates() {
   var s = S.D.settings, out = [];
   for (var d = s.start_date; d <= s.end_date; d = addDays(d, 1)) out.push(d);
@@ -633,7 +635,7 @@ function defaultTab() {
   var n = localNow(), ds = dates();
   if (n.date >= ds[0] && n.date <= ds[ds.length - 1]) return n.date;   // 여행 중에는 오늘 일정
   var t = LS.get('trip_tab', 'all');
-  return (t === 'all' || t === 'score' || t === 'info' || t === 'money' || ds.indexOf(t) >= 0) ? t : 'all';
+  return (t === 'all' || t === 'score' || t === 'info' || (t === 'money' && canMoney()) || ds.indexOf(t) >= 0) ? t : 'all';
 }
 function dayLabel(date) {
   var its = itemsOf(date);
@@ -657,9 +659,11 @@ function render() {
     { k: 'all', i: '🏠', t: '요약' },
     { k: 'day', i: '📅', t: '일정' },
     { k: 'score', i: '⛳', t: '스코어' },
-    { k: 'money', i: '💰', t: '경비' },
+    canMoney() ? { k: 'money', i: '💰', t: '경비' } : null,
     { k: 'info', i: 'ℹ️', t: '정보' }
   ];
+  SECS = SECS.filter(Boolean);
+  if (sec === 'money' && !canMoney()) { S.tab = 'all'; sec = 'all'; }
   var secTitle = { all: '여행 요약', score: '골프 스코어', money: '경비 · 정산 · 회비', info: '여행 정보' }[sec];
 
   $app.innerHTML =
@@ -675,7 +679,7 @@ function render() {
         : '<h2 class="sec-title">' + esc(secTitle) + '</h2>') +
       '<main id="main"></main>' +
     '</div>' +
-    '<nav class="bnav">' + SECS.map(function (x) {
+    '<nav class="bnav" style="grid-template-columns:repeat(' + SECS.length + ',1fr)">' + SECS.map(function (x) {
       return '<button class="' + (x.k === sec ? 'on' : '') + '" data-sec="' + x.k + '"><span class="i">' + x.i + '</span><span>' + x.t + '</span></button>';
     }).join('') + '</nav>';
 
@@ -700,6 +704,7 @@ function render() {
 
 function go(tab) {
   S.expSel = null;
+  if (tab === 'money' && !canMoney()) tab = 'all';
   var wasDay = /^\d{4}-/.test(S.tab), isDay = /^\d{4}-/.test(tab);
   S.tab = tab; LS.set('trip_tab', tab);
   if (isDay) LS.set('trip_day', tab);
@@ -717,7 +722,7 @@ function renderMain() {
   if (S.tab === 'all') h = viewAll();
   else if (S.tab === 'score') h = viewScore();
   else if (S.tab === 'info') h = viewInfo();
-  else if (S.tab === 'money') h = viewMoney();
+  else if (S.tab === 'money') h = canMoney() ? viewMoney() : viewAll();
   else h = viewDay(S.tab);
   m.innerHTML = bahtSign(h);
   bindMain();
@@ -973,7 +978,7 @@ function openItem(id) {
     }).join('') : '<p class="small muted">아직 없습니다.</p>') +
     '<div class="row" style="margin-top:8px"><input class="inp" id="ctext" placeholder="모두에게 보이는 메모"><button class="btn pri" id="cadd">등록</button></div>' +
     '<div class="row" style="margin-top:16px;justify-content:flex-end">' +
-      '<button class="btn" id="iexp">💰 지출 적기</button>' +
+      (canMoney() ? '<button class="btn" id="iexp">💰 지출 적기</button>' : '') +
       (S.me.isAdmin ? '<button class="btn pri" id="iedit">✏️ 수정</button>' : '<button class="btn" id="ireq">✋ 수정 요청</button>') +
       '<button class="btn" id="iclose">닫기</button></div>';
   var sh = sheet(html);
@@ -989,7 +994,7 @@ function openItem(id) {
       }).catch(function (e) { toast(e.message); });
     };
   });
-  el('#iexp', sh).onclick = function () {
+  if (el('#iexp', sh)) el('#iexp', sh).onclick = function () {
     var cat = it.type === 'meal' ? '식사' : it.type === 'massage' ? '마사지' : it.type === 'golf' ? '골프' : it.type === 'shop' ? '쇼핑' : it.type === 'move' ? '교통' : '기타';
     expenseForm(null, { date: it.date, item_id: it.id, category: cat, title: nameOf(it) || it.title });
   };
@@ -2209,6 +2214,9 @@ function adminHtml() {
     }).join('') : '<p class="small muted">요청이 없습니다.</p>') + '</div>' +
     '<div class="card"><b>🔍 사진 인식 점검</b><p class="small muted">영수증·스코어카드 자동 인식이 안 될 때 눌러서 결과를 캡처해 주세요.</p><button class="btn sm" data-act="ai-check">점검하기</button></div>' +
     '<div class="card"><b>📜 변경 기록</b><div id="logbox"><button class="btn sm" data-act="log">불러오기</button></div></div>' +
+    '<div class="card"><b>💰 경비 화면을 회원에게</b><p class="small muted">지출·정산·회비·공금 화면을 회원도 볼지 정합니다. 숨기면 회원 폰에는 경비 메뉴가 없고, 자료도 보내지 않습니다.</p>' +
+      '<div class="seg-tabs" style="margin-top:6px;display:grid;grid-template-columns:1fr 1fr"><button class="' + (S.D.moneyOpen ? 'on' : '') + '" data-money="1">👀 보이기</button><button class="' + (S.D.moneyOpen ? '' : 'on') + '" data-money="0">🙈 숨기기</button></div>' +
+      '<p class="small muted" style="margin:6px 0 0">지금: <b>' + (S.D.moneyOpen ? '회원도 봅니다' : '관리자만 봅니다') + '</b></p></div>' +
     '<div class="card"><b>✏️ 회원 이름 바꾸기</b><p class="small muted">점수·지출·회비·정산 기록의 이름도 함께 바뀝니다. 바꾼 회원은 임시 PIN으로 다시 입장합니다(입장해 있는 폰은 그대로).</p>' +
       '<div class="row" style="margin-top:6px"><select class="inp" id="rn-from" style="flex:1">' + S.D.members.map(function (m) { return '<option>' + esc(m.name) + '</option>'; }).join('') + '</select>' +
       '<span>→</span><input class="inp" id="rn-to" placeholder="새 이름" style="flex:1;min-width:0"></div>' +
@@ -2432,6 +2440,16 @@ function bindMain() {
     };
   });
   els('[data-ropen]', m).forEach(function (b) { b.onclick = function () { openItem(b.dataset.ropen); }; });
+  els('[data-money]', m).forEach(function (b) {
+    b.onclick = function () {
+      var open = b.dataset.money === '1';
+      if (open === !!S.D.moneyOpen) return;
+      confirmBox(open ? '회원들도 경비(지출·정산·회비) 화면을 보고 적을 수 있게 할까요?' : '경비 화면을 관리자만 보이게 할까요? 회원 폰에서는 경비 메뉴가 사라집니다.', open ? '보이기' : '숨기기').then(function (y) {
+        if (!y) return;
+        call('setMoneyOpen', { open: open }).then(function () { S.D.moneyOpen = open; saveCache(); renderMain(); toast(open ? '이제 회원들도 경비 화면을 봅니다.' : '이제 경비 화면은 관리자만 봅니다.'); }).catch(function (e) { toast(e.message); });
+      });
+    };
+  });
   els('[data-reset]', m).forEach(function (b) {
     b.onclick = function () {
       confirmBox(b.dataset.reset + ' 님 PIN을 임시 번호로 초기화할까요?', '초기화').then(function (y) {
