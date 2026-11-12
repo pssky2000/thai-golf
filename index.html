@@ -374,7 +374,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-17';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-18';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -462,16 +462,19 @@ function toast(msg, action, ms) {
 }
 
 function sheet(html, onMount, center) {
-  closeSheet();
+  removeSheets();
   var bg = document.createElement('div');
   bg.className = 'sheet-bg' + (center ? ' center' : '');
   bg.innerHTML = '<div class="sheet" role="dialog">' + html + '</div>';
   bg.addEventListener('click', function (e) { if (e.target === bg) closeSheet(); });
   document.body.appendChild(bg);
+  openSheetEntry();   // 뒤로가기로 이 창을 닫을 수 있게 기록 한 칸
+  els('[data-close]', bg).forEach(function (b) { b.onclick = closeSheet; });
   if (onMount) onMount(bg.firstChild);
   return bg.firstChild;
 }
-function closeSheet() { els('.sheet-bg').forEach(function (b) { b.remove(); }); }
+function removeSheets() { els('.sheet-bg').forEach(function (b) { b.remove(); }); }
+function closeSheet() { removeSheets(); dropSheetEntry(); }
 function confirmBox(msg, okLabel) {
   return new Promise(function (res) {
     var s = sheet('<h3>확인</h3><p>' + esc(msg) + '</p><div class="row" style="justify-content:flex-end"><button class="btn" data-x>취소</button><button class="btn pri" data-ok>' + esc(okLabel || '확인') + '</button></div>');
@@ -1300,7 +1303,7 @@ function reviewScorecard(res, r, shot) {
   var names = memberNames();
   var players = (res.players || []).map(function (p) { var raw = Array.isArray(p.raw) ? p.raw : p.holes; return Object.assign({}, p, { raw: Array.isArray(raw) ? raw : null }); })
     .filter(function (p) { return p.raw; });
-  if (!players.length) { sheet('<h3>점수를 찾지 못했습니다</h3><p>사진이 흐리거나 잘렸을 수 있습니다. 스코어카드 전체가 나오게 다시 찍어 주세요.</p><button class="btn pri" onclick="this.closest(\'.sheet-bg\').remove()">확인</button>'); return; }
+  if (!players.length) { sheet('<h3>점수를 찾지 못했습니다</h3><p>사진이 흐리거나 잘렸을 수 있습니다. 스코어카드 전체가 나오게 다시 찍어 주세요.</p><button class="btn pri" data-close>확인</button>'); return; }
   // 파: 카드에서 읽은 값 → 라운드에 저장된 값 → 빈칸
   var cardPars = Array.isArray(res.pars) && res.pars.length === 18 ? res.pars.map(Number) : null;
   var savedPars = String(r.pars || '').split(/[,\s]+/).filter(Boolean).map(Number);
@@ -1891,8 +1894,7 @@ function viewInfo() {
         '<li>삼성 인터넷이라면: 아래 <b>≡</b> → <b>현재 페이지 추가</b> → <b>홈 화면</b></li>' +
       '</ol><p class="small muted">⛳ 아이콘이 생깁니다. 처음 한 번은 PIN을 다시 넣어야 할 수 있습니다.</p>' +
       '<button class="btn sm" data-act="copy-link">🔗 앱 링크 복사</button>' +
-      '<p class="small muted" style="margin-top:8px">화면 버전 ' + APP_VER + '</p><p class="small muted" style="margin:2px 0 0;font-size:12px">상태: ' + esc(backState()) + '</p>' +
-      (LS.get('trip_backlog', []).length ? '<p class="small muted" style="margin:2px 0 0;font-size:12px">최근 뒤로가기: ' + LS.get('trip_backlog', []).map(esc).join(' / ') + '</p>' : '') + '</div>' +
+      '<p class="small muted" style="margin-top:8px">화면 버전 ' + APP_VER + '</p></div>' +
     '<div class="card"><b>👤 내 정보 · ' + esc(S.me.name) + '</b><div class="row wrap-row" style="margin-top:8px"><button class="btn sm" data-act="pin">🔑 PIN 바꾸기</button><button class="btn sm" data-act="req">✋ 관리자에게 요청</button><button class="btn sm" data-act="logout">나가기</button></div>' +
       '<div class="small muted" style="margin-top:10px">🌙 화면 밝기</div><div class="seg-tabs" style="margin-top:4px">' + [['auto', '자동'], ['light', '밝게'], ['dark', '어둡게']].map(function (x) {
         return '<button class="' + ((LS.get('trip_theme', 'auto') || 'auto') === x[0] ? 'on' : '') + '" data-theme="' + x[0] + '">' + x[1] + '</button>';
@@ -1929,7 +1931,7 @@ function bindMain() {
     b.onclick = function () {
       var p = THAI[S.thaiCat || '인사'][Number(b.dataset.tp)];
       sheet('<div class="thai-big"><div class="small muted">' + esc(p[0]) + '</div><div class="th">' + esc(p[2]) + '</div><div class="say">' + esc(p[1]) + '</div></div>' +
-        '<button class="btn" style="width:100%;margin-top:14px" onclick="this.closest(\'.sheet-bg\').remove()">닫기</button>', null, true);
+        '<button class="btn" style="width:100%;margin-top:14px" data-close>닫기</button>', null, true);
     };
   });
   els('[data-admin]', m).forEach(function (d) { d.ontoggle = function () { S.adminOpen = d.open; }; });
@@ -1977,13 +1979,13 @@ function bindMain() {
       else if (a === 'copy-link') {
         var url = IN_GAS ? (S.D.app_url || '') : location.href.split(/[?#]/)[0];
         var done = function () { toast('링크를 복사했습니다. Chrome 주소창에 붙여넣으세요.'); };
-        var manual = function () { sheet('<h3>🔗 앱 링크</h3><p class="small muted">아래 글자를 길게 눌러 복사하세요.</p><textarea class="inp" rows="4" readonly>' + esc(url) + '</textarea><button class="btn" onclick="this.closest(\'.sheet-bg\').remove()">닫기</button>'); };
+        var manual = function () { sheet('<h3>🔗 앱 링크</h3><p class="small muted">아래 글자를 길게 눌러 복사하세요.</p><textarea class="inp" rows="4" readonly>' + esc(url) + '</textarea><button class="btn" data-close>닫기</button>'); };
         if (!url) { toast('링크를 찾지 못했습니다. 카톡으로 받은 링크를 쓰세요.'); }
         else if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, manual);
         else manual();
       }
       else if (a === 'ai-check') {
-        var s0 = sheet('<h3>🔍 사진 인식 점검</h3><pre id="aic" style="white-space:pre-wrap;font-size:13px">점검 중… (10초 정도)</pre><button class="btn" onclick="this.closest(\'.sheet-bg\').remove()">닫기</button>');
+        var s0 = sheet('<h3>🔍 사진 인식 점검</h3><pre id="aic" style="white-space:pre-wrap;font-size:13px">점검 중… (10초 정도)</pre><button class="btn" data-close>닫기</button>');
         call('aiCheck').then(function (r) { el('#aic', s0).textContent = r.report; }).catch(function (e) { el('#aic', s0).textContent = '점검 실패: ' + e.message; });
       }
     };
@@ -2077,7 +2079,7 @@ function bindMain() {
       confirmBox(b.dataset.reset + ' 님 PIN을 임시 번호로 초기화할까요?', '초기화').then(function (y) {
         if (!y) return;
         call('resetPin', { name: b.dataset.reset }).then(function (r) {
-          sheet('<h3>임시 PIN</h3><p><b>' + esc(r.name) + '</b> 님 임시 PIN: <b style="font-size:24px;letter-spacing:4px">' + esc(r.tempPin) + '</b></p><p class="small muted">본인에게 따로 알려 주세요. 다음 입장 때 새 PIN으로 바꾸게 됩니다. 이 창을 닫으면 다시 볼 수 없습니다(구글 시트 "회원" 탭에는 남음).</p><button class="btn pri" onclick="this.closest(\'.sheet-bg\').remove()">확인</button>');
+          sheet('<h3>임시 PIN</h3><p><b>' + esc(r.name) + '</b> 님 임시 PIN: <b style="font-size:24px;letter-spacing:4px">' + esc(r.tempPin) + '</b></p><p class="small muted">본인에게 따로 알려 주세요. 다음 입장 때 새 PIN으로 바꾸게 됩니다. 이 창을 닫으면 다시 볼 수 없습니다(구글 시트 "회원" 탭에는 남음).</p><button class="btn pri" data-close>확인</button>');
         }).catch(function (e) { toast(e.message); });
       });
     };
@@ -2214,136 +2216,45 @@ setInterval(function () {
 setInterval(function () { if (S.D && /^\d{4}-/.test(S.tab)) rerenderSoft(); }, 60000);  // 다음 일정 남은 시간
 document.addEventListener('visibilitychange', function () { if (!document.hidden && S.D) { flushQueue(); call('data').then(function (d) { if (S.queue.length) d.scores = S.D.scores; S.D = d; saveCache(); rerenderSoft(); }).catch(function () {}); } });
 
-/* ═════════ 뒤로가기: 바로 나가지 않고 확인 ═════════ */
-/* 폰 Chrome에서 확인한 사실 (2026-11-12 폰 캡처)
- *  - 화면을 한 번도 누르지 않았으면 뒤로가기를 막을 방법이 없음 (CloseWatcher도 무시됨) → 그냥 나감
- *  - 화면을 누른 순간 넣은 기록(막이)은 뒤로가기에 걸림 → popstate로 알아챔
- *  - 스크립트로는 앱을 끌 수 없음. 앱의 '첫 칸'에서 사용자가 뒤로가기를 눌러야 꺼짐
- * 그래서: 막이를 2칸까지 쌓아 두고(열린 창 닫기에 쓰임), "나갈까요?"를 띄울 때는 남은 막이를 모두 비워
- *         '첫 칸'으로 내려가 둠 → 확인창이 뜬 상태에서 뒤로가기 한 번이면 바로 꺼짐
- *  - 같은 탭에 옛 앱 기록이 쌓여 있으면(링크로 여러 번 연 탭) 뒤로가기 때 옛 앱이 열림
- *    → 옛 앱이 '뒤로가기로 열린 것'을 알아채고 남은 앱 기록을 한 번에 건너뜀
- * 점검: 정보 › 내 정보 아래에 상태 · 최근 뒤로가기 기록이 보임 */
-var leaving = false, askingLeave = false, lastPush = 0, dropping = 0;
+/* ═════════ 뒤로가기 ═════════ */
+/* 원칙 (2026-11-12 결정): 확인 없이 바로 나감. 뒤로가기는 열린 창만 닫고, 창이 없으면 다른 앱처럼 그대로 꺼짐
+ *  - 창(sheet)을 열 때 기록 한 칸을 넣고(openSheetEntry), 뒤로가기로 그 칸이 빠지면 창을 닫음
+ *  - 창을 버튼으로 닫으면 넣었던 칸을 스스로 빼 둠 (closeSheet → history.back)
+ *  - 칸이 남아 있는데 닫을 창이 없으면(옛 버전이 남긴 칸 등) 이어서 한 칸 더 뒤로 → 사용자는 한 번만 누르면 됨
+ *  - 같은 탭에 옛 앱 기록이 쌓여 있으면(링크로 여러 번 연 탭) 뒤로가기 때 옛 앱이 다시 열림
+ *    → 뒤로가기로 열린 옛 앱은 남은 앱 기록을 한 번에 건너뜀 */
 var BACK_OK = window.top === window;   // 구글 화면(iframe) 안에서는 폰 뒤로가기를 잡을 수 없음
 var NAV = window.navigation && typeof navigation.entries === 'function' ? navigation : null;
-function backLog(msg) {
-  var a = LS.get('trip_backlog', []);
-  a.push(new Date().toTimeString().slice(0, 8) + ' ' + msg + ' (기록 ' + history.length + ')');
-  LS.set('trip_backlog', a.slice(-10));
+var popIgnore = 0;
+LS.del('trip_backlog');   // 예전 점검 기록 지움
+function onSheetEntry() { return !!(history.state && history.state.tripSheet); }
+function openSheetEntry() {
+  if (!BACK_OK || onSheetEntry() || popIgnore) return;
+  try { history.pushState({ tripSheet: 1 }, ''); } catch (e) {}
 }
-/* 이 탭의 앱 기록: 지금 몇 번째인지, 그 앞에 '다른 페이지(옛 앱)' 기록이 몇 개인지 */
-function navInfo() {
-  if (!NAV || !NAV.currentEntry) return null;
-  var es = NAV.entries(), cur = NAV.currentEntry, idx = cur.index, old = 0;
-  for (var i = 0; i < idx; i++) if (es[i] && !es[i].sameDocument) old++;
-  return { idx: idx, total: es.length, old: old };
+function dropSheetEntry() {
+  if (!BACK_OK || !onSheetEntry() || popIgnore) return;
+  popIgnore = 1; history.back();
 }
-/* 앱 앞에 다른 페이지(카톡·새 탭 화면 등)가 있는지: 전체 기록 수가 앱 기록 수보다 많으면 있음 */
-function hasBefore(n) { return n ? history.length > n.total : false; }
-/* 지금 상태 한 줄 (점검용) */
-function backState() {
-  var ua = navigator.userActivation, n = navInfo();
-  return '기록 ' + history.length + (n ? ' · 앱기록 ' + (n.idx + 1) + '/' + n.total + (n.old ? ' (옛 ' + n.old + ')' : '') : '') +
-    ' · 막이 ' + trapDepth() + ' · 터치 ' + (ua ? (ua.hasBeenActive ? 'O' : 'X') : '?') +
-    ' · ' + (matchMedia('(display-mode: standalone)').matches ? '홈앱' : '브라우저');
-}
-function trapDepth() { var s = history.state; return s && s.tripTrap ? (Number(s.depth) || 1) : 0; }
-function armBack() {
-  if (askingLeave && !el('.sheet-bg')) askingLeave = false;   // 확인창이 닫혔으면 다시 준비
-  if (!BACK_OK || leaving || askingLeave || dropping) return;
-  // Chrome은 '화면을 누르는 그 순간'이 아닐 때 넣은 기록을 뒤로가기에서 건너뛰므로, 누를 때만 넣음
-  var ua = navigator.userActivation, now = !ua || ua.isActive;
-  if (!now) return;
-  // 막이를 두 칸까지 쌓음: 첫 터치에 1칸, 다음 터치(1초 뒤)에 2칸째
-  var d = trapDepth();
-  if (d < 2 && Date.now() - lastPush > 1000) {
-    try { history.pushState({ tripTrap: Date.now(), depth: d + 1 }, ''); lastPush = Date.now(); backLog('막이 ' + (d + 1)); } catch (e) { backLog('막이 실패'); }
-  }
-}
-/* 이 페이지가 '앱을 나가는 길'에 열렸는지 (뒤로가기로 열린 경우만. 새로 연 경우는 절대 아님)
- *  - 방금 나가기를 눌렀음 (sessionStorage, 8초)
- *  - 더 새 앱 기록에서 뒤로가기로 넘어옴 = 같은 탭에 쌓인 옛 앱 기록 */
-function arrivedLeaving() {
-  var a = NAV && NAV.activation;
-  if (a && a.navigationType !== 'traverse') { try { sessionStorage.removeItem('trip_leaving'); } catch (x) {} return ''; }
-  var jl = 0; try { jl = Number(sessionStorage.getItem('trip_leaving') || 0); } catch (x) {}
-  if (jl && Date.now() - jl < 8000) return '나가는 중 열림';
-  if (a && a.from && a.entry && a.from.index > a.entry.index) return '뒤로 옴(옛 기록)';
-  return '';
-}
-/* 남은 앱 기록을 한 번에 건너뛰어 나감. 앞에 갈 곳이 없으면 첫 기록으로 옮기고 안내 */
-function continueLeaving(why) {
-  leaving = true; askingLeave = false; closeSheet(); backLog(why);
-  try { sessionStorage.setItem('trip_leaving', String(Date.now())); } catch (e) {}
-  var n = navInfo();
-  if (hasBefore(n)) {
-    backLog('나가기 -' + (n.idx + 1));
-    history.go(-(n.idx + 1));
-    setTimeout(function () { if (!document.hidden) lastStep(navInfo()); }, 700);
-  } else lastStep(n);
-}
-/* 더 갈 곳이 없을 때: 첫 앱 기록으로 옮겨 두면 다음 뒤로가기 한 번에 바로 꺼짐 */
-function lastStep(n) {
-  var k = n ? n.idx : trapDepth();
-  if (k > 0) { try { history.go(-k); } catch (e) {} }
-  toast('뒤로가기를 한 번 더 누르면 앱이 꺼집니다.', null, 4000);
-  // 다음 뒤로가기는 막지 않음 (leaving 유지). 화면을 다시 누르면 평소처럼 돌아옴
-  setTimeout(function () {
-    var done = function () {
-      leaving = false;
-      try { sessionStorage.removeItem('trip_leaving'); } catch (e) {}
-      document.removeEventListener('touchend', done, true); document.removeEventListener('click', done, true);
-    };
-    document.addEventListener('touchend', done, true); document.addEventListener('click', done, true);
-  }, 300);
-}
-/* 앱을 나갔다가 다시 열면 Chrome이 이전 상태(나가는 중)를 그대로 되살리므로 초기화 */
-window.addEventListener('pageshow', function (e) {
-  if (!e.persisted) return;
-  backLog('다시 열림');
-  leaving = false; askingLeave = false; dropping = 0; closeSheet();
-  var why = arrivedLeaving();
-  if (why) continueLeaving(why);
-});
-window.addEventListener('pagehide', function () { backLog('앱 나감'); });
-function askLeave() {
-  askingLeave = true;
-  // 남은 막이를 비워 '첫 칸'으로 내려감 → 확인창에서 뒤로가기 한 번이면 바로 꺼짐
-  var d = trapDepth();
-  if (d > 0) { dropping = d; history.go(-d); }
-  var n = navInfo(), canGo = hasBefore(n);   // 앱 앞에 다른 페이지가 있을 때만 '나가기' 버튼이 실제로 나갈 수 있음
-  var s = sheet('<h3>앱을 나갈까요?</h3>' +
-    '<p>나가려면 폰의 <b>뒤로가기</b>를 한 번 더 누르세요.</p>' +
-    '<p class="small muted">입력한 스코어와 지출은 이미 저장되어 있습니다.</p>' +
-    '<div class="row" style="justify-content:flex-end"><button class="btn' + (canGo ? '' : ' pri') + '" data-stay>머무르기</button>' +
-    (canGo ? '<button class="btn pri" data-leave>나가기</button>' : '') + '</div>', null, true);
-  s.querySelector('[data-stay]').onclick = function () { askingLeave = false; closeSheet(); armBack(); };
-  s.parentNode.addEventListener('click', function (e) { if (e.target === s.parentNode) { askingLeave = false; armBack(); } });
-  var lv = s.querySelector('[data-leave]');
-  if (lv) lv.onclick = function () { continueLeaving('나가기 버튼'); };
-}
-function onBack() {
-  if (leaving) return;
-  if (askingLeave) { continueLeaving('확인창에서 뒤로'); return; }   // (막이가 남아 있던 경우) 한 번 더 뒤로 → 나감
-  if (el('.sheet-bg')) { closeSheet(); return; }                  // 열린 창이 있으면 그것만 닫기 (앱은 그대로)
-  if (S.editMode) { S.editMode = false; renderMain(); return; }
-  askLeave();
-}
-// Chrome은 '손을 뗄 때(터치 끝·클릭)'를 진짜 사용자 동작으로 쳐서, 그때 넣은 기록만 뒤로가기에 걸림
-['touchend', 'click', 'keydown'].forEach(function (t) {
-  document.addEventListener(t, armBack, { capture: true, passive: true });
-});
 if (BACK_OK) window.addEventListener('popstate', function () {
-  if (dropping) { dropping = 0; backLog('첫 칸으로'); return; }   // askLeave가 막이를 비운 것 (사용자 뒤로가기 아님)
-  backLog('기록 ' + trapDepth()); onBack();
+  if (popIgnore) {   // 창을 버튼으로 닫으면서 스스로 뺀 칸
+    popIgnore = 0;
+    if (el('.sheet-bg')) openSheetEntry();   // 그 사이 다른 창이 열렸으면 다시 칸을 넣음
+    return;
+  }
+  if (el('.sheet-bg')) { removeSheets(); return; }   // 뒤로가기 → 창만 닫기
+  if (history.state && (history.state.tripTrap || history.state.tripSheet)) history.back();   // 남은 빈 칸은 건너뜀
 });
+/* 뒤로가기로 열린 옛 앱 기록이면 남은 앱 기록을 한 번에 건너뜀 (새로 연 경우·새로고침은 해당 없음) */
+(function skipOldEntries() {
+  var a = NAV && NAV.activation;
+  if (!BACK_OK || !a || a.navigationType !== 'traverse' || !a.from || !a.entry || !(a.from.index > a.entry.index)) return;
+  var idx = NAV.currentEntry.index, total = NAV.entries().length;
+  if (history.length > total) history.go(-(idx + 1));   // 앱 앞에 다른 페이지가 있으면 그리로 바로 나감
+  else if (idx > 0) history.go(-idx);                    // 없으면 첫 앱 기록으로 → 다음 뒤로가기 한 번에 꺼짐
+})();
 
 start();
-// 나가는 길에 옛 앱 기록으로 넘어온 경우: 막지 않고 남은 앱 기록을 건너뜀
-var leaveWhy = BACK_OK ? arrivedLeaving() : '';
-if (leaveWhy) setTimeout(function () { continueLeaving(leaveWhy); }, 300);
-armBack();
 })();
 </script>
 </body>
