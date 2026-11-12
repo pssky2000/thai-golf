@@ -202,6 +202,8 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .pk-open .sheet,.pk-open .wrap{padding-bottom:55vh}   /* 고르기 창이 떠도 아래 칸까지 올려 볼 수 있게 */
 .holes input[readonly]{cursor:pointer;caret-color:transparent}
 .holes input.picking{outline:3px solid var(--pri);outline-offset:1px}
+.exp.pressing{background:var(--pri-soft);transition:background .4s}
+.exp{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .cash2 .spent{color:var(--warn);font-weight:800;font-size:calc(16px*var(--fs))}   /* 쓴 돈은 주황으로 구분 */
 .holes .h.sum output{display:flex;align-items:center;justify-content:center;width:100%;height:42px;border-radius:8px;background:var(--pri-soft);color:var(--pri);font-weight:800;font-size:calc(16px*var(--fs))}
 .holes .h{display:flex;flex-direction:column;align-items:center}
@@ -387,7 +389,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-29';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-31';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -799,12 +801,30 @@ function gmapDayRoute(pts) {
 }
 function gmapNearby(it) { return 'https://www.google.com/maps/search/restaurants/@' + it.lat + ',' + it.lng + ',16z'; }
 
+/* 한국에서 하는 일정인지: 출발일 비행기 뜨기 전(청주·인천)과 돌아오는 비행기 도착일 일정은 한국 시각으로 적혀 있음 */
+function isKoreaItem(it) {
+  var fs = S.D.flights || [], s = S.D.settings;
+  var out = fs.filter(function (f) { return String(f.dir).indexOf('가는') >= 0; })[0];
+  var back = fs.filter(function (f) { return String(f.dir).indexOf('오는') >= 0; })[0];
+  if (out && it.date === out.date && it.time && it.time <= out.dep) return true;
+  if (back && back.arr_date && it.date >= back.arr_date) return true;
+  return false;
+}
+/* 그 일정의 시각 기준(한국/현지)으로 본 지금 → { date, min } */
+function nowFor(it) {
+  var n = localNow();
+  if (!isKoreaItem(it)) return n;
+  var off = -Number(S.D.settings.tz_offset_from_korea || 0) * 60, m = n.min + off, d = n.date;   // 현지 → 한국 (+2시간)
+  if (m >= 1440) { m -= 1440; d = addDays(d, 1); } else if (m < 0) { m += 1440; d = addDays(d, -1); }
+  return { date: d, min: m };
+}
+function minsUntil(it) { var n = nowFor(it); return dayDiff(n.date, it.date) * 1440 + toMin(it.time) - n.min; }
 function nextCard(date) {
   var n = localNow();
-  if (n.date !== date) return '';
-  var its = itemsOf(date).filter(function (i) { return i.time && toMin(i.time) > n.min; });
+  if (n.date !== date && nowFor({ date: date, time: '00:00' }).date !== date) return '';
+  var its = itemsOf(date).filter(function (i) { return i.time && minsUntil(i) > 0; });
   if (!its.length) return '';
-  var nx = its[0], left = toMin(nx.time) - n.min;
+  var nx = its[0], left = minsUntil(nx);
   return '<div class="next' + (left <= 30 ? ' soon' : '') + '"><div style="font-size:28px">' + icon(nx.type) + '</div><div><div class="small muted">다음 일정</div>' +
     '<div class="big">' + esc(nx.time) + ' ' + esc(nx.title) + '</div><div class="small">' + (nameOf(nx) ? esc(nameOf(nx)) + ' · ' : '') + '<b>' + durText(left) + ' 남음</b></div></div></div>';
 }
@@ -1861,6 +1881,44 @@ function expenseForm(e, preset) {
   };
 }
 
+/* 지출 줄을 꾹 누르면(0.5초) 바로 지우기 메뉴 — 안으로 들어가지 않아도 됨. PC는 오른쪽 클릭 */
+var expSuppressUntil = 0;
+function expLongPress(row, fire) {
+  var t = null, x0 = 0, y0 = 0;
+  function cancel() { if (t) { clearTimeout(t); t = null; } row.classList.remove('pressing'); }
+  row.addEventListener('touchstart', function (e) {
+    if (e.touches.length !== 1) return;
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
+    row.classList.add('pressing');
+    t = setTimeout(function () {
+      t = null; row.classList.remove('pressing');
+      expSuppressUntil = Date.now() + 700;   // 손을 뗄 때 생기는 클릭으로 수정 창이 열리지 않게
+      if (navigator.vibrate) { try { navigator.vibrate(30); } catch (x) {} }
+      fire();
+    }, 500);
+  }, { passive: true });
+  row.addEventListener('touchmove', function (e) { if (t && (Math.abs(e.touches[0].clientX - x0) > 10 || Math.abs(e.touches[0].clientY - y0) > 10)) cancel(); }, { passive: true });
+  row.addEventListener('touchend', cancel);
+  row.addEventListener('touchcancel', cancel);
+  row.addEventListener('contextmenu', function (e) { e.preventDefault(); cancel(); fire(); });
+}
+function expQuickMenu(e) {
+  var mine = e.created_by === S.me.name || S.me.isAdmin;
+  var sh = sheet('<h3>' + catIcon(e.category) + ' ' + esc(e.title || e.category) + '</h3>' +
+    '<p class="muted" style="margin:0 0 12px">' + md(e.date) + '(' + wd(e.date) + ') · ' + baht(e.thb) + ' · ' + (e.payer === '공금' ? '💰 공금' : '👤 ' + esc(e.payer)) + '</p>' +
+    (mine ? '<button class="btn bad" style="width:100%;margin:4px 0" id="q-del">🗑️ 이 지출 삭제</button>'
+          : '<p class="small muted">이 지출은 ' + esc(e.created_by || '다른 회원') + ' 님이 적어서 그분이나 관리자만 지울 수 있습니다.</p>') +
+    '<button class="btn" style="width:100%;margin:4px 0" id="q-edit">✏️ 열어서 보기·고치기</button>' +
+    '<button class="btn ghost" style="width:100%;margin:4px 0" data-close>취소</button>', null, true);
+  el('#q-edit', sh).onclick = function () { expenseForm(e); };
+  if (mine) el('#q-del', sh).onclick = function () {
+    confirmBox(md(e.date) + ' ' + (e.title || e.category) + ' ' + baht(e.thb) + ' 지출을 지울까요?', '삭제').then(function (y) {
+      if (!y) return;
+      call('deleteExpense', { id: e.id }).then(function (r) { S.D.expenses = r.expenses; saveCache(); renderMain(); toast('지웠습니다.'); }).catch(function (err) { toast(err.message); });
+    });
+  };
+}
+
 /* 사진 줄이기 (긴 쪽 maxPx, JPEG) */
 function shrinkImage(file, maxPx, q) {
   return new Promise(function (res, rej) {
@@ -2181,7 +2239,9 @@ function bindMain() {
   // 경비
   els('[data-mtab]', m).forEach(function (b) { b.onclick = function () { S.moneyTab = b.dataset.mtab; renderMain(); }; });
   els('[data-exp]', m).forEach(function (b) {
-    b.onclick = function () { var e = (S.D.expenses || []).filter(function (x) { return x.id === b.dataset.exp; })[0]; if (e) expenseForm(e); };
+    var find = function () { return (S.D.expenses || []).filter(function (x) { return x.id === b.dataset.exp; })[0]; };
+    b.onclick = function () { if (Date.now() < expSuppressUntil) return; var e = find(); if (e) expenseForm(e); };
+    expLongPress(b, function () { var e = find(); if (e) expQuickMenu(e); });
   });
   els('[data-mark]', m).forEach(function (b) {
     b.onclick = function () {
