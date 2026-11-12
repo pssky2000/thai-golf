@@ -417,7 +417,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-40';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-41';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1634,6 +1634,9 @@ function cashHolders() {
   (S.D.cashMoves || []).forEach(function (mv) { if (names.indexOf(mv.to) >= 0 && !out.some(function (h) { return h.name === mv.to; })) out.push({ name: mv.to, start: 0 }); });
   return out;
 }
+/* 현지 추가 환전 기록 (공금이동 중 from='회비') */
+function exchanges() { return (S.D.cashMoves || []).filter(function (m) { return m.from === '회비'; }); }
+function sumOf(list, k) { return list.reduce(function (a, x) { return a + (Number(String(x[k] || '').replace(/,/g, '')) || 0); }, 0); }
 /* 사람별 남은 공금: 처음 맡은 돈 − 그 사람 지갑에서 낸 공금. 지갑을 안 고른 공금은 따로 */
 function cashByHolder() {
   var hs = cashHolders(), used = {}, none = 0;
@@ -1683,8 +1686,8 @@ function calcSettle() {
     debt[i].a -= x; cred[j].a -= x;
     if (debt[i].a < 100) i++; if (cred[j].a < 100) j++;
   }
-  var cash = Number(S.D.settings.common_cash_thb || 0);
-  return { names: names, paid: paid, owed: owed, bal: bal, enjoyed: enjoyed, support: support, total: total, common: common, cashLeft: cash - common, cash: cash,
+  var cash0 = Number(S.D.settings.common_cash_thb || 0), exThb = sumOf(exchanges(), 'thb'), cash = cash0 + exThb;
+  return { names: names, paid: paid, owed: owed, bal: bal, enjoyed: enjoyed, support: support, total: total, common: common, cashLeft: cash - common, cash: cash, cash0: cash0, exThb: exThb,
     personalShared: personalShared, supportTotal: supportTotal, byCat: byCat, byDay: byDay, transfers: transfers, rate: rate };
 }
 function settleOn(key, who) { return (S.D.settle || []).some(function (r) { return r.key === key && r.member === (who || '') && r.value === 'Y'; }); }
@@ -1695,7 +1698,7 @@ function viewMoney() {
   var head =
     '<div class="card cash"><b style="white-space:nowrap">💰 공금 남은 돈</b>' +
     '<div class="cbox"><div class="ctop"><span class="lab">💵 남은 바트 현금</span><b class="big">' + baht(c.cashLeft) + '</b></div>' +
-      '<div class="ctop" style="margin-top:2px"><span class="muted">처음 ' + baht(c.cash) + '</span><span>쓴 돈 <span class="spent">' + baht(c.common) + '</span></span></div>' +
+      '<div class="ctop" style="margin-top:2px"><span class="muted">처음 ' + baht(c.cash0) + (c.exThb ? ' + 환전 ' + baht(c.exThb) : '') + '</span><span>쓴 돈 <span class="spent">' + baht(c.common) + '</span></span></div>' +
       '<div class="bar-bg" style="margin-top:8px"><div class="bar-fg" style="width:' + pct + '%"></div></div>' +
       walletLine() + '</div>' +
     '<div class="cbox"><div class="ctop"><span class="lab">🏦 회비 통장</span><b class="big">' + won(fs.balance) + '</b></div>' +
@@ -1723,13 +1726,40 @@ function walletLine() {
 /* 공금 넘겨준 기록 + [🔁 공금 넘겨주기] 버튼 */
 function movesHtml() {
   var mv = (S.D.cashMoves || []).slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
-  return '<div class="row wrap-row" style="margin-top:6px"><button class="btn sm" data-act="cash-move">🔁 공금 넘겨주기</button>' +
-    (mv.length ? '<span class="small muted">넘겨준 기록 ' + mv.length + '건</span>' : '') + '</div>' +
+  return '<div class="row wrap-row" style="margin-top:6px"><button class="btn sm" data-act="cash-move">🔁 공금 넘겨주기</button><button class="btn sm" data-act="cash-exch">💱 추가 환전</button></div>' +
     mv.map(function (m) {
-      var canDel = m.by === S.me.name || S.me.isAdmin;
-      return '<div class="small" style="margin-top:4px">🔁 ' + md(m.date) + ' ' + esc(m.from) + ' → ' + esc(m.to) + ' <b>' + baht(m.thb) + '</b>' + (m.memo ? ' <span class="muted">' + esc(m.memo) + '</span>' : '') +
+      var canDel = m.by === S.me.name || S.me.isAdmin, ex = m.from === '회비';
+      return '<div class="small" style="margin-top:4px">' + (ex ? '💱 ' + md(m.date) + ' 회비 환전 → ' + esc(m.to) + ' <b>' + baht(m.thb) + '</b> <span class="muted">(' + won(m.krw) + ')</span>'
+        : '🔁 ' + md(m.date) + ' ' + esc(m.from) + ' → ' + esc(m.to) + ' <b>' + baht(m.thb) + '</b>') + (m.memo ? ' <span class="muted">' + esc(m.memo) + '</span>' : '') +
         (canDel ? ' <a href="#" data-mvdel="' + esc(m.id) + '">✕</a>' : '') + '</div>';
     }).join('');
+}
+/* 💱 추가 환전: 회비 통장 원화를 현지에서 바트로 바꿈 → 받은 사람 지갑 +바트, 회비 사용 +원화 */
+function cashExchForm() {
+  var names = memberNames(), today = localNow().date, ds = dates(), rate = liveRate();
+  var hs = cashHolders().map(function (h) { return h.name; });
+  var st = { to: hs.indexOf(S.me.name) >= 0 ? S.me.name : (hs[0] || '') };
+  var sh = sheet('<h3>💱 공금 추가 환전</h3><p class="small muted">회비 통장 돈을 현지에서 바트로 더 바꿨을 때 적어 주세요. 바트는 받은 사람 지갑(공금)에 더해지고, 원화는 회비 사용으로 빠집니다.</p>' +
+    '<label class="lb">바꾼 바트를 받은 사람</label><div class="grid4" id="ex-to">' + names.map(function (n) { return '<button class="pick' + (n === st.to ? ' on' : '') + '" data-v="' + esc(n) + '">' + esc(n) + '</button>'; }).join('') + '</div>' +
+    '<div class="fx-grid x-money" style="margin-top:10px"><label class="mwrap"><span class="unit">THB</span><input class="inp money" id="ex-thb" inputmode="decimal" placeholder="0"></label><span>⇄</span><label class="mwrap won"><span class="unit">원</span><input class="inp money" id="ex-krw" inputmode="numeric" placeholder="0"></label></div>' +
+    '<p class="small muted" style="margin:4px 2px 0">원화는 지금 환율(' + rate.toFixed(2) + '원)로 먼저 채워져요. 실제로 통장에서 나간 금액으로 고쳐 주세요.</p>' +
+    '<div class="row" style="margin-top:8px"><label class="lb" style="margin:0">날짜</label><select class="inp" id="ex-date" style="flex:1">' + ds.map(function (d) { return '<option value="' + d + '"' + (d === (ds.indexOf(today) >= 0 ? today : ds[0]) ? ' selected' : '') + '>' + md(d) + '(' + wd(d) + ')</option>'; }).join('') + '</select></div>' +
+    '<label class="lb">메모 (선택)</label><input class="inp" id="ex-memo" placeholder="예) 공항 환전소, ATM">' +
+    '<p class="small" id="ex-msg" style="color:var(--bad);min-height:18px"></p>' +
+    '<div class="row" style="justify-content:flex-end"><button class="btn" data-close>취소</button><button class="btn pri" id="ex-ok">저장</button></div>');
+  els('#ex-to .pick', sh).forEach(function (b) { b.onclick = function () { st.to = b.dataset.v; els('#ex-to .pick', sh).forEach(function (x) { x.classList.toggle('on', x === b); }); }; });
+  var tIn = el('#ex-thb', sh), kIn = el('#ex-krw', sh), kTouched = false;
+  tIn.oninput = function () { commaLive(tIn, true); if (kTouched) return; var v = parseFloat(tIn.value.replace(/,/g, '')); kIn.value = isFinite(v) ? num(Math.round(v * rate)) : ''; };
+  kIn.oninput = function () { commaLive(kIn, false); kTouched = !!kIn.value; };
+  el('#ex-ok', sh).onclick = function () {
+    var thb = tIn.value.replace(/,/g, ''), krw = kIn.value.replace(/,/g, '');
+    if (!st.to) { el('#ex-msg', sh).textContent = '바트를 받은 사람을 골라 주세요.'; return; }
+    if (!(Number(thb) > 0)) { el('#ex-msg', sh).textContent = '받은 바트를 적어 주세요.'; return; }
+    if (!(Number(krw) > 0)) { el('#ex-msg', sh).textContent = '통장에서 나간 원화를 적어 주세요.'; return; }
+    call('addCashMove', { from: '회비', to: st.to, thb: thb, krw: krw, date: el('#ex-date', sh).value, memo: el('#ex-memo', sh).value }).then(function (r) {
+      S.D.cashMoves = r.cashMoves; saveCache(); closeSheet(); renderMain(); toast(st.to + ' 지갑에 ' + baht(thb) + ' 더했습니다.');
+    }).catch(function (e) { el('#ex-msg', sh).textContent = e.message; });
+  };
 }
 function cashMoveForm() {
   var hs = cashByHolder().list, names = memberNames(), today = localNow().date, ds = dates();
@@ -1849,7 +1879,8 @@ function feeStats() {
   var paidBy = {}; names.forEach(function (n) { paidBy[n] = 0; });
   fees.forEach(function (f) { paidBy[f.member] = (paidBy[f.member] || 0) + Number(f.amount || 0); });
   var paidTotal = names.reduce(function (a, n) { return a + paidBy[n]; }, 0);
-  var useTotal = uses.reduce(function (a, u) { return a + Number(u.amount || 0); }, 0);
+  exchanges().forEach(function (m) { uses = uses.concat([{ title: '💱 현지 환전 ' + baht(m.thb), date: m.date, by: m.to, memo: m.memo, amount: m.krw, ex: true }]); });
+  var useTotal = uses.reduce(function (a, u) { return a + Number(String(u.amount || 0).replace(/,/g, '')); }, 0);
   var interest = Number(s.fee_interest || 0);
   return { names: names, fees: fees, uses: uses, paidBy: paidBy, paidTotal: paidTotal, useTotal: useTotal, interest: interest, balance: paidTotal + interest - useTotal };
 }
@@ -1889,7 +1920,7 @@ function viewFee() {
     html += '<div class="card"><b>📤 회비 사용 내역</b>' +
       '<div style="margin-top:6px"><div class="kv"><span>사용 합계</span><b>' + won(useTotal) + '</b></div></div>' +
       (uses.length ? uses.map(function (u) {
-        return '<div class="mrow"><div><b>' + esc(u.title) + '</b><div class="small muted">' + esc(u.date) + ' · ' + esc(u.by) + (u.memo ? ' · ' + esc(u.memo) : '') + (S.me.isAdmin ? ' <a href="#" data-feedel="use:' + esc(u.id) + '">✕</a>' : '') + '</div></div><div class="bal">' + won(u.amount) + '</div></div>';
+        return '<div class="mrow"><div><b>' + esc(u.title) + '</b><div class="small muted">' + esc(u.date) + ' · ' + esc(u.by) + (u.memo ? ' · ' + esc(u.memo) : '') + (S.me.isAdmin && !u.ex ? ' <a href="#" data-feedel="use:' + esc(u.id) + '">✕</a>' : '') + '</div></div><div class="bal">' + won(u.amount) + '</div></div>';
       }).join('') : '<p class="muted small">아직 사용 기록이 없습니다.</p>') +
       (S.me.isAdmin ? '<button class="btn sm" data-act="fee-use" style="margin-top:8px">＋ 사용 기록 (관리자)</button>' : '') + '</div>';
   } else {
@@ -2373,6 +2404,7 @@ function bindMain() {
       else if (a === 'fee-use') feeForm('use');
       else if (a === 'fee-bank') feeBankForm();
       else if (a === 'cash-move') cashMoveForm();
+      else if (a === 'cash-exch') cashExchForm();
       else if (a === 'exp-sel-x') { S.expSel = null; renderMain(); }
       else if (a === 'exp-sel-all') { var mineAll = expenses().filter(canDelExp).map(function (x) { return x.id; }); S.expSel = S.expSel && S.expSel.length === mineAll.length ? [] : mineAll; renderMain(); }
       else if (a === 'exp-sel-del') {
@@ -2431,7 +2463,7 @@ function bindMain() {
   els('[data-mvdel]', m).forEach(function (a) {
     a.onclick = function (ev) {
       ev.preventDefault();
-      confirmBox('이 공금 넘겨주기 기록을 지울까요?', '삭제').then(function (y) {
+      confirmBox('이 기록을 지울까요?', '삭제').then(function (y) {
         if (!y) return;
         call('deleteCashMove', { id: a.dataset.mvdel }).then(function (r) { S.D.cashMoves = r.cashMoves; saveCache(); renderMain(); }).catch(function (e) { toast(e.message); });
       });
