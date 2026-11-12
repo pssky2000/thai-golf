@@ -386,7 +386,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-26';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-27';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1596,12 +1596,11 @@ function viewMoney() {
   var pct = c.cash ? Math.max(0, Math.min(100, c.cashLeft / c.cash * 100)) : 0;
   var head =
     '<div class="card cash"><b style="white-space:nowrap">💰 공금 남은 돈</b>' + (S.D.settings.common_cash_note ? '<div class="small muted">' + esc(S.D.settings.common_cash_note) + '</div>' : '') +
-    '<div class="cash2"><div><div class="lab">💵 바트 현금</div><b>' + baht(c.cashLeft) + '</b><div class="small muted">처음 ' + baht(c.cash) + '</div></div>' +
+    '<div class="cash2"><div><div class="lab">💵 바트 현금</div><b>' + baht(c.cashLeft) + '</b><div class="small muted">처음 ' + baht(c.cash) + '</div><div class="small">쓴 돈 <b>' + baht(c.common) + '</b></div></div>' +
     '<div><div class="lab">🏦 회비 통장</div><b>' + won(fs.balance) + '</b><div class="small muted">' + esc(S.D.settings.fee_asof || '') + ' 기준</div></div></div>' +
     '<div class="bar-bg" style="margin-top:10px"><div class="bar-fg" style="width:' + pct + '%"></div></div>' +
-    '<div style="margin-top:6px">바트 쓴 돈 <b>' + baht(c.common) + '</b></div>' +
-    '<div>합치면 약 <b>' + won(Math.round(c.cashLeft * c.rate) + fs.balance) + '</b> 남음</div>' +
-    '<div class="small muted">(남은 바트 현금 × 정산 환율 ' + c.rate + '원 + 회비 통장)</div></div>' +
+    '<div style="margin-top:6px">회비 예상 잔액 <b>' + won(Math.round(c.cashLeft * c.rate) + fs.balance) + '</b></div>' +
+    '<div class="small muted">(남은 바트를 ' + c.rate + '원에 바꿔 통장에 넣으면)</div></div>' +
     '<div class="seg-tabs">' + [['list', '🧾 지출 기록'], ['settle', '🤝 정산'], ['fee', '🏦 회비']].map(function (t) {
       return '<button class="' + (sub === t[0] ? 'on' : '') + '" data-mtab="' + t[0] + '">' + t[1] + '</button>';
     }).join('') + '</div>';
