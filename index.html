@@ -375,7 +375,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-20';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-21';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1280,7 +1280,7 @@ function sumHoles(h, a, b) { var s = 0, any = false; for (var i = a; i < b; i++)
 /* ═════════ 스코어카드 사진 인식 ═════════ */
 function scanScorecard(file) {
   var rid = S.scoreRound, r = S.D.rounds.filter(function (x) { return x.round_id === rid; })[0];
-  var sh = sheet('<h3>📋 스코어카드 읽는 중…</h3><p class="small muted">10~20초 걸릴 수 있습니다. 창을 닫지 말아 주세요.</p><div id="sc-img"></div><p class="small" id="sc-st"></p>');
+  var sh = sheet('<h3>📋 스코어카드 읽는 중…</h3><p class="small muted">20~40초 걸릴 수 있습니다. 창을 닫지 말아 주세요.</p><div id="sc-img"></div><p class="small" id="sc-st"></p>');
   var shot;
   shrinkImage(file, 2000, 0.85).then(function (dataUrl) {
     shot = dataUrl;
@@ -1302,7 +1302,7 @@ function scanScorecard(file) {
 
 function reviewScorecard(res, r, shot) {
   var names = memberNames();
-  var players = (res.players || []).map(function (p) { var raw = Array.isArray(p.raw) ? p.raw : p.holes; return Object.assign({}, p, { raw: Array.isArray(raw) ? raw : null }); })
+  var players = (res.players || []).map(function (p) { var raw = Array.isArray(p.raw) ? p.raw : p.holes; return Object.assign({}, p, { raw: Array.isArray(raw) ? holes18(raw) : null }); })
     .filter(function (p) { return p.raw; });
   if (!players.length) { sheet('<h3>점수를 찾지 못했습니다</h3><p>사진이 흐리거나 잘렸을 수 있습니다. 스코어카드 전체가 나오게 다시 찍어 주세요.</p><button class="btn pri" data-close>확인</button>'); return; }
   // 파: 카드에서 읽은 값 → 라운드에 저장된 값 → 빈칸
@@ -1411,6 +1411,15 @@ function reviewScorecard(res, r, shot) {
         .catch(function (e) { toast(e.message); });
     });
   };
+}
+/* 인식 결과에 OUT·IN·TOTAL 칸이 섞여 들어온 경우(19~21칸) 빼고 18칸으로 맞춤 */
+function holes18(raw) {
+  var a = raw.slice();
+  var isSum = function (i, from, to) { var t = sumN(a, from, to); return a[i] !== null && a[i] !== undefined && t !== null && Number(a[i]) === t; };
+  if (a.length >= 19 && isSum(9, 0, 9)) a.splice(9, 1);          // 전반 9칸 뒤 OUT
+  if (a.length >= 19 && isSum(18, 9, 18)) a.splice(18, 1);       // 후반 9칸 뒤 IN
+  if (a.length >= 19) a = a.slice(0, 18);                         // 그 뒤 TOTAL 등
+  return a;
 }
 function sumN(a, s, e) { var t = 0, any = false; for (var i = s; i < e; i++) if (a[i] !== null && a[i] !== undefined && a[i] !== '') { t += Number(a[i]); any = true; } return any ? t : null; }
 function showCards(rid) {
