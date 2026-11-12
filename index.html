@@ -142,7 +142,11 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
   .day-grid .list-col{grid-column:1;grid-row:1}
   .day-grid .map-col{grid-column:2;grid-row:1;position:sticky;top:76px;margin:0}
 }
-.map-head{display:flex;justify-content:space-between;align-items:center;padding:10px 12px}
+.map-head{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px}
+.map-head>b{white-space:nowrap}
+.mapsw{display:flex;flex:none;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.mapsw button{border:0;background:transparent;color:var(--muted);font:inherit;font-size:calc(13px*var(--fs));padding:5px 10px;cursor:pointer;white-space:nowrap}
+.mapsw button.on{background:var(--pri);color:#fff;font-weight:700}
 .edit-btn{width:100%;margin:4px 0 8px;border-style:dashed;border-color:var(--pri);color:var(--pri);font-weight:700}
 .edit-on{border:2px solid var(--pri)}
 .tl{list-style:none;margin:0;padding:0}
@@ -388,14 +392,14 @@ var LS = {
 };
 var S = {
   token: LS.get('trip_token', null), me: null, D: null, boot: null,
-  tab: null, editMode: false, mapSel: {}, scoreRound: null, scoreFor: null,
+  tab: null, editMode: false, mapSel: {}, mapSat: !!LS.get('trip_sat', ''), scoreRound: null, scoreFor: null,
   queue: LS.get('trip_queue', []), saveState: '', fx: null, wx: null, routes: LS.get('trip_routes', {})
 };
 var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-36';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-37';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -428,6 +432,22 @@ function esc(s) { return String(s === undefined || s === null ? '' : s).replace(
 function el(sel, root) { return (root || document).querySelector(sel); }
 function els(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
 function num(n) { return Number(n).toLocaleString('ko-KR'); }
+/* 소수 둘째 자리까지 + 천단위 콤마 */
+function numDec(n) { var v = parseFloat(String(n).replace(/,/g, '')); return isFinite(v) ? v.toLocaleString('ko-KR', { maximumFractionDigits: 2 }) : ''; }
+/* 적는 중인 칸에 천단위 콤마를 붙임 (커서 위치 유지). dec: 소수점 허용 */
+function commaLive(inp, dec) {
+  var raw = inp.value, pos = inp.selectionStart == null ? raw.length : inp.selectionStart;
+  var keep = raw.slice(0, pos).replace(dec ? /[^\d.]/g : /\D/g, '').length;   // 커서 앞 숫자 개수
+  var t = raw.replace(dec ? /[^\d.]/g : /\D/g, '');
+  if (dec) { var k = t.indexOf('.'); if (k >= 0) t = t.slice(0, k + 1) + t.slice(k + 1).replace(/\./g, '').slice(0, 2); }
+  var parts = t.split('.'), ip = parts[0].replace(/^0+(?=\d)/, '');
+  var out = ip.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (parts.length > 1 ? '.' + parts[1] : '');
+  if (out === raw) return;
+  inp.value = out;
+  var c = 0, i = 0;
+  while (i < out.length && c < keep) { if (/[\d.]/.test(out[i])) c++; i++; }
+  try { inp.setSelectionRange(i, i); } catch (e) {}
+}
 function pad(n) { return (n < 10 ? '0' : '') + n; }
 function toMin(t) { if (!t) return null; var p = String(t).split(':'); return Number(p[0]) * 60 + Number(p[1]); }
 function fromMin(m) { m = ((m % 1440) + 1440) % 1440; return pad(Math.floor(m / 60)) + ':' + pad(m % 60); }
@@ -797,13 +817,14 @@ function routePoints(its) {
 }
 /* 구글지도 임베드: 짧은 주소(maps?output=embed)는 폰 브라우저에서 막혀서, 구글이 실제로 쓰는 embed 주소를 직접 만듦 */
 var EMB = 'https://www.google.com/maps/embed?origin=mfe&pb=';
-function embedRoute(pts) {
+function embedRoute(pts, sat) {
   if (!pts.length) return '';
-  if (pts.length === 1) return embedPlace(pts[0], 15);
+  if (pts.length === 1) return embedPlace(pts[0], 15, sat);
   var n = pts.length * 4;
-  return EMB + '!1m' + (n + 1) + '!4m' + n + pts.map(function (p) { return '!4m3!3m2!1d' + p.lat + '!2d' + p.lng; }).join('') + '!3m1!1sko!5m1!1sko';
+  return EMB + '!1m' + (n + (sat ? 2 : 1)) + '!4m' + n + pts.map(function (p) { return '!4m3!3m2!1d' + p.lat + '!2d' + p.lng; }).join('') + (sat ? '!5e1' : '') + '!3m1!1sko!5m1!1sko';
 }
-function embedPlace(p, z) { return EMB + '!1m3!2m1!1s' + p.lat + ',' + p.lng + '!6i' + (z || 16) + '!3m1!1sko!5m1!1sko'; }
+/* sat: 위성지도 (!5e1) */
+function embedPlace(p, z, sat) { return EMB + '!1m' + (sat ? 4 : 3) + '!2m1!1s' + p.lat + ',' + p.lng + (sat ? '!5e1' : '') + '!6i' + (z || 16) + '!3m1!1sko!5m1!1sko'; }
 function gmapOpen(it) { return 'https://www.google.com/maps/search/?api=1&query=' + it.lat + ',' + it.lng; }
 function gmapDir(a, b) { return 'https://www.google.com/maps/dir/?api=1&origin=' + a.lat + ',' + a.lng + '&destination=' + b.lat + ',' + b.lng + '&travelmode=driving'; }
 function gmapDayRoute(pts) {
@@ -872,11 +893,11 @@ function viewDay(date) {
   var sel = S.mapSel[date];
   var selPt = pts.filter(function (p) { return p.letter === sel; })[0];
   var map = pts.length
-    ? '<div class="map-box"><div class="map-head"><b>🗺️ 오늘 동선</b><a class="small" target="_blank" href="' + esc(pts.length > 1 ? gmapDayRoute(pts) : gmapOpen(pts[0])) + '">구글지도 앱으로 ›</a></div>' +
-      '<iframe referrerpolicy="no-referrer-when-downgrade" src="' + esc(selPt ? embedPlace(selPt) : embedRoute(pts)) + '" title="오늘 지도"></iframe>' +
+    ? '<div class="map-box"><div class="map-head"><b>🗺️ 오늘 동선</b><div class="mapsw"><button class="' + (!S.mapSat ? 'on' : '') + '" data-sat="0">지도</button><button class="' + (S.mapSat ? 'on' : '') + '" data-sat="1">🛰️ 위성</button></div></div>' +
+      '<iframe referrerpolicy="no-referrer-when-downgrade" src="' + esc(selPt ? embedPlace(selPt, 16, S.mapSat) : embedRoute(pts, S.mapSat)) + '" title="오늘 지도"></iframe>' +
       '<div class="pts"><button class="pt' + (!selPt ? ' on' : '') + '" data-pt="">전체 동선</button>' +
       pts.map(function (p) { return '<button class="pt' + (p === selPt ? ' on' : '') + '" data-pt="' + p.letter + '"><b>' + p.letter + '</b> ' + esc(p.name) + '</button>'; }).join('') + '</div>' +
-      (pts.length > 1 ? '<div style="padding:0 10px 12px"><a class="btn sm" target="_blank" href="' + esc(gmapDayRoute(pts)) + '">🧭 오늘 경로 전체 보기 (구글지도)</a></div>' : '') +
+      '<div style="padding:0 10px 12px"><a class="btn sm" target="_blank" href="' + esc(pts.length > 1 ? gmapDayRoute(pts) : gmapOpen(pts[0])) + '">' + (pts.length > 1 ? '🧭 오늘 경로 전체 보기 (구글지도)' : '🗺️ 구글지도 앱으로 열기') + '</a></div>' +
       '</div>'
     : '';
 
@@ -1214,8 +1235,8 @@ function viewScore() {
 
   var tt = totalOf(sc) || { f: null, b: null, t: 0 };
   var editor =
-    '<div class="card sc-me"><div class="row between"><b>' + (who === S.me.name ? '✍️ 내 스코어' : '✍️ ' + esc(who) + ' 님 스코어 (대신 입력)') + '</b>' +
-      '<div class="row"><button class="btn sm' + (mode === 'half' ? ' pri' : '') + '" data-mode="half">전·후반</button><button class="btn sm' + (mode === 'holes' ? ' pri' : '') + '" data-mode="holes">홀별</button></div></div>' +
+    '<div class="card sc-me"><div class="row between" style="flex-wrap:nowrap;align-items:flex-start"><b style="min-width:0">' + (who === S.me.name ? '✍️ 내 스코어' : '✍️ ' + esc(who) + ' 님<br><span class="small muted" style="font-weight:400;white-space:nowrap">스코어 대신 입력</span>') + '</b>' +
+      '<div class="row" style="flex:none;flex-wrap:nowrap;white-space:nowrap"><button class="btn sm' + (mode === 'half' ? ' pri' : '') + '" data-mode="half">전·후반</button><button class="btn sm' + (mode === 'holes' ? ' pri' : '') + '" data-mode="holes">홀별</button></div></div>' +
     (mode === 'half'
       ? '<div class="sc-big" style="margin-top:12px"><div><div class="lab">전반</div>' + stepper('front', tt.f) + '</div><div><div class="lab">후반</div>' + stepper('back', tt.b) + '</div>' +
         '<div class="sc-total"><div class="lab">합계</div><div class="sum" id="sum">' + (tt.f !== null || tt.b !== null ? tt.t : '-') + '</div></div></div>'
@@ -1225,7 +1246,7 @@ function viewScore() {
         }).join('') + '</div>' +
         '<div class="row between" style="margin-top:10px"><span class="muted">합계</span><span class="sum" id="sum">' + (tt.f !== null || tt.b !== null ? tt.t : '-') + '</span></div>') +
     '<div class="row between" style="margin-top:8px"><span class="save-st muted" id="sst">' + esc(S.saveState) + '</span>' +
-      '<div class="row">' + (tt.f !== null || tt.b !== null || filled(holes) ? '<button class="btn sm bad" data-act="score-clear">🗑️ 지우기</button>' : '') +
+      '<div class="row" style="white-space:nowrap;justify-content:flex-end;flex-wrap:wrap;flex:1 1 0;min-width:0">' + (tt.f !== null || tt.b !== null || filled(holes) ? '<button class="btn sm bad" data-act="score-clear">🗑️ 지우기</button>' : '') +
       (who !== S.me.name ? '<button class="btn sm" data-for="">내 스코어로 돌아가기</button>' : '') + '</div></div></div>';
 
   return '<div class="rounds">' + rs.map(function (x) { return '<button class="tab' + (x.round_id === r.round_id ? ' on' : '') + '" data-round="' + x.round_id + '"><span class="d">' + md(x.date) + '</span><span class="s">' + esc(x.course) + '</span></button>'; }).join('') + '</div>' +
@@ -1876,8 +1897,9 @@ function expenseForm(e, preset) {
     '<div class="row"><button class="btn" id="x-x">' + (canEdit ? '취소' : '닫기') + '</button>' + (canEdit ? '<button class="btn pri" id="x-ok">저장</button>' : '') + '</div></div>';
   var sh = sheet(html);
   var tIn = el('#x-thb', sh), kIn = el('#x-krw', sh);
-  tIn.oninput = function () { st.inCur = 'THB'; var v = parseFloat(tIn.value.replace(/,/g, '')); kIn.value = isFinite(v) ? num(Math.round(v * st.rate)) : ''; tIn.classList.add('main'); kIn.classList.remove('main'); };
-  kIn.oninput = function () { st.inCur = 'KRW'; var v = parseFloat(kIn.value.replace(/,/g, '')); tIn.value = isFinite(v) ? (Math.round(v / st.rate * 100) / 100) : ''; kIn.classList.add('main'); tIn.classList.remove('main'); };
+  if (tIn.value) tIn.value = numDec(tIn.value);
+  tIn.oninput = function () { commaLive(tIn, true); st.inCur = 'THB'; var v = parseFloat(tIn.value.replace(/,/g, '')); kIn.value = isFinite(v) ? num(Math.round(v * st.rate)) : ''; tIn.classList.add('main'); kIn.classList.remove('main'); };
+  kIn.oninput = function () { commaLive(kIn, false); st.inCur = 'KRW'; var v = parseFloat(kIn.value.replace(/,/g, '')); tIn.value = isFinite(v) ? numDec(Math.round(v / st.rate * 100) / 100) : ''; kIn.classList.add('main'); tIn.classList.remove('main'); };
   function pickOne(id, key) {
     els('#' + id + ' .pick', sh).forEach(function (b) { b.onclick = function () { if (!canEdit) return; st[key] = b.dataset.v; els('#' + id + ' .pick', sh).forEach(function (x) { x.classList.toggle('on', x === b); }); sync(); }; });
   }
@@ -2254,6 +2276,7 @@ function bindMain() {
     };
   });
   els('[data-pt]', m).forEach(function (b) { b.onclick = function () { S.mapSel[S.tab] = b.dataset.pt; renderMain(); }; });
+  els('[data-sat]', m).forEach(function (b) { b.onclick = function () { S.mapSat = b.dataset.sat === '1'; LS.set('trip_sat', S.mapSat ? '1' : ''); renderMain(); }; });
   els('[data-shift]', m).forEach(function (b) {
     b.onclick = function () {
       var its = itemsOf(S.tab), idx = its.map(function (x) { return x.id; }).indexOf(b.dataset.shift);
@@ -2383,8 +2406,8 @@ function bindMain() {
   // 환율 계산기
   var fa = el('#fxa', m), fb = el('#fxb', m);
   if (fa) {
-    fa.oninput = function () { var r = S.fx && S.fx.rate, v = parseFloat(fa.value.replace(/,/g, '')); fb.value = r && isFinite(v) ? num(Math.round(v * r)) : ''; };
-    fb.oninput = function () { var r = S.fx && S.fx.rate, v = parseFloat(fb.value.replace(/,/g, '')); fa.value = r && isFinite(v) ? num(Math.round(v / r)) : ''; };
+    fa.oninput = function () { commaLive(fa, true); var r = S.fx && S.fx.rate, v = parseFloat(fa.value.replace(/,/g, '')); fb.value = r && isFinite(v) ? num(Math.round(v * r)) : ''; };
+    fb.oninput = function () { commaLive(fb, false); var r = S.fx && S.fx.rate, v = parseFloat(fb.value.replace(/,/g, '')); fa.value = r && isFinite(v) ? num(Math.round(v / r)) : ''; };
   }
   // 스코어
   els('[data-round]', m).forEach(function (b) { b.onclick = function () { S.scoreRound = b.dataset.round; renderMain(); }; });
