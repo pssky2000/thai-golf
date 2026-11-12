@@ -417,7 +417,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-41';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-42';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -702,7 +702,7 @@ function render() {
   ];
   SECS = SECS.filter(Boolean);
   if (sec === 'money' && !canMoney()) { S.tab = 'all'; sec = 'all'; }
-  var secTitle = { all: '여행 요약', score: '골프 스코어', money: '경비 · 정산 · 회비', info: '여행 정보' }[sec];
+  var secTitle = { all: '여행 요약', score: '골프 스코어', money: '회비 · 경비 · 정산', info: '여행 정보' }[sec];
 
   $app.innerHTML =
     '<div class="wrap">' +
