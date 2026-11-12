@@ -374,7 +374,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-16';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-17';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -2215,18 +2215,17 @@ setInterval(function () { if (S.D && /^\d{4}-/.test(S.tab)) rerenderSoft(); }, 6
 document.addEventListener('visibilitychange', function () { if (!document.hidden && S.D) { flushQueue(); call('data').then(function (d) { if (S.queue.length) d.scores = S.D.scores; S.D = d; saveCache(); rerenderSoft(); }).catch(function () {}); } });
 
 /* ═════════ 뒤로가기: 바로 나가지 않고 확인 ═════════ */
-/* 세 가지를 함께 씀 (어느 하나를 Chrome이 건너뛰어도 다른 쪽이 잡음)
- *  ① CloseWatcher: Chrome이 뒤로가기를 직접 알려 줌. 페이지마다 '한 개'는 터치 없이도 만들 수 있어
- *     앱을 열자마자 하나 만들어 둠 → 화면을 한 번도 안 누르고 뒤로가기를 눌러도 "나갈까요?"가 뜸
- *  ② 기록 막이: 기록을 넣어 두고, 뒤로가기로 그 칸이 빠지면(popstate) 알아챔 (터치 순간에만 넣을 수 있음)
- *  ③ 나갈 때: Navigation API로 '이 탭에 쌓인 앱 기록 전체'를 한 번에 건너뜀
- *     (옛 버전이 같은 탭에 남긴 앱 기록 때문에 여러 번 눌러야 꺼지던 문제)
- * 처리 순서: 열린 창 닫기 → 수정 모드 끄기 → "나갈까요?" (떠 있을 때 한 번 더 누르면 나감)
+/* 폰 Chrome에서 확인한 사실 (2026-11-12 폰 캡처)
+ *  - 화면을 한 번도 누르지 않았으면 뒤로가기를 막을 방법이 없음 (CloseWatcher도 무시됨) → 그냥 나감
+ *  - 화면을 누른 순간 넣은 기록(막이)은 뒤로가기에 걸림 → popstate로 알아챔
+ *  - 스크립트로는 앱을 끌 수 없음. 앱의 '첫 칸'에서 사용자가 뒤로가기를 눌러야 꺼짐
+ * 그래서: 막이를 2칸까지 쌓아 두고(열린 창 닫기에 쓰임), "나갈까요?"를 띄울 때는 남은 막이를 모두 비워
+ *         '첫 칸'으로 내려가 둠 → 확인창이 뜬 상태에서 뒤로가기 한 번이면 바로 꺼짐
+ *  - 같은 탭에 옛 앱 기록이 쌓여 있으면(링크로 여러 번 연 탭) 뒤로가기 때 옛 앱이 열림
+ *    → 옛 앱이 '뒤로가기로 열린 것'을 알아채고 남은 앱 기록을 한 번에 건너뜀
  * 점검: 정보 › 내 정보 아래에 상태 · 최근 뒤로가기 기록이 보임 */
-var leaving = false, askingLeave = false, lastPush = 0;
+var leaving = false, askingLeave = false, lastPush = 0, dropping = 0;
 var BACK_OK = window.top === window;   // 구글 화면(iframe) 안에서는 폰 뒤로가기를 잡을 수 없음
-var USE_CW = typeof window.CloseWatcher === 'function', watcher = null;
-var TOUCH = window.matchMedia && matchMedia('(pointer: coarse)').matches;   // 폰·태블릿 (PC에서는 Esc를 뺏지 않음)
 var NAV = window.navigation && typeof navigation.entries === 'function' ? navigation : null;
 function backLog(msg) {
   var a = LS.get('trip_backlog', []);
@@ -2240,91 +2239,51 @@ function navInfo() {
   for (var i = 0; i < idx; i++) if (es[i] && !es[i].sameDocument) old++;
   return { idx: idx, total: es.length, old: old };
 }
+/* 앱 앞에 다른 페이지(카톡·새 탭 화면 등)가 있는지: 전체 기록 수가 앱 기록 수보다 많으면 있음 */
+function hasBefore(n) { return n ? history.length > n.total : false; }
 /* 지금 상태 한 줄 (점검용) */
 function backState() {
   var ua = navigator.userActivation, n = navInfo();
   return '기록 ' + history.length + (n ? ' · 앱기록 ' + (n.idx + 1) + '/' + n.total + (n.old ? ' (옛 ' + n.old + ')' : '') : '') +
-    ' · 막이 ' + trapDepth() + ' · CW ' + (USE_CW ? (watcher ? 'O' : '-') : '없음') +
-    ' · 터치 ' + (ua ? (ua.hasBeenActive ? 'O' : 'X') : '?') + ' · ' + (matchMedia('(display-mode: standalone)').matches ? '홈앱' : '브라우저');
+    ' · 막이 ' + trapDepth() + ' · 터치 ' + (ua ? (ua.hasBeenActive ? 'O' : 'X') : '?') +
+    ' · ' + (matchMedia('(display-mode: standalone)').matches ? '홈앱' : '브라우저');
 }
 function trapDepth() { var s = history.state; return s && s.tripTrap ? (Number(s.depth) || 1) : 0; }
-function makeWatcher(why) {
-  if (!USE_CW || watcher || leaving) return;
-  try {
-    var w = new CloseWatcher();
-    w.onclose = function () { if (watcher === w) watcher = null; backLog('CW'); onBack('cw'); };
-    watcher = w;
-  } catch (e) { watcher = null; backLog('CW 실패 ' + e.name); }
-}
 function armBack() {
   if (askingLeave && !el('.sheet-bg')) askingLeave = false;   // 확인창이 닫혔으면 다시 준비
-  if (!BACK_OK || leaving) return;
+  if (!BACK_OK || leaving || askingLeave || dropping) return;
   // Chrome은 '화면을 누르는 그 순간'이 아닐 때 넣은 기록을 뒤로가기에서 건너뛰므로, 누를 때만 넣음
   var ua = navigator.userActivation, now = !ua || ua.isActive;
   if (!now) return;
-  makeWatcher('touch');
-  if (askingLeave) return;
   // 막이를 두 칸까지 쌓음: 첫 터치에 1칸, 다음 터치(1초 뒤)에 2칸째
   var d = trapDepth();
   if (d < 2 && Date.now() - lastPush > 1000) {
     try { history.pushState({ tripTrap: Date.now(), depth: d + 1 }, ''); lastPush = Date.now(); backLog('막이 ' + (d + 1)); } catch (e) { backLog('막이 실패'); }
   }
 }
-/* 앱을 나갔다가 다시 열면 Chrome이 이전 상태(나가는 중)를 그대로 되살리므로 초기화 */
-window.addEventListener('pageshow', function (e) {
-  if (!e.persisted) return;
-  backLog('다시 열림');
-  leaving = false; askingLeave = false; closeSheet();
-  if (watcher) { try { watcher.destroy(); } catch (x) {} watcher = null; }
-  var why = arrivedLeaving();
-  if (why) { continueLeaving(why); return; }   // 나가는 길에 옛 앱 기록이 되살아난 경우
-  if (BACK_OK && TOUCH) makeWatcher('reopen');
-});
-window.addEventListener('pagehide', function () { backLog('앱 나감'); });
-function leaveNow() {
-  leaving = true; askingLeave = false; closeSheet();
-  if (watcher) { try { watcher.destroy(); } catch (x) {} watcher = null; }
-  try { sessionStorage.setItem('trip_leaving', String(Date.now())); } catch (e) {}
-  var n = navInfo();
-  // 앱 앞에 다른 페이지가 있는지: 전체 기록 수가 앱 기록 수보다 많으면 있음 (Navigation API가 없으면 일단 시도)
-  var before = n ? history.length > n.total : true;
-  if (before) {
-    // 이 탭의 앱 기록 전체(옛 앱 기록 포함)를 한 번에 건너뜀. Navigation API가 없으면 막이 칸 수만큼
-    var steps = n ? n.idx + 1 : trapDepth() + 1;
-    backLog('나가기 -' + steps);
-    history.go(-steps);
-    setTimeout(function () { if (!document.hidden) lastStep(navInfo()); }, 700);
-  } else {
-    backLog('나가기 (앞 기록 없음)');
-    if (history.length === 1) { try { window.close(); } catch (e) {} }
-    setTimeout(function () { if (!document.hidden) lastStep(n); }, 150);
-  }
-}
-/* 이 페이지가 '앱을 나가는 길'에 열렸는지
+/* 이 페이지가 '앱을 나가는 길'에 열렸는지 (뒤로가기로 열린 경우만. 새로 연 경우는 절대 아님)
  *  - 방금 나가기를 눌렀음 (sessionStorage, 8초)
- *  - 더 새 앱 기록에서 뒤로가기로 넘어옴: 같은 탭에 쌓인 옛 앱 기록. 화면을 누르기 전에는
- *    Chrome(안드로이드)이 뒤로가기를 막지 못하게 해서 옛 앱이 하나씩 다시 열리던 문제 */
+ *  - 더 새 앱 기록에서 뒤로가기로 넘어옴 = 같은 탭에 쌓인 옛 앱 기록 */
 function arrivedLeaving() {
   var a = NAV && NAV.activation;
-  // 새로 연 경우(주소·아이콘으로 열기, 새로고침)는 절대 나가지 않음 — 뒤로가기로 온 경우만
   if (a && a.navigationType !== 'traverse') { try { sessionStorage.removeItem('trip_leaving'); } catch (x) {} return ''; }
   var jl = 0; try { jl = Number(sessionStorage.getItem('trip_leaving') || 0); } catch (x) {}
   if (jl && Date.now() - jl < 8000) return '나가는 중 열림';
-  if (a && a.navigationType === 'traverse' && a.from && a.entry && a.from.index > a.entry.index) return '뒤로 옴(옛 기록)';
+  if (a && a.from && a.entry && a.from.index > a.entry.index) return '뒤로 옴(옛 기록)';
   return '';
 }
 /* 남은 앱 기록을 한 번에 건너뛰어 나감. 앞에 갈 곳이 없으면 첫 기록으로 옮기고 안내 */
 function continueLeaving(why) {
-  leaving = true; askingLeave = false; backLog(why);
+  leaving = true; askingLeave = false; closeSheet(); backLog(why);
   try { sessionStorage.setItem('trip_leaving', String(Date.now())); } catch (e) {}
   var n = navInfo();
-  if (n && history.length > n.total) {
+  if (hasBefore(n)) {
     backLog('나가기 -' + (n.idx + 1));
     history.go(-(n.idx + 1));
     setTimeout(function () { if (!document.hidden) lastStep(navInfo()); }, 700);
   } else lastStep(n);
 }
-/* 더 갈 곳이 없을 때(홈 화면 아이콘·새 탭): 첫 앱 기록으로 옮겨 두면 다음 뒤로가기 한 번에 바로 꺼짐 */
+/* 더 갈 곳이 없을 때: 첫 앱 기록으로 옮겨 두면 다음 뒤로가기 한 번에 바로 꺼짐 */
 function lastStep(n) {
   var k = n ? n.idx : trapDepth();
   if (k > 0) { try { history.go(-k); } catch (e) {} }
@@ -2339,31 +2298,51 @@ function lastStep(n) {
     document.addEventListener('touchend', done, true); document.addEventListener('click', done, true);
   }, 300);
 }
-function onBack(src) {
-  if (leaving) return;
-  if (askingLeave) { leaveNow(); return; }                         // 확인창에서 한 번 더 뒤로 → 나감
-  if (el('.sheet-bg')) { closeSheet(); return; }                  // 열린 창이 있으면 그것만 닫기 (앱은 그대로)
-  if (S.editMode) { S.editMode = false; renderMain(); return; }
+/* 앱을 나갔다가 다시 열면 Chrome이 이전 상태(나가는 중)를 그대로 되살리므로 초기화 */
+window.addEventListener('pageshow', function (e) {
+  if (!e.persisted) return;
+  backLog('다시 열림');
+  leaving = false; askingLeave = false; dropping = 0; closeSheet();
+  var why = arrivedLeaving();
+  if (why) continueLeaving(why);
+});
+window.addEventListener('pagehide', function () { backLog('앱 나감'); });
+function askLeave() {
   askingLeave = true;
-  var s = sheet('<h3>앱을 나갈까요?</h3><p class="small muted">뒤로가기를 한 번 더 누르면 나갑니다.<br>입력한 스코어와 지출은 이미 저장되어 있습니다.</p>' +
-    '<div class="row" style="justify-content:flex-end"><button class="btn" data-stay>머무르기</button><button class="btn pri" data-leave>나가기</button></div>', null, true);
+  // 남은 막이를 비워 '첫 칸'으로 내려감 → 확인창에서 뒤로가기 한 번이면 바로 꺼짐
+  var d = trapDepth();
+  if (d > 0) { dropping = d; history.go(-d); }
+  var n = navInfo(), canGo = hasBefore(n);   // 앱 앞에 다른 페이지가 있을 때만 '나가기' 버튼이 실제로 나갈 수 있음
+  var s = sheet('<h3>앱을 나갈까요?</h3>' +
+    '<p>나가려면 폰의 <b>뒤로가기</b>를 한 번 더 누르세요.</p>' +
+    '<p class="small muted">입력한 스코어와 지출은 이미 저장되어 있습니다.</p>' +
+    '<div class="row" style="justify-content:flex-end"><button class="btn' + (canGo ? '' : ' pri') + '" data-stay>머무르기</button>' +
+    (canGo ? '<button class="btn pri" data-leave>나가기</button>' : '') + '</div>', null, true);
   s.querySelector('[data-stay]').onclick = function () { askingLeave = false; closeSheet(); armBack(); };
   s.parentNode.addEventListener('click', function (e) { if (e.target === s.parentNode) { askingLeave = false; armBack(); } });
-  s.querySelector('[data-leave]').onclick = leaveNow;
-  // 확인창이 떠 있는 동안 한 번 더 뒤로가기 → 막이가 없어도 CloseWatcher로 잡아서 '앱 기록 전체'를 건너뛰고 나감
-  if (src === 'cw') makeWatcher('ask');
+  var lv = s.querySelector('[data-leave]');
+  if (lv) lv.onclick = function () { continueLeaving('나가기 버튼'); };
+}
+function onBack() {
+  if (leaving) return;
+  if (askingLeave) { continueLeaving('확인창에서 뒤로'); return; }   // (막이가 남아 있던 경우) 한 번 더 뒤로 → 나감
+  if (el('.sheet-bg')) { closeSheet(); return; }                  // 열린 창이 있으면 그것만 닫기 (앱은 그대로)
+  if (S.editMode) { S.editMode = false; renderMain(); return; }
+  askLeave();
 }
 // Chrome은 '손을 뗄 때(터치 끝·클릭)'를 진짜 사용자 동작으로 쳐서, 그때 넣은 기록만 뒤로가기에 걸림
 ['touchend', 'click', 'keydown'].forEach(function (t) {
   document.addEventListener(t, armBack, { capture: true, passive: true });
 });
-if (BACK_OK) window.addEventListener('popstate', function () { backLog('기록 ' + trapDepth()); onBack('pop'); });
+if (BACK_OK) window.addEventListener('popstate', function () {
+  if (dropping) { dropping = 0; backLog('첫 칸으로'); return; }   // askLeave가 막이를 비운 것 (사용자 뒤로가기 아님)
+  backLog('기록 ' + trapDepth()); onBack();
+});
 
 start();
 // 나가는 길에 옛 앱 기록으로 넘어온 경우: 막지 않고 남은 앱 기록을 건너뜀
 var leaveWhy = BACK_OK ? arrivedLeaving() : '';
 if (leaveWhy) setTimeout(function () { continueLeaving(leaveWhy); }, 300);
-else if (BACK_OK && TOUCH) makeWatcher('load');   // 터치 없이 만들 수 있는 '첫 한 개'
 armBack();
 })();
 </script>
