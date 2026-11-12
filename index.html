@@ -239,7 +239,9 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .exp{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .holes .h.sum output{display:flex;align-items:center;justify-content:center;width:100%;height:42px;border-radius:8px;background:var(--pri-soft);color:var(--pri);font-weight:800;font-size:calc(16px*var(--fs))}
 .holes .h{display:flex;flex-direction:column;align-items:center}
-.holes .h span{font-size:calc(11px*var(--fs));color:var(--sub)}
+.holes .h span{font-size:calc(11px*var(--fs));color:var(--sub);line-height:1.3;text-align:center;white-space:nowrap}
+.holes .h.sum span{color:var(--pri);font-weight:700}
+.holes.rel input{font-size:calc(14px*var(--fs));letter-spacing:-.06em}   /* ± 방식은 '+3'처럼 두 글자라 조금 작게 */
 .holes input{width:100%;height:42px;text-align:center;font-size:calc(17px*var(--fs));font-weight:700;border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:0}
 .tbl{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
 .tbl th,.tbl td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
@@ -461,7 +463,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-47';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-48';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1353,9 +1355,10 @@ function viewScore() {
     (mode === 'half'
       ? '<div class="sc-big" style="margin-top:12px"><div><div class="lab">전반</div>' + stepper('front', tt.f) + '</div><div><div class="lab">후반</div>' + stepper('back', tt.b) + '</div>' +
         '<div class="sc-total"><div class="lab">합계</div><div class="sum" id="sum">' + (tt.f !== null || tt.b !== null ? tt.t : '-') + '</div></div></div>'
-      : ninesPick(r) + noteSwitch(pars) + '<div class="holes">' + holes.map(function (h, i) {
-          return (i === 9 ? '</div><div class="holes">' : '') + '<div class="h"><span>' + (i + 1) + (pars[i] ? ' (P' + pars[i] + ')' : '') + '</span><input readonly maxlength="3" data-hole="' + i + '" data-pv="' + (pars[i] || '') + '" value="' + esc(cellVal(h, pars[i])) + '"></div>' +
-            (i === 8 ? sumCell('전반', 'id="hf"', tt.f) : i === 17 ? sumCell('후반', 'id="hb"', tt.b) : '');
+      : ninesPick(r) + noteSwitch(pars) + '<div class="holes' + (noteRel() ? ' rel' : '') + '">' + holes.map(function (h, i) {
+          var hasP = pars.some(Boolean);   // 파를 알면 모든 칸을 '번호 / (P4)' 두 줄로 → 합계 칸과 높이가 맞음
+          return (i === 9 ? '</div><div class="holes' + (noteRel() ? ' rel' : '') + '">' : '') + '<div class="h"><span>' + (i + 1) + (hasP ? '<br>' + (pars[i] ? '(P' + pars[i] + ')' : '&nbsp;') : '') + '</span><input readonly maxlength="3" data-hole="' + i + '" data-pv="' + (pars[i] || '') + '" value="' + esc(cellVal(h, pars[i])) + '"></div>' +
+            (i === 8 ? sumCell('전반', 'id="hf"', tt.f, hasP ? '(P' + (sumN(pars, 0, 9) || '-') + ')' : undefined) : i === 17 ? sumCell('후반', 'id="hb"', tt.b, hasP ? '(P' + (sumN(pars, 9, 18) || '-') + ')' : undefined) : '');
         }).join('') + '</div>' +
         '<div class="row between" style="margin-top:10px"><span class="muted">합계</span><span><span class="sum" id="sum">' + (tt.f !== null || tt.b !== null ? tt.t : '-') + '</span> <span class="muted" id="sumrel">' + (relTotal(holes, pars) ? '(' + relTotal(holes, pars) + ')' : '') + '</span></span></div>') +
     '<div class="row between" style="margin-top:8px"><span class="save-st muted" id="sst">' + esc(S.saveState) + '</span>' +
@@ -1792,7 +1795,8 @@ function groupEntry(rid) {
 }
 
 /* 9홀 옆 합계 칸 (전반 · 후반) */
-function sumCell(label, attr, v) { return '<div class="h sum"><span>' + label + '</span><output ' + attr + '>' + (v === null || v === undefined || v === '' ? '-' : v) + '</output></div>'; }
+/* sub: 둘째 줄(기준타수 '(P36)' 등) — 홀 칸이 두 줄이면 합계 칸도 두 줄로 맞춰 같은 높이에 상자가 오게 */
+function sumCell(label, attr, v, sub) { return '<div class="h sum"><span>' + label + (sub !== undefined ? '<br>' + sub : '') + '</span><output ' + attr + '>' + (v === null || v === undefined || v === '' ? '-' : v) + '</output></div>'; }
 function sumN(a, s, e) { var t = 0, any = false; for (var i = s; i < e; i++) if (a[i] !== null && a[i] !== undefined && a[i] !== '') { t += Number(a[i]); any = true; } return any ? t : null; }
 function showCards(rid) {
   var r = S.D.rounds.filter(function (x) { return x.round_id === rid; })[0];
