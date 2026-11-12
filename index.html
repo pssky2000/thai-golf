@@ -307,11 +307,12 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .rc-row .rimg{max-width:84px;max-height:84px;margin:0;object-fit:cover}
 /* 정보 탭 묶음 제목 · 관리자 상자 */
 .sec-title{margin:22px 2px 8px;font-size:calc(17px*var(--fs));color:var(--sub);border-bottom:2px solid var(--line);padding-bottom:4px}
-.admin-box{margin-top:26px;border:2px dashed var(--warn);border-radius:var(--r);padding:4px 10px 10px;background:var(--warn-soft)}
+.admin-box{margin-top:26px;border:2px solid var(--warn);border-radius:var(--r);padding:4px 10px 10px;background:color-mix(in srgb,var(--warn) 14%,var(--bg))}
 .admin-box>summary{list-style:none;display:flex;align-items:center;gap:8px;padding:10px 4px;font-weight:800;font-size:calc(16px*var(--fs));color:var(--warn);cursor:pointer}
 .admin-box>summary::-webkit-details-marker{display:none}
-.admin-box .card{margin-top:8px}
+.admin-box .card{margin-top:8px;background:color-mix(in srgb,var(--warn) 9%,var(--card));border-color:color-mix(in srgb,var(--warn) 45%,var(--line))}
 .admin-box[open] .adm-hint{display:none}
+.admin-box .btn:not(.pri){background:color-mix(in srgb,var(--warn) 16%,var(--card));border-color:color-mix(in srgb,var(--warn) 40%,var(--line))}
 /* 스코어: 라운드 버튼 4칸 같은 크기 · 사진 버튼 2칸 같은 크기 */
 .rounds{display:grid!important;grid-template-columns:repeat(4,1fr);gap:6px;overflow:visible}
 .rounds .tab{min-width:0;padding:6px 4px;display:flex;flex-direction:column;justify-content:center}
@@ -325,7 +326,7 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .seg-tabs.four{grid-template-columns:repeat(4,1fr)}
 .seg-tabs.five{grid-template-columns:repeat(5,1fr);gap:4px}
 .seg-tabs.five button{font-size:calc(13px*var(--fs))}
-.seg-tabs button.adm{border:2px dashed var(--warn);color:var(--warn)}
+.seg-tabs button.adm{border:2px solid var(--warn);color:var(--warn)}
 .seg-tabs button.adm.on{background:var(--warn);color:#fff;border-style:solid}
 .adm-title{font-weight:800;color:var(--warn);padding:8px 2px 0}
 /* 회비: 회원별 연도 줄 */
@@ -374,7 +375,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-18';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-19';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -2245,16 +2246,39 @@ if (BACK_OK) window.addEventListener('popstate', function () {
   if (el('.sheet-bg')) { removeSheets(); return; }   // 뒤로가기 → 창만 닫기
   if (history.state && (history.state.tripTrap || history.state.tripSheet)) history.back();   // 남은 빈 칸은 건너뜀
 });
-/* 뒤로가기로 열린 옛 앱 기록이면 남은 앱 기록을 한 번에 건너뜀 (새로 연 경우·새로고침은 해당 없음) */
-(function skipOldEntries() {
-  var a = NAV && NAV.activation;
-  if (!BACK_OK || !a || a.navigationType !== 'traverse' || !a.from || !a.entry || !(a.from.index > a.entry.index)) return;
-  var idx = NAV.currentEntry.index, total = NAV.entries().length;
-  if (history.length > total) history.go(-(idx + 1));   // 앱 앞에 다른 페이지가 있으면 그리로 바로 나감
-  else if (idx > 0) history.go(-idx);                    // 없으면 첫 앱 기록으로 → 다음 뒤로가기 한 번에 꺼짐
+/* 같은 탭에 옛 앱 기록이 쌓여 있을 때 (링크·바로가기로 같은 탭에서 여러 번 연 경우)
+ *  - 웹페이지는 기록을 지울 수 없음. 앱의 '첫 기록'에서 뒤로가기를 눌러야 바로 꺼짐
+ *  - 새로 열었는데 앞에 옛 앱 기록이 있으면 → 첫 앱 기록으로 옮겨서 엶 (그 뒤 뒤로가기 한 번에 꺼짐)
+ *  - 뒤로가기로 옛 앱 기록이 열리면 → 남은 앱 기록을 한 번에 건너뜀 */
+function appEntries() {
+  if (!NAV || !NAV.currentEntry) return null;
+  var es = NAV.entries(), idx = NAV.currentEntry.index, j = idx;
+  var path = function (u) { try { return new URL(u).pathname.replace(/index\.html$/i, '').replace(/Index\.html$/, ''); } catch (e) { return ''; } };
+  var me = path(location.href);
+  while (j > 0 && es[j - 1] && path(es[j - 1].url) === me) j--;
+  return { idx: idx, first: j, before: j > 0 || history.length > es.length };
+}
+var jumpAt = 0;
+(function fixOldEntries() {
+  var a = NAV && NAV.activation, r = appEntries();
+  if (!BACK_OK || !a || !r) return;
+  var jt = 0; try { jt = Number(sessionStorage.getItem('trip_jump') || 0); sessionStorage.removeItem('trip_jump'); } catch (e) {}
+  if (a.navigationType === 'traverse') {
+    if (jt && Date.now() - jt < 10000) return;   // 아래 '첫 기록으로 옮기기'로 온 것 → 그대로 사용
+    if (!(a.from && a.entry && a.from.index > a.entry.index)) return;   // 앞으로 가기 등
+    if (r.before) history.go(-(r.idx - r.first + 1));   // 앱 앞에 다른 페이지가 있으면 그리로 바로 나감
+    else if (r.idx > r.first) history.go(-(r.idx - r.first));
+    return;
+  }
+  if (r.idx > r.first) {   // 새로 열었는데 앞에 옛 앱 기록이 있음
+    try { sessionStorage.setItem('trip_jump', String(Date.now())); } catch (e) {}
+    jumpAt = Date.now();
+    history.go(-(r.idx - r.first));
+  }
 })();
 
-start();
+if (jumpAt) setTimeout(function () { if (!S.D && !el('.login')) start(); }, 2000);   // 옮기기가 안 되면 그냥 시작
+else start();
 })();
 </script>
 </body>
