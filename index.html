@@ -345,7 +345,7 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .fee-y{display:flex;justify-content:space-between;font-size:calc(14px*var(--fs));padding:2px 0 2px 8px;color:var(--sub)}
 .fee-tot{display:flex;justify-content:space-between;font-weight:700;margin:4px 0 2px}
 /* 공금 카드: 바트 현금 · 통장 */
-.cash2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.cash2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;margin-top:8px}
 .cash2>div{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:8px 10px}
 .cash2 .lab{font-size:calc(13px*var(--fs));color:var(--sub);white-space:nowrap}
 .cash2 b{font-size:calc(20px*var(--fs));white-space:nowrap}
@@ -387,7 +387,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-28';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-29';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1597,7 +1597,7 @@ function viewMoney() {
   var pct = c.cash ? Math.max(0, Math.min(100, c.cashLeft / c.cash * 100)) : 0;
   var head =
     '<div class="card cash"><b style="white-space:nowrap">💰 공금 남은 돈</b>' + (S.D.settings.common_cash_note ? '<div class="small muted">' + esc(S.D.settings.common_cash_note) + '</div>' : '') +
-    '<div class="cash2"><div><div class="lab">💵 바트 현금</div><div class="small muted">남은 돈</div><b>' + baht(c.cashLeft) + '</b><div class="small muted">처음 ' + baht(c.cash) + '</div><div class="small">쓴 돈 <span class="spent">' + baht(c.common) + '</span></div></div>' +
+    '<div class="cash2"><div><div class="lab">💵 남은 바트</div><b>' + baht(c.cashLeft) + '</b><div class="small muted">처음 ' + baht(c.cash) + '</div><div class="small">쓴 돈 <span class="spent">' + baht(c.common) + '</span></div></div>' +
     '<div><div class="lab">🏦 회비 통장</div><b>' + won(fs.balance) + '</b><div class="small muted">' + esc(S.D.settings.fee_asof || '') + ' 기준</div></div></div>' +
     '<div class="bar-bg" style="margin-top:10px"><div class="bar-fg" style="width:' + pct + '%"></div></div>' +
     '<div style="margin-top:6px">회비 예상 잔액 <b>' + won(Math.round(c.cashLeft * c.rate) + fs.balance) + '</b></div>' +
@@ -1705,7 +1705,7 @@ function viewFee() {
   var unpaid = names.reduce(function (a, n) { return a + Math.max(0, target - paidBy[n]); }, 0);
   var html =
     '<div class="sum3"><div><div class="lab">총 납부</div><b>' + wonShort(paidTotal) + '</b><div class="small muted">목표 ' + wonShort(target * names.length) + '</div></div>' +
-    '<div><div class="lab">사용</div><b>' + wonShort(useTotal) + '</b><div class="small muted">이자 +' + num(interest) + '원</div></div>' +
+    '<div><div class="lab">사용</div><b>' + wonShort(useTotal) + '</b><div class="small muted">이자 등 ' + (interest >= 0 ? '+' : '') + num(interest) + '원</div></div>' +
     '<div><div class="lab">통장 잔고</div><b>' + wonShort(balance) + '</b><div class="small muted">' + esc(s.fee_asof || '') + ' 기준</div></div></div>' +
     (unpaid ? '<p class="small" style="color:var(--warn)">아직 들어오지 않은 회비 ' + won(unpaid) + ' — 다 들어오면 잔고 ' + won(balance + unpaid) + '</p>' : '<p class="small" style="color:var(--good)">✅ 모두 완납</p>');
   html += '<div class="card"><b>👥 회원별 납부 현황</b> <span class="small muted">(1인 목표 ' + won(target) + ')</span>';
@@ -1724,7 +1724,7 @@ function viewFee() {
   html += (S.me.isAdmin ? '<button class="btn sm" data-act="fee-in" style="margin-top:8px">＋ 입금 기록 (관리자)</button>' : '') + '</div>';
   html += '<div class="card"><b>📤 회비 사용 내역</b>' + uses.map(function (u) {
     return '<div class="mrow"><div><b>' + esc(u.title) + '</b><div class="small muted">' + esc(u.date) + ' · ' + esc(u.by) + (u.memo ? ' · ' + esc(u.memo) : '') + (S.me.isAdmin ? ' <a href="#" data-feedel="use:' + esc(u.id) + '">✕</a>' : '') + '</div></div><div class="bal">' + won(u.amount) + '</div></div>';
-  }).join('') + (S.me.isAdmin ? '<button class="btn sm" data-act="fee-use" style="margin-top:8px">＋ 사용 기록 (관리자)</button>' : '') +
+  }).join('') + (S.me.isAdmin ? '<button class="btn sm" data-act="fee-use" style="margin-top:8px">＋ 사용 기록 (관리자)</button> <button class="btn sm" data-act="fee-bank" style="margin-top:8px">🏦 통장 잔고 맞추기 (관리자)</button>' : '') +
   '<p class="small muted">환전한 바트(공금)는 여행에서 쓰고, 남은 공금은 돌아와서 회비로 다시 넣으면 됩니다.</p></div>';
   return html;
 }
@@ -1900,6 +1900,28 @@ function bindFull(box) {
   });
 }
 
+/* 통장 잔고 맞추기: 통장 앱에 보이는 잔고를 넣으면, 납부·사용 기록과의 차이(이자 등)를 자동으로 맞춤 */
+function feeBankForm() {
+  var F = feeStats();
+  var sh = sheet('<h3>🏦 통장 잔고 맞추기</h3>' +
+    '<p class="small muted">통장 앱에 보이는 지금 잔고를 적으면, 납부·사용 기록과의 차이를 <b>이자 등</b>으로 넣어 앱 잔고를 통장과 똑같이 맞춥니다.</p>' +
+    '<div class="small">납부 합계 ' + won(F.paidTotal) + ' − 사용 ' + won(F.useTotal) + ' = <b>' + won(F.paidTotal - F.useTotal) + '</b> · 지금 이자 등 ' + won(F.interest) + '</div>' +
+    '<label class="lb">실제 통장 잔고 (원)</label><input class="inp money" id="fb-bal" inputmode="numeric" value="' + num(F.balance) + '">' +
+    '<div class="small" id="fb-int" style="margin-top:4px"></div>' +
+    '<label class="lb">기준일</label><input class="inp" id="fb-date" value="' + localNow().date + '" placeholder="2026-12-01">' +
+    '<p class="small" id="fb-msg" style="color:var(--bad);min-height:18px"></p>' +
+    '<div class="row" style="justify-content:flex-end"><button class="btn" id="fb-x">취소</button><button class="btn pri" id="fb-ok">맞추기</button></div>');
+  var inp = el('#fb-bal', sh);
+  function show() { var v = Number(inp.value.replace(/[^\d]/g, '')) || 0; el('#fb-int', sh).innerHTML = '→ 이자 등 <b>' + won(v - (F.paidTotal - F.useTotal)) + '</b>로 맞춰집니다.'; }
+  inp.oninput = function () { var v = inp.value.replace(/[^\d]/g, ''); inp.value = v ? num(Number(v)) : ''; show(); };
+  show();
+  el('#fb-x', sh).onclick = closeSheet;
+  el('#fb-ok', sh).onclick = function () {
+    call('setFeeBank', { balance: inp.value.replace(/[^\d]/g, ''), asof: el('#fb-date', sh).value.trim() }).then(function (r) {
+      S.D.settings = r.settings; saveCache(); closeSheet(); renderMain(); toast('통장 잔고에 맞췄습니다.');
+    }).catch(function (e) { el('#fb-msg', sh).textContent = e.message; });
+  };
+}
 function feeForm(kind) {
   var names = memberNames();
   var html = '<h3>' + (kind === 'use' ? '＋ 회비 사용 기록' : '＋ 회비 입금 기록') + '</h3>' +
@@ -2138,6 +2160,7 @@ function bindMain() {
       else if (a === 'exp-print') window.print();
       else if (a === 'fee-in') feeForm('in');
       else if (a === 'fee-use') feeForm('use');
+      else if (a === 'fee-bank') feeBankForm();
       else if (a === 'copy-link') {
         var url = IN_GAS ? (S.D.app_url || '') : location.href.split(/[?#]/)[0];
         var done = function () { toast('링크를 복사했습니다. Chrome 주소창에 붙여넣으세요.'); };
