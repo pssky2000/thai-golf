@@ -391,7 +391,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-32';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-33';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1581,6 +1581,8 @@ function partsOf(e) { var p = String(e.participants || '').split(',').filter(Boo
 function cashHolders() {
   var note = String(S.D.settings.common_cash_note || ''), names = memberNames(), out = [], m, re = /([가-힣A-Za-z]+)\s*฿?\s*([\d,]+)\s*(?:바트|฿|THB)?/g;
   while ((m = re.exec(note))) { if (names.indexOf(m[1]) >= 0) out.push({ name: m[1], start: Number(m[2].replace(/,/g, '')) || 0 }); }
+  // 공금을 넘겨받은 사람도 보관자가 됨 (처음 금액 0)
+  (S.D.cashMoves || []).forEach(function (mv) { if (names.indexOf(mv.to) >= 0 && !out.some(function (h) { return h.name === mv.to; })) out.push({ name: mv.to, start: 0 }); });
   return out;
 }
 /* 사람별 남은 공금: 처음 맡은 돈 − 그 사람 지갑에서 낸 공금. 지갑을 안 고른 공금은 따로 */
@@ -1592,7 +1594,13 @@ function cashByHolder() {
     var t = Number(e.thb) || 0;
     if (e.cash_from && used[e.cash_from] !== undefined) used[e.cash_from] += t; else none += t;
   });
-  return { list: hs.map(function (h) { return { name: h.name, start: h.start, used: used[h.name], left: h.start - used[h.name] }; }), none: none };
+  var moved = {}; hs.forEach(function (h) { moved[h.name] = 0; });
+  (S.D.cashMoves || []).forEach(function (mv) {
+    var t = Number(String(mv.thb).replace(/,/g, '')) || 0;
+    if (moved[mv.from] !== undefined) moved[mv.from] -= t;
+    if (moved[mv.to] !== undefined) moved[mv.to] += t;
+  });
+  return { list: hs.map(function (h) { return { name: h.name, start: h.start, used: used[h.name], moved: moved[h.name], left: h.start + moved[h.name] - used[h.name] }; }), none: none };
 }
 
 /* 정산 계산 (바트 기준) */
@@ -1657,7 +1665,43 @@ function walletLine() {
   return '<div class="wallets">' + w.list.map(function (h) {
     return '<span>👛 ' + esc(h.name) + ' <b>' + baht(h.left) + '</b></span>';
   }).join('') + '</div>' +
-    (w.none ? '<div class="small muted">지갑을 안 고른 공금 ' + baht(w.none) + ' (지출을 눌러 "누구 지갑에서"를 골라 주세요)</div>' : '<div class="small muted">사람별 남은 공금 (처음 ' + w.list.map(function (h) { return esc(h.name) + ' ' + baht(h.start); }).join(' · ') + ')</div>');
+    (w.none ? '<div class="small muted">지갑을 안 고른 공금 ' + baht(w.none) + ' (지출을 눌러 "누구 지갑에서"를 골라 주세요)</div>' : '<div class="small muted">사람별 남은 공금 (처음 ' + w.list.filter(function (h) { return h.start; }).map(function (h) { return esc(h.name) + ' ' + baht(h.start); }).join(' · ') + ')</div>') +
+    movesHtml();
+}
+/* 공금 넘겨준 기록 + [🔁 공금 넘겨주기] 버튼 */
+function movesHtml() {
+  var mv = (S.D.cashMoves || []).slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+  return '<div class="row wrap-row" style="margin-top:6px"><button class="btn sm" data-act="cash-move">🔁 공금 넘겨주기</button>' +
+    (mv.length ? '<span class="small muted">넘겨준 기록 ' + mv.length + '건</span>' : '') + '</div>' +
+    mv.map(function (m) {
+      var canDel = m.by === S.me.name || S.me.isAdmin;
+      return '<div class="small" style="margin-top:4px">🔁 ' + md(m.date) + ' ' + esc(m.from) + ' → ' + esc(m.to) + ' <b>' + baht(m.thb) + '</b>' + (m.memo ? ' <span class="muted">' + esc(m.memo) + '</span>' : '') +
+        (canDel ? ' <a href="#" data-mvdel="' + esc(m.id) + '">✕</a>' : '') + '</div>';
+    }).join('');
+}
+function cashMoveForm() {
+  var hs = cashByHolder().list, names = memberNames(), today = localNow().date, ds = dates();
+  var st = { from: hs.some(function (h) { return h.name === S.me.name; }) ? S.me.name : (hs[0] && hs[0].name) || '', to: '' };
+  var sh = sheet('<h3>🔁 공금 넘겨주기</h3><p class="small muted">맡고 있는 공금 일부를 다른 회원에게 줄 때 적어 두면, 사람별 남은 공금이 맞게 바뀝니다. (공금 총액은 그대로)</p>' +
+    '<label class="lb">주는 사람</label><div class="grid4" id="mv-from">' + hs.map(function (h) { return '<button class="pick' + (h.name === st.from ? ' on' : '') + '" data-v="' + esc(h.name) + '">' + esc(h.name) + '<br><span class="small">' + baht(h.left) + '</span></button>'; }).join('') + '</div>' +
+    '<label class="lb">받는 사람</label><div class="grid4" id="mv-to">' + names.map(function (n) { return '<button class="pick" data-v="' + esc(n) + '">' + esc(n) + '</button>'; }).join('') + '</div>' +
+    '<label class="lb">금액 (바트)</label><input class="inp money" id="mv-thb" inputmode="decimal" placeholder="예) 5000">' +
+    '<div class="row" style="margin-top:8px"><label class="lb" style="margin:0">날짜</label><select class="inp" id="mv-date" style="flex:1">' + ds.map(function (d) { return '<option value="' + d + '"' + (d === (ds.indexOf(today) >= 0 ? today : ds[0]) ? ' selected' : '') + '>' + md(d) + '(' + wd(d) + ')</option>'; }).join('') + '</select></div>' +
+    '<label class="lb">메모 (선택)</label><input class="inp" id="mv-memo" placeholder="예) 마사지비 쓰라고">' +
+    '<p class="small" id="mv-msg" style="color:var(--bad);min-height:18px"></p>' +
+    '<div class="row" style="justify-content:flex-end"><button class="btn" data-close>취소</button><button class="btn pri" id="mv-ok">저장</button></div>');
+  ['from', 'to'].forEach(function (k) {
+    els('#mv-' + k + ' .pick', sh).forEach(function (b) { b.onclick = function () { st[k] = b.dataset.v; els('#mv-' + k + ' .pick', sh).forEach(function (x) { x.classList.toggle('on', x === b); }); }; });
+  });
+  el('#mv-ok', sh).onclick = function () {
+    var thb = el('#mv-thb', sh).value.replace(/,/g, '');
+    if (!st.from || !st.to) { el('#mv-msg', sh).textContent = '주는 사람과 받는 사람을 골라 주세요.'; return; }
+    if (st.from === st.to) { el('#mv-msg', sh).textContent = '주는 사람과 받는 사람이 같습니다.'; return; }
+    if (!(Number(thb) > 0)) { el('#mv-msg', sh).textContent = '금액(바트)을 적어 주세요.'; return; }
+    call('addCashMove', { from: st.from, to: st.to, thb: thb, date: el('#mv-date', sh).value, memo: el('#mv-memo', sh).value }).then(function (r) {
+      S.D.cashMoves = r.cashMoves; saveCache(); closeSheet(); renderMain(); toast(st.from + ' → ' + st.to + ' ' + baht(thb) + ' 기록했습니다.');
+    }).catch(function (e) { el('#mv-msg', sh).textContent = e.message; });
+  };
 }
 
 function viewExpenseList() {
@@ -2256,6 +2300,7 @@ function bindMain() {
       else if (a === 'fee-in') feeForm('in');
       else if (a === 'fee-use') feeForm('use');
       else if (a === 'fee-bank') feeBankForm();
+      else if (a === 'cash-move') cashMoveForm();
       else if (a === 'copy-link') {
         var url = IN_GAS ? (S.D.app_url || '') : location.href.split(/[?#]/)[0];
         var done = function () { toast('링크를 복사했습니다. Chrome 주소창에 붙여넣으세요.'); };
@@ -2283,6 +2328,15 @@ function bindMain() {
   els('[data-mark]', m).forEach(function (b) {
     b.onclick = function () {
       call('settleMark', { key: b.dataset.mark, on: !!b.dataset.on }).then(function (r) { S.D.settle = r.settle; saveCache(); renderMain(); }).catch(function (e) { toast(e.message); });
+    };
+  });
+  els('[data-mvdel]', m).forEach(function (a) {
+    a.onclick = function (ev) {
+      ev.preventDefault();
+      confirmBox('이 공금 넘겨주기 기록을 지울까요?', '삭제').then(function (y) {
+        if (!y) return;
+        call('deleteCashMove', { id: a.dataset.mvdel }).then(function (r) { S.D.cashMoves = r.cashMoves; saveCache(); renderMain(); }).catch(function (e) { toast(e.message); });
+      });
     };
   });
   els('[data-feedel]', m).forEach(function (a) {
