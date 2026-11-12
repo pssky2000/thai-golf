@@ -417,7 +417,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-39';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-40';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1702,7 +1702,7 @@ function viewMoney() {
       '<div class="small muted" style="text-align:right">' + esc(S.D.settings.fee_asof || '') + ' 기준</div></div>' +
     '<div class="cbox ctotal"><div class="ctop"><span class="lab">회비 예상 잔액</span><b class="big">' + won(Math.round(c.cashLeft * c.rate) + fs.balance) + '</b></div>' +
       '<div class="small muted">통장 ' + won(fs.balance) + ' + 남은 바트 ' + baht(c.cashLeft) + '을 ' + c.rate + '원에 바꾼 ' + won(Math.round(c.cashLeft * c.rate)) + '</div></div></div>' +
-    '<div class="seg-tabs folder">' + [['list', '🧾 지출 기록'], ['settle', '🤝 정산'], ['fee', '🏦 회비']].map(function (t) {
+    '<div class="seg-tabs folder">' + [['fee', '🏦 회비'], ['list', '🧾 지출 기록'], ['settle', '🤝 정산']].map(function (t) {
       return '<button class="' + (sub === t[0] ? 'on' : '') + '" data-mtab="' + t[0] + '">' + t[1] + '</button>';
     }).join('') + '</div><div class="folder-body">';
   if (sub === 'settle') return head + viewSettle(c) + '</div>';
@@ -1784,7 +1784,8 @@ function viewSettle(c) {
   var allOk = confirmed.length === names.length;
   var maxCat = Math.max.apply(null, Object.keys(c.byCat).map(function (k) { return c.byCat[k]; }).concat([1]));
   var html =
-    '<div class="sum3"><div><div class="lab">총 지출</div><b>' + baht(c.total) + '</b><div class="small muted">' + wonShort(c.total * c.rate) + '</div></div>' +
+    '<p class="small muted" style="margin:0 2px 6px">현지에서 쓴 돈(지출 기록)만 계산합니다. 회비 통장 돈은 들어가지 않아요.</p>' +
+    '<div class="sum3"><div><div class="lab">현지 총 지출</div><b>' + baht(c.total) + '</b><div class="small muted">' + wonShort(c.total * c.rate) + '</div></div>' +
     '<div><div class="lab">공금 사용</div><b>' + baht(c.common) + '</b><div class="small muted">' + wonShort(c.common * c.rate) + '</div></div>' +
     '<div><div class="lab">지원 총액</div><b>' + baht(c.supportTotal) + '</b><div class="small muted">' + wonShort(c.supportTotal * c.rate) + '</div></div></div>' +
     '<p class="small muted">정산 환율 1바트 = ' + c.rate + '원 (환전 평균). 회원끼리 주고받을 돈은 <b>각자 카드·현금으로 낸 공동경비</b>만 계산합니다. 공금으로 낸 돈은 이미 다 같이 낸 돈이라 빠집니다.</p>';
