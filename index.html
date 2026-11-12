@@ -392,6 +392,25 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .thai-big .th{font-size:calc(40px*var(--fs));font-weight:700;line-height:1.35;margin:10px 0;word-break:keep-all}
 .thai-big .say{font-size:calc(22px*var(--fs));font-weight:800;color:var(--pri)}
 @media print{.bnav,.tabs,header.top button,.seg-tabs,.no-print,.toast{display:none!important}body,html{background:#fff}.card{box-shadow:none}}
+/* 정산 보고서 (인쇄 · PDF 전용) */
+#printRep{display:none}
+@media print{
+  body.printing>*:not(#printRep){display:none!important}
+  body.printing #printRep{display:block!important}
+  @page{size:A4;margin:12mm}
+}
+#printRep{color:#000;background:#fff;font-size:11px;line-height:1.45}
+#printRep h1{font-size:18px;margin:0 0 2px}
+#printRep h2{font-size:13px;margin:14px 0 4px;padding-bottom:2px;border-bottom:2px solid #1e6b45;color:#1e6b45;break-after:avoid}
+#printRep .meta{color:#555;margin-bottom:6px}
+#printRep table{width:100%;border-collapse:collapse;margin:2px 0 4px;break-inside:auto}
+#printRep tr{break-inside:avoid}
+#printRep th,#printRep td{border:1px solid #bbb;padding:3px 5px;text-align:left;vertical-align:top}
+#printRep th{background:#eef5f0;font-weight:700;white-space:nowrap}
+#printRep td.n,#printRep th.n{text-align:right;white-space:nowrap}
+#printRep tr.tot td{font-weight:700;background:#f6f6f6}
+#printRep .note{color:#555;font-size:10px;margin:2px 0}
+#printRep .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .add-item{width:100%;margin-top:6px;border-style:dashed;color:var(--pri);border-color:var(--pri)}
 </style>
 </head>
@@ -417,7 +436,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-43';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-44';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1686,8 +1705,11 @@ function calcSettle() {
     debt[i].a -= x; cred[j].a -= x;
     if (debt[i].a < 100) i++; if (cred[j].a < 100) j++;
   }
+  // 회원별 받을(+)/보낼(−) 원 = 송금 목록에서 받는 돈 − 보내는 돈 (100원 반올림 차이가 송금 목록과 어긋나지 않게)
+  var net = {}; names.forEach(function (n) { net[n] = 0; });
+  transfers.forEach(function (t) { net[t.from] -= t.krw; net[t.to] += t.krw; });
   var cash0 = Number(S.D.settings.common_cash_thb || 0), exThb = sumOf(exchanges(), 'thb'), cash = cash0 + exThb;
-  return { names: names, paid: paid, owed: owed, bal: bal, enjoyed: enjoyed, support: support, total: total, common: common, cashLeft: cash - common, cash: cash, cash0: cash0, exThb: exThb,
+  return { names: names, paid: paid, owed: owed, bal: bal, enjoyed: enjoyed, support: support, total: total, common: common, cashLeft: cash - common, cash: cash, cash0: cash0, exThb: exThb, net: net,
     personalShared: personalShared, supportTotal: supportTotal, byCat: byCat, byDay: byDay, transfers: transfers, rate: rate };
 }
 /* 정산 표시: 누를 때의 금액(stamp)과 지금 금액이 같아야 ✓. 지출이 바뀌어 금액이 달라지면 stale(다시 눌러야 함) */
@@ -1827,7 +1849,8 @@ function viewSettle(c) {
     '<div class="sum3"><div><div class="lab">현지 총 지출</div><b>' + baht(c.total) + '</b><div class="small muted">' + wonShort(c.total * c.rate) + '</div></div>' +
     '<div><div class="lab">공금 사용</div><b>' + baht(c.common) + '</b><div class="small muted">' + wonShort(c.common * c.rate) + '</div></div>' +
     '<div><div class="lab">지원 총액</div><b>' + baht(c.supportTotal) + '</b><div class="small muted">' + wonShort(c.supportTotal * c.rate) + '</div></div></div>' +
-    '<p class="small muted">정산 환율 1바트 = ' + c.rate + '원 (환전 평균). 회원끼리 주고받을 돈은 <b>각자 카드·현금으로 낸 공동경비</b>만 계산합니다. 공금으로 낸 돈은 이미 다 같이 낸 돈이라 빠집니다.</p>';
+    '<div class="row between" style="margin:6px 2px 0;flex-wrap:wrap"><span>정산 환율 <b>฿1 = ' + c.rate + '원</b></span>' + (S.me.isAdmin ? '<button class="btn sm" data-act="settle-rate">✏️ 환율 바꾸기</button>' : '') + '</div>' +
+    '<p class="small muted">회원끼리 주고받을 돈은 <b>각자 카드·현금으로 낸 공동경비</b>만 계산합니다. 공금으로 낸 돈은 이미 다 같이 낸 돈이라 빠집니다.</p>';
 
   // 송금 안내
   html += '<div class="card"><b>💸 이렇게 보내면 끝</b>';
@@ -1861,11 +1884,11 @@ function viewSettle(c) {
   // 회원별
   html += '<div class="card"><b>👥 회원별</b>';
   names.forEach(function (n) {
-    var b = c.bal[n] * c.rate, cls = b > 50 ? 'good' : b < -50 ? 'bad' : '';
+    var b = c.net[n], cls = b > 0 ? 'good' : b < 0 ? 'bad' : '';
     html += '<div class="mrow"><div><b>' + esc(n) + '</b>' + (settleOn('confirm', n, sig) ? ' <span class="chip">✓ 확인</span>' : '') +
       '<div class="small muted">낸 공동경비 ' + baht(c.paid[n]) + ' · 내 몫 ' + baht(c.owed[n]) + '</div>' +
       '<div class="small muted">여행에서 누린 금액 ' + baht(Math.round(c.enjoyed[n])) + ' (약 ' + wonShort(c.enjoyed[n] * c.rate) + ')</div></div>' +
-      '<div class="bal ' + cls + '">' + (Math.abs(b) < 50 ? '0원' : (b > 0 ? '받을 돈<br>' : '보낼 돈<br>') + won(Math.abs(Math.round(b / 100) * 100))) + '</div></div>';
+      '<div class="bal ' + cls + '">' + (!b ? '0원' : (b > 0 ? '받을 돈<br>' : '보낼 돈<br>') + won(Math.abs(b))) + '</div></div>';
   });
   html += '</div>';
 
@@ -1892,7 +1915,7 @@ function viewSettle(c) {
     (names.some(function (n) { return settleStale('confirm', n, sig); }) ? '<p class="small" style="color:var(--warn);margin:6px 0 0">⚠️ 확인한 뒤에 지출이 바뀌어서, 바뀌기 전에 확인한 사람은 다시 눌러야 합니다.</p>' : '') +
     '<button class="btn ' + (settleOn('confirm', S.me.name, sig) ? '' : 'pri ') + 'big-btn" data-mark="confirm" data-stamp="' + sig + '" data-on="' + (settleOn('confirm', S.me.name, sig) ? '' : '1') + '">' + (settleOn('confirm', S.me.name, sig) ? '확인 취소' : '확인했어요') + '</button>' +
     (allOk ? '<p class="chip" style="margin-top:8px">🎉 4명 모두 확인 — 정산 확정</p>' : '') + '</div>' +
-    '<div class="row wrap-row no-print"><button class="btn" data-act="exp-csv">📊 엑셀(CSV) 받기</button><button class="btn" data-act="exp-print">🖨️ 인쇄 · PDF</button></div>';
+    '<div class="row wrap-row no-print"><button class="btn" data-act="exp-csv">📊 엑셀 받기</button><button class="btn" data-act="exp-print">🖨️ 인쇄 · PDF</button></div>';
   return html;
 }
 
@@ -2216,6 +2239,134 @@ function downloadCsv() {
   document.body.appendChild(a); a.click(); setTimeout(function () { a.remove(); }, 1000);
 }
 
+/* 환전 평균 환율: 회비 사용 중 '환전 ฿00,000' 기록 + 현지 추가 환전 → 원 합 ÷ 바트 합 */
+function exchAvgRate() {
+  var thb = 0, krw = 0;
+  (S.D.feeUses || []).forEach(function (u) { var m = /환전\s*฿?\s*([\d,]+)/.exec(u.title || ''); if (m) { thb += Number(m[1].replace(/,/g, '')) || 0; krw += Number(String(u.amount).replace(/,/g, '')) || 0; } });
+  exchanges().forEach(function (m) { thb += Number(String(m.thb).replace(/,/g, '')) || 0; krw += Number(String(m.krw).replace(/,/g, '')) || 0; });
+  return thb > 0 ? { rate: Math.round(krw / thb * 100) / 100, thb: thb, krw: krw } : null;
+}
+/* 정산 환율 바꾸기 (관리자) */
+function settleRateForm() {
+  var cur = settleRate(), avg = exchAvgRate(), live = S.fx && S.fx.rate;
+  var sh = sheet('<h3>✏️ 정산 환율 바꾸기</h3><p class="small muted">회원끼리 주고받을 원화와 "회비 예상 잔액"을 이 환율로 계산합니다. 바꾸면 송금 금액이 달라지므로, 이미 누른 "보냈어요·받았어요·확인했어요"는 다시 눌러야 합니다.</p>' +
+    '<div class="small">지금 정산 환율: <b>฿1 = ' + cur + '원</b></div>' +
+    '<div class="row wrap-row" style="margin-top:8px">' +
+      (avg ? '<button class="btn sm" data-r="' + avg.rate + '">환전 평균 ' + avg.rate + '원</button>' : '') +
+      (live ? '<button class="btn sm" data-r="' + live.toFixed(2) + '">오늘 환율 ' + live.toFixed(2) + '원</button>' : '') + '</div>' +
+    (avg ? '<p class="small muted" style="margin:4px 2px 0">환전 평균 = 바꾼 원화 ' + won(avg.krw) + ' ÷ 받은 바트 ' + baht(avg.thb) + '</p>' : '') +
+    '<label class="lb">정산 환율 (원/바트)</label><input class="inp money" id="sr-v" inputmode="decimal" value="' + cur + '">' +
+    '<p class="small" id="sr-msg" style="color:var(--bad);min-height:18px"></p>' +
+    '<div class="row" style="justify-content:flex-end"><button class="btn" data-close>취소</button><button class="btn pri" id="sr-ok">저장</button></div>');
+  els('[data-r]', sh).forEach(function (b) { b.onclick = function () { el('#sr-v', sh).value = b.dataset.r; }; });
+  el('#sr-ok', sh).onclick = function () {
+    var v = el('#sr-v', sh).value.replace(/[^\d.]/g, '');
+    if (!(Number(v) >= 20 && Number(v) <= 60)) { el('#sr-msg', sh).textContent = '20~60 사이 숫자로 적어 주세요. (예: 41.65)'; return; }
+    call('setSettleRate', { rate: v }).then(function (r) {
+      S.D.settings = r.settings; saveCache(); closeSheet(); renderMain(); toast('정산 환율을 ' + v + '원으로 바꿨습니다.');
+    }).catch(function (e) { el('#sr-msg', sh).textContent = e.message; });
+  };
+}
+
+/* ─── 정산 보고서: 엑셀과 인쇄(PDF)가 같은 표를 씀 ─── */
+function reportTables() {
+  var c = calcSettle(), F = feeStats(), w = cashByHolder(), rate = c.rate, R = function (b) { return Math.round(b * rate); };
+  var s = S.D.settings, ds = dates(), names = c.names, sig = settleSig(c);
+  var mark = function (k, amt) { return settleOn(k, '', String(amt)) ? '✓' : ''; };
+  var T = [];
+  T.push({ id: 'sum', title: '요약', head: ['구분', '바트', '원'], rows: [
+    ['현지 총 지출', c.total, R(c.total)],
+    ['  공금으로 낸 돈', c.common, R(c.common)],
+    ['  개인이 낸 공동경비 (정산 대상)', c.personalShared, R(c.personalShared)],
+    ['  지원 (정산에서 빠짐)', c.supportTotal, R(c.supportTotal)],
+    ['공금 처음', c.cash0, R(c.cash0)],
+    ['공금 추가 환전', c.exThb, R(c.exThb)],
+    ['공금 남은 바트', c.cashLeft, R(c.cashLeft)],
+    ['회비 통장 잔고', '', F.balance],
+    ['회비 예상 잔액 (통장 + 남은 바트 환산)', '', F.balance + R(c.cashLeft)]
+  ], note: '정산 환율 ฿1 = ' + rate + '원 · 정산 확인 ' + names.filter(function (n) { return settleOn('confirm', n, sig); }).length + '/' + names.length + '명' });
+  T.push({ id: 'tr', title: '이렇게 보내면 끝 (송금)', head: ['보내는 사람', '받는 사람', '금액(원)', '보냈어요', '받았어요'],
+    rows: c.transfers.length ? c.transfers.map(function (t) { var k = t.from + '>' + t.to; return [t.from, t.to, t.krw, mark('sent:' + k, t.krw), mark('recv:' + k, t.krw)]; }) : [['주고받을 돈이 없습니다', '', '', '', '']] });
+  T.push({ id: 'mem', title: '회원별', head: ['이름', '낸 공동경비(바트)', '내 몫(바트)', '차액(바트)', '받을(+)/보낼(−) 돈(원)', '지원한 돈(바트)', '누린 금액(바트)', '정산 확인'],
+    rows: names.map(function (n) { return [n, round2(c.paid[n]), round2(c.owed[n]), round2(c.bal[n]), c.net[n], round2(c.support[n] || 0), Math.round(c.enjoyed[n]), settleOn('confirm', n, sig) ? '✓' : '']; }),
+    note: '낸 공동경비: 내 카드·현금으로 대신 낸 공동경비(지원 빼고) · 내 몫: 그 공동경비를 함께한 사람 수로 나눈 내 몫 · 차액 = 낸 공동경비 − 내 몫 · 누린 금액: 공금 포함 모든 지출의 내 몫(참고)' });
+  var cats = Object.keys(c.byCat).sort(function (a, b) { return c.byCat[b] - c.byCat[a]; });
+  T.push({ id: 'cat', title: '어디에 썼나 (항목별)', head: ['항목', '바트', '원', '비율'],
+    rows: cats.map(function (k) { return [k, c.byCat[k], R(c.byCat[k]), c.total ? Math.round(c.byCat[k] / c.total * 1000) / 10 + '%' : '']; }).concat([['합계', c.total, R(c.total), '100%']]), total: true });
+  T.push({ id: 'day', title: '날짜별', head: ['날짜', '바트', '원'],
+    rows: Object.keys(c.byDay).sort().map(function (d) { return [md(d) + '(' + wd(d) + ')', c.byDay[d], R(c.byDay[d])]; }).concat([['합계', c.total, R(c.total)]]), total: true });
+  T.push({ id: 'exp', title: '지출 내역', head: ['날짜', '항목', '내용', '바트', '원', '낸 사람', '종류', '지원(바트)', '함께한 사람', '인원', '메모', '적은 사람'],
+    rows: expenses().slice().reverse().map(function (e) {
+      var p = partsOf(e), payer = e.payer === '공금' ? '공금' + (e.cash_from ? '(' + e.cash_from + ' 지갑)' : '') : e.payer;
+      return [e.date, e.category, e.title, Number(e.thb) || 0, R(Number(e.thb) || 0), payer, e.kind, e.support_thb ? Number(e.support_thb) : '', e.kind === '지원' ? '' : p.join(' '), e.kind === '지원' ? '' : p.length, e.memo, e.created_by];
+    }), note: '원 = 바트 × 정산 환율' });
+  T.push({ id: 'wal', title: '공금 지갑 (누가 갖고 있나)', head: ['이름', '처음(바트)', '받음·줌(바트)', '쓴 돈(바트)', '남음(바트)'],
+    rows: w.list.map(function (h) { return [h.name, h.start, h.moved, h.used, h.left]; }).concat(w.none ? [['지갑 안 고른 공금 지출', '', '', w.none, -w.none]] : []).concat([['합계', '', '', '', c.cashLeft]]), total: true });
+  var mv = (S.D.cashMoves || []).slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+  if (mv.length) T.push({ id: 'mv', title: '공금 기록 (넘겨주기 · 추가 환전)', head: ['날짜', '구분', '주는 쪽', '받는 사람', '바트', '원(통장에서)', '메모'],
+    rows: mv.map(function (m) { var ex = m.from === '회비'; return [m.date, ex ? '추가 환전' : '넘겨주기', ex ? '회비 통장' : m.from, m.to, Number(String(m.thb).replace(/,/g, '')) || 0, ex ? Number(String(m.krw).replace(/,/g, '')) || 0 : '', m.memo]; }) });
+  T.push({ id: 'fee', title: '회비 통장', head: ['구분', '원'], rows: [['총 납부', F.paidTotal], ['이자 등', F.interest], ['사용 (현지 환전 포함)', -F.useTotal], ['통장 잔고', F.balance]], total: true,
+    note: (s.fee_asof ? s.fee_asof + ' 통장 확인 기준' : '') });
+  T.push({ id: 'feeu', title: '회비 사용 내역', head: ['날짜', '내용', '원', '처리', '메모'],
+    rows: F.uses.map(function (u) { return [u.date, String(u.title || '').replace(/^💱\s*/, ''), Number(String(u.amount).replace(/,/g, '')) || 0, u.by, u.memo]; }) });
+  return T;
+}
+function round2(n) { return Math.round(Number(n) * 100) / 100; }
+function tripTitle() { return (S.D.settings && S.D.settings.trip_title) || document.title || '여행'; }
+function tripRange() { var ds = dates(); return ds.length ? ds[0] + ' ~ ' + ds[ds.length - 1] : ''; }
+
+/* 인쇄 · PDF: 정산 보고서만 깔끔하게 (폰에서는 인쇄 → PDF로 저장) */
+function printReport() {
+  var T = reportTables(), by = {}; T.forEach(function (t) { by[t.id] = t; });
+  function cell(v, i, head) { var isNum = typeof v === 'number'; return '<td' + (isNum ? ' class="n"' : '') + '>' + (isNum ? num(v) : esc(v === undefined || v === null ? '' : v)) + '</td>'; }
+  function table(t, cols) {
+    if (!t) return '';
+    var idx = cols || t.head.map(function (_, i) { return i; });
+    return '<h2>' + esc(t.title) + '</h2><table><thead><tr>' + idx.map(function (i) { return '<th' + (/바트|원|금액|인원|비율|차액|몫|돈/.test(t.head[i]) ? ' class="n"' : '') + '>' + esc(t.head[i]) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      t.rows.map(function (r, k) { return '<tr' + (t.total && k === t.rows.length - 1 ? ' class="tot"' : '') + '>' + idx.map(function (i) { return cell(r[i], i, t.head); }).join('') + '</tr>'; }).join('') +
+      '</tbody></table>' + (t.note ? '<p class="note">' + esc(t.note) + '</p>' : '');
+  }
+  var html = '<h1>' + esc(tripTitle()) + ' · 정산 보고서</h1>' +
+    '<div class="meta">' + esc(tripRange()) + ' · 정산 환율 ฿1 = ' + settleRate() + '원 · 만든 날 ' + localNow().date + ' (' + esc(S.me.name) + ')</div>' +
+    table(by.tr) + table(by.sum) + table(by.mem) +
+    '<div class="two"><div>' + table(by.cat) + '</div><div>' + table(by.day) + '</div></div>' +
+    table(by.exp, [0, 1, 2, 3, 4, 5, 6, 8, 10]) +
+    table(by.wal) + table(by.mv) +
+    '<div class="two"><div>' + table(by.fee) + '</div><div>' + table(by.feeu, [0, 1, 2]) + '</div></div>';
+  var d = el('#printRep');
+  if (!d) { d = document.createElement('div'); d.id = 'printRep'; document.body.appendChild(d); }
+  d.innerHTML = html;
+  document.body.classList.add('printing');
+  var done = function () { document.body.classList.remove('printing'); window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done);
+  setTimeout(function () { window.print(); setTimeout(done, 1500); }, 50);
+}
+
+/* 엑셀(.xlsx): 표마다 시트 하나. 라이브러리는 누를 때만 불러옴. 안 되면 CSV로 */
+var XLSX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+function loadScript(u) {
+  return new Promise(function (ok, no) { if (window.XLSX) return ok(); var sc = document.createElement('script'); sc.src = u; sc.onload = ok; sc.onerror = no; document.head.appendChild(sc); });
+}
+function downloadXlsx() {
+  toast('엑셀 파일을 만드는 중…');
+  loadScript(XLSX_URL).then(function () {
+    var T = reportTables(), wb = XLSX.utils.book_new();
+    var groups = [['요약', ['sum', 'tr', 'mem']], ['지출 내역', ['exp']], ['항목·날짜별', ['cat', 'day']], ['공금', ['wal', 'mv']], ['회비', ['fee', 'feeu']]];
+    var by = {}; T.forEach(function (t) { by[t.id] = t; });
+    groups.forEach(function (g) {
+      var aoa = [];
+      if (g[0] === '요약') aoa.push([tripTitle() + ' · 정산 보고서'], [tripRange() + ' · 정산 환율 ฿1 = ' + settleRate() + '원 · 만든 날 ' + localNow().date], []);
+      g[1].forEach(function (id) { var t = by[id]; if (!t) return; aoa.push(['■ ' + t.title]); aoa.push(t.head); t.rows.forEach(function (r) { aoa.push(r); }); if (t.note) aoa.push([t.note]); aoa.push([]); });
+      var ws = XLSX.utils.aoa_to_sheet(aoa);
+      Object.keys(ws).forEach(function (k) { var c = ws[k]; if (k[0] !== '!' && c.t === 'n') c.z = c.v % 1 ? '#,##0.00' : '#,##0'; });   // 천단위 콤마
+      var widths = []; aoa.forEach(function (r) { if (r.length < 2) return; r.forEach(function (v, i) { var l = String(v === undefined ? '' : v).length; widths[i] = Math.min(40, Math.max(widths[i] || 6, l + 2)); }); });
+      ws['!cols'] = widths.map(function (w) { return { wch: w * 1.6 > 50 ? 50 : Math.ceil(w * 1.6) }; });
+      XLSX.utils.book_append_sheet(wb, ws, g[0]);
+    });
+    XLSX.writeFile(wb, '태국여행_정산_' + localNow().date + '.xlsx');
+  }).catch(function () { toast('엑셀 도구를 못 불러와서 CSV로 받습니다.'); downloadCsv(); });
+}
+
 /* ─── 정보 ─── */
 /* ─── 필수 태국어: [뜻, 읽는 법, 태국 글자] · 남자 말끝 '크랍' ─── */
 var THAI = {
@@ -2422,8 +2573,9 @@ function bindMain() {
         });
       }
       else if (a === 'exp-add') expenseForm(null);
-      else if (a === 'exp-csv') downloadCsv();
-      else if (a === 'exp-print') window.print();
+      else if (a === 'exp-csv') downloadXlsx();
+      else if (a === 'exp-print') printReport();
+      else if (a === 'settle-rate') settleRateForm();
       else if (a === 'fee-in') feeForm('in');
       else if (a === 'fee-use') feeForm('use');
       else if (a === 'fee-bank') feeBankForm();
