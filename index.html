@@ -454,14 +454,14 @@ var LS = {
 };
 var S = {
   token: LS.get('trip_token', null), me: null, D: null, boot: null,
-  tab: null, editMode: false, mapSel: {}, mapSat: !!LS.get('trip_sat', ''), scoreRound: null, scoreFor: null,
+  tab: null, editMode: false, mapSel: {}, note: LS.get('trip_note', 'strokes'), mapSat: !!LS.get('trip_sat', ''), scoreRound: null, scoreFor: null,
   queue: LS.get('trip_queue', []), saveState: '', fx: null, wx: null, routes: LS.get('trip_routes', {})
 };
 var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.12-45';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.12-46';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1266,6 +1266,57 @@ function afterAdminToast(r) {
 }
 
 /* ─── 스코어 ─── */
+/* 적는 방식: 'strokes' = 타수 그대로, 'rel' = 파 기준 ±(파 0, 보기 +1). 저장은 언제나 타수 */
+function noteRel() { return S.note === 'rel'; }
+function relStr(d) { return d === 0 ? '0' : d > 0 ? '+' + d : String(d); }
+function cellVal(v, par) { if (v === '' || v === null || v === undefined) return ''; return noteRel() && par ? relStr(Number(v) - par) : String(v); }
+function cellToStrokes(str, par) {
+  str = String(str || '').trim(); if (str === '') return '';
+  if (noteRel() && par) { var d = parseInt(str.replace('−', '-'), 10); return isFinite(d) && par + d >= 1 ? par + d : ''; }
+  var n = parseInt(str.replace(/\D/g, ''), 10); return isFinite(n) && n > 0 ? n : '';
+}
+/* 파 대비 (적힌 홀 중 파를 아는 홀만): +9 같은 글자, 없으면 '' */
+function relTotal(h, pars) {
+  var d = 0, any = false;
+  for (var i = 0; i < 18; i++) if (h[i] !== '' && h[i] !== null && h[i] !== undefined && pars[i]) { d += Number(h[i]) - pars[i]; any = true; }
+  return any ? relStr(d) : '';
+}
+function roundPars(r) { return String((r && r.pars) || '').split(/[,\s]+/).filter(Boolean).map(Number); }
+function noteSwitch(pars) {
+  var miss = pars.filter(Boolean).length < 18;
+  return '<div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><span class="small muted" style="white-space:nowrap">적는 방식</span><div class="mapsw"><button class="' + (!noteRel() ? 'on' : '') + '" data-note="strokes">타수</button><button class="' + (noteRel() ? 'on' : '') + '" data-note="rel">± 파 기준</button></div></div>' +
+    (noteRel() && miss ? '<div class="small" style="color:var(--warn);margin-top:2px">파 정보가 없는 홀은 타수로 적어요.</div>' : '');
+}
+/* 27홀 골프장: 설정 nines_<라운드ID> = "마운틴=4,5,…;레이크=…" → 그날 도는 전반·후반 코스 고르기 */
+function ninesOf(r) {
+  var v = S.D.settings['nines_' + r.round_id]; if (!v) return null;
+  var out = [];
+  String(v).split(';').forEach(function (part) { var m = part.split('='); if (m.length !== 2) return; var a = m[1].split(',').map(Number); if (a.length === 9 && a.every(function (x) { return x >= 3 && x <= 6; })) out.push({ name: m[0].trim(), pars: a }); });
+  return out.length >= 2 ? out : null;
+}
+function ninesPick(r) {
+  var ns = ninesOf(r); if (!ns) return '';
+  var pars = roundPars(r), f = pars.slice(0, 9).join(','), b = pars.slice(9, 18).join(',');
+  function sel(which, cur) {
+    var hit = -1; ns.forEach(function (n, i) { if (hit < 0 && n.pars.join(',') === cur) hit = i; });
+    return '<select class="inp" data-nine="' + which + '" style="width:100%;min-height:40px;padding:4px 8px">' + (hit < 0 ? '<option value="">(모름)</option>' : '') +
+      ns.map(function (n, i) { return '<option value="' + i + '"' + (i === hit ? ' selected' : '') + '>' + esc(n.name) + '</option>'; }).join('') + '</select>';
+  }
+  return '<div class="small muted" style="margin-top:8px">⛳ 코스 (27홀) — 그날 배정된 코스를 고르면 파가 바뀌어요</div>' +
+    '<div style="display:grid;grid-template-columns:auto 1fr auto 1fr;gap:6px;align-items:center;margin-top:4px"><span class="small">전반</span>' + sel('f', f) + '<span class="small">후반</span>' + sel('b', b) + '</div>';
+}
+function bindNotes(root, rid, after) {
+  els('[data-note]', root).forEach(function (b) { b.onclick = function () { if (S.note === b.dataset.note) return; S.note = b.dataset.note; LS.set('trip_note', S.note); after(); }; });
+  els('[data-nine]', root).forEach(function (sl) {
+    sl.onchange = function () {
+      var r = S.D.rounds.filter(function (x) { return x.round_id === rid; })[0], ns = ninesOf(r); if (!ns || sl.value === '') return;
+      var pars = roundPars(r); while (pars.length < 18) pars.push(4);
+      var nine = ns[Number(sl.value)].pars, off = sl.dataset.nine === 'f' ? 0 : 9;
+      for (var i = 0; i < 9; i++) pars[off + i] = nine[i];
+      call('addCard', { round_id: rid, id: '', pars: pars, force: true }).then(function (x) { S.D.rounds = x.rounds; saveCache(); after(); toast((off ? '후반' : '전반') + ' 코스를 ' + ns[Number(sl.value)].name + '(으)로 바꿨습니다.'); }).catch(function (e) { toast(e.message); });
+    };
+  });
+}
 function rounds() { return S.D.rounds.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; }); }
 function scoreOf(rid, name) { return S.D.scores.filter(function (s) { return s.round_id === rid && s.member === name; })[0]; }
 function parseHoles(s) { try { var a = JSON.parse(s.holes || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
@@ -1293,7 +1344,7 @@ function viewScore() {
   var sc = scoreOf(r.round_id, who) || { mode: LS.get('trip_mode', 'half'), front: '', back: '', holes: '' };
   var mode = sc.mode || 'half';
   var holes = parseHoles(sc); while (holes.length < 18) holes.push('');
-  var pars = (r.pars || '').split(/[,\s]+/).filter(Boolean).map(Number);
+  var pars = roundPars(r);
 
   var tt = totalOf(sc) || { f: null, b: null, t: 0 };
   var editor =
@@ -1302,11 +1353,11 @@ function viewScore() {
     (mode === 'half'
       ? '<div class="sc-big" style="margin-top:12px"><div><div class="lab">전반</div>' + stepper('front', tt.f) + '</div><div><div class="lab">후반</div>' + stepper('back', tt.b) + '</div>' +
         '<div class="sc-total"><div class="lab">합계</div><div class="sum" id="sum">' + (tt.f !== null || tt.b !== null ? tt.t : '-') + '</div></div></div>'
-      : '<div class="holes">' + holes.map(function (h, i) {
-          return (i === 9 ? '</div><div class="holes">' : '') + '<div class="h"><span>' + (i + 1) + (pars[i] ? ' (P' + pars[i] + ')' : '') + '</span><input readonly maxlength="2" data-hole="' + i + '" data-pv="' + (pars[i] || '') + '" value="' + esc(h) + '"></div>' +
+      : ninesPick(r) + noteSwitch(pars) + '<div class="holes">' + holes.map(function (h, i) {
+          return (i === 9 ? '</div><div class="holes">' : '') + '<div class="h"><span>' + (i + 1) + (pars[i] ? ' (P' + pars[i] + ')' : '') + '</span><input readonly maxlength="3" data-hole="' + i + '" data-pv="' + (pars[i] || '') + '" value="' + esc(cellVal(h, pars[i])) + '"></div>' +
             (i === 8 ? sumCell('전반', 'id="hf"', tt.f) : i === 17 ? sumCell('후반', 'id="hb"', tt.b) : '');
         }).join('') + '</div>' +
-        '<div class="row between" style="margin-top:10px"><span class="muted">합계</span><span class="sum" id="sum">' + (tt.f !== null || tt.b !== null ? tt.t : '-') + '</span></div>') +
+        '<div class="row between" style="margin-top:10px"><span class="muted">합계</span><span><span class="sum" id="sum">' + (tt.f !== null || tt.b !== null ? tt.t : '-') + '</span> <span class="muted" id="sumrel">' + (relTotal(holes, pars) ? '(' + relTotal(holes, pars) + ')' : '') + '</span></span></div>') +
     '<div class="row between" style="margin-top:8px"><span class="save-st muted" id="sst">' + esc(S.saveState) + '</span>' +
       '<div class="row" style="white-space:nowrap;justify-content:flex-end;flex-wrap:wrap;flex:1 1 0;min-width:0">' + (tt.f !== null || tt.b !== null || filled(holes) ? '<button class="btn sm bad" data-act="score-clear">🗑️ 지우기</button>' : '') +
       (who !== S.me.name ? '<button class="btn sm" data-for="">내 스코어로 돌아가기</button>' : '') + '</div></div></div>';
@@ -1404,6 +1455,7 @@ function refreshTotals(sc) {
   var s = el('#sum'); if (s) s.textContent = t && (t.f !== null || t.b !== null) ? t.t : '-';
   if (el('#hf')) el('#hf').textContent = t.f === null ? '-' : t.f;
   if (el('#hb')) el('#hb').textContent = t.b === null ? '-' : t.b;
+  var sr = el('#sumrel'); if (sr) { var rr = S.D.rounds.filter(function (x) { return x.round_id === sc.round_id; })[0], rt = relTotal(parseHoles(sc), roundPars(rr)); sr.textContent = rt ? '(' + rt + ')' : ''; }
   refreshTables();
 }
 function sumHoles(h, a, b) { var s = 0, any = false; for (var i = a; i < b; i++) if (h[i] !== '' && h[i] !== undefined) { s += Number(h[i]); any = true; } return any ? s : ''; }
@@ -1602,7 +1654,8 @@ function pickerFor(inp) {
   var sh = inp.closest('.sheet') || document;
   if (inp.hasAttribute('data-gh')) {
     var g = S.grp, gp = Number(inp.dataset.pv) || 0, gk = Number(inp.dataset.gh), gv = [];
-    for (var gn = 1; gn <= 12; gn++) gv.push({ v: String(gn), big: gn, sub: gp ? (PK_NAME[gn - gp] || '') : '', par: gp && gn === gp });
+    if (noteRel() && gp) for (var gd = -2; gd <= 6; gd++) gv.push({ v: relStr(gd), big: relStr(gd), sub: PK_NAME[gd] || '', par: gd === 0 });
+    else for (var gn = 1; gn <= 12; gn++) gv.push({ v: String(gn), big: gn, sub: gp ? (PK_NAME[gn - gp] || '') : '', par: gp && gn === gp });
     var gnext = null, cells = els('[data-gh]', sh).filter(function (x) { return !x.disabled; });
     for (var q = 0; q < cells.length; q++) if (Number(cells[q].dataset.gh) > gk) { gnext = cells[q]; break; }
     return { title: (g.hole + 1) + '번 홀 · ' + inp.dataset.nm + (gp ? ' · 파 ' + gp : ''), hint: gnext ? '고르면 다음 사람' : (g.hole < 17 ? '고르면 다음 홀' : ''), vals: gv, next: gnext, onEnd: gnext ? null : g.onEnd };
@@ -1620,6 +1673,7 @@ function pickerFor(inp) {
   } else {
     i = Number(inp.dataset.hole); par = Number(inp.dataset.pv) || 0;
     next = el('[data-hole="' + (i + 1) + '"]');
+    rel = noteRel() && par > 0;
   }
   var vals = [];
   if (rel) for (var d = -2; d <= 6; d++) vals.push({ v: d > 0 ? '+' + d : String(d), big: d > 0 ? '+' + d : d, sub: PK_NAME[d] || '', par: d === 0 });
@@ -1667,7 +1721,7 @@ document.addEventListener('click', function (e) {
 /* ═════════ ⛳ 여러 명 함께 입력: 홀 하나씩, 사람마다 타수 고르기 → 마지막 사람 다음은 다음 홀 ═════════ */
 function groupEntry(rid) {
   var r = S.D.rounds.filter(function (x) { return x.round_id === rid; })[0]; if (!r) return;
-  var names = memberNames(), pars = String(r.pars || '').split(/[,\s]+/).filter(Boolean).map(Number);
+  var names = memberNames(), pars = roundPars(r);
   function sc(n) {
     var x = scoreOf(rid, n);
     if (!x) { x = { round_id: rid, member: n, mode: 'holes', front: '', back: '', holes: '' }; S.D.scores.push(x); }
@@ -1681,6 +1735,7 @@ function groupEntry(rid) {
   var sh = sheet('<div id="grp"></div>');
   function hasV(v) { return v !== '' && v !== null && v !== undefined; }
   function draw(openFirst) {
+    r = S.D.rounds.filter(function (x) { return x.round_id === rid; })[0]; pars = roundPars(r);
     var g = S.grp, k = g.hole, par = pars[k] || 0;
     var chip = function (h) {
       var cnt = names.filter(function (n) { return !halfOnly(n) && hasV(holesOf(n)[h]); }).length, need = names.filter(function (n) { return !halfOnly(n); }).length;
@@ -1688,35 +1743,38 @@ function groupEntry(rid) {
     };
     var rows = names.map(function (n, idx) {
       var h = holesOf(n), v = h[k], half = halfOnly(n), x = scoreOf(rid, n);
-      var t = { f: sumN(h, 0, 9), b: sumN(h, 9, 18) };
-      var sub = half ? '전·후반 합계로 적혀 있음' : (t.f !== null || t.b !== null ? '지금까지 ' + ((t.f || 0) + (t.b || 0)) + '타 · ' + filled(h) + '홀' : '');
+      var t = { f: sumN(h, 0, 9), b: sumN(h, 9, 18) }, rt = relTotal(h, pars);
+      var sub = half ? '전·후반 합계로 적혀 있음' : (t.f !== null || t.b !== null ? '지금까지 ' + ((t.f || 0) + (t.b || 0)) + '타' + (rt ? ' (' + rt + ')' : '') + ' · ' + filled(h) + '홀' : '');
       return '<div class="grp-row"><div class="nm">' + esc(n) + (n === S.me.name ? ' (나)' : '') + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</div>' +
-        '<input readonly data-gh="' + idx + '" data-nm="' + esc(n) + '" data-pv="' + (par || '') + '" value="' + (half ? '' : esc(hasV(v) ? v : '')) + '"' + (half ? ' disabled placeholder="—"' : '') + '></div>';
+        '<input readonly data-gh="' + idx + '" data-nm="' + esc(n) + '" data-pv="' + (par || '') + '" value="' + (half ? '' : esc(cellVal(v, par))) + '"' + (half ? ' disabled placeholder="—"' : '') + '></div>';
     }).join('');
     var sum = '<table class="grp-sum"><tr><th>이름</th><th>전반</th><th>후반</th><th>합계</th><th>홀</th></tr>' + names.map(function (n) {
       var x = scoreOf(rid, n), h = holesOf(n), half = halfOnly(n);
       var f = half ? (x.front === '' ? null : Number(x.front)) : sumN(h, 0, 9), b = half ? (x.back === '' ? null : Number(x.back)) : sumN(h, 9, 18);
-      return '<tr><td>' + esc(n) + '</td><td>' + (f === null ? '-' : f) + '</td><td>' + (b === null ? '-' : b) + '</td><td><b>' + (f === null && b === null ? '-' : (f || 0) + (b || 0)) + '</b></td><td>' + (half ? '합계' : filled(h)) + '</td></tr>';
+      return '<tr><td>' + esc(n) + '</td><td>' + (f === null ? '-' : f) + '</td><td>' + (b === null ? '-' : b) + '</td><td><b>' + (f === null && b === null ? '-' : (f || 0) + (b || 0)) + '</b>' + (!half && relTotal(h, pars) ? ' <small class="muted">' + relTotal(h, pars) + '</small>' : '') + '</td><td>' + (half ? '합계' : filled(h)) + '</td></tr>';
     }).join('') + '</table>';
     el('#grp', sh).innerHTML =
-      '<div class="row between" style="flex-wrap:nowrap"><h3 style="margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">⛳ 함께 입력 · ' + esc(r.course) + '</h3><button class="btn sm" data-close>닫기</button></div>' +
+      '<div class="row between" style="flex-wrap:nowrap"><h3 style="margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">⛳ 함께 입력 · ' + esc(r.course) + '</h3><button class="btn sm" data-close style="flex:none;white-space:nowrap">닫기</button></div>' +
       '<div class="grp-nav"><button class="btn" data-gstep="-1"' + (k === 0 ? ' disabled' : '') + '>◀ 이전</button><div class="hole">' + (k + 1) + '번 홀<small>' + (par ? '파 ' + par : '파 정보 없음') + '</small></div><button class="btn" data-gstep="1"' + (k === 17 ? ' disabled' : '') + '>다음 ▶</button></div>' +
       '<div class="grp-chips">' + [0, 1, 2, 3, 4, 5, 6, 7, 8].map(chip).join('') + '</div><div class="grp-chips" style="margin-top:-6px">' + [9, 10, 11, 12, 13, 14, 15, 16, 17].map(chip).join('') + '</div>' +
-      '<div class="small muted" style="margin-bottom:2px">칸을 누르고 타수를 고르면 다음 사람 → 다음 홀로 넘어가요. 적는 대로 바로 저장됩니다.</div>' +
+      ninesPick(r) + noteSwitch(pars) +
+      '<div class="small muted" style="margin:6px 0 2px">칸을 누르고 ' + (noteRel() && par ? '±를' : '타수를') + ' 고르면 다음 사람 → 다음 홀로 넘어가요. 적는 대로 바로 저장됩니다.</div>' +
       rows + sum + '<p class="small muted" id="grp-st" style="margin:6px 0 0">' + esc(S.saveState || '') + '</p>';
     els('[data-close]', sh).forEach(function (b) { b.onclick = function () { closeSheet(); renderMain(); }; });
     els('[data-gstep]', sh).forEach(function (b) { b.onclick = function () { S.grp.hole = Math.max(0, Math.min(17, k + Number(b.dataset.gstep))); draw(); }; });
     els('[data-gk]', sh).forEach(function (b) { b.onclick = function () { S.grp.hole = Number(b.dataset.gk); draw(); }; });
+    bindNotes(sh, rid, function () { draw(); });
     els('[data-gh]', sh).forEach(function (inp) {
       inp.oninput = function () {
-        var n = inp.dataset.nm, x = sc(n), h = holesOf(n), v = inp.value.replace(/\D/g, '').slice(0, 2);
-        h[k] = v === '' ? '' : Number(v);
+        var n = inp.dataset.nm, x = sc(n), h = holesOf(n), v = cellToStrokes(inp.value, par);
+        inp.value = cellVal(v, par);
+        h[k] = v;
         x.holes = JSON.stringify(h); x.mode = 'holes'; x.front = sumHoles(h, 0, 9); x.back = sumHoles(h, 9, 18);
         queueSave(x);
         syncMain(n, k, v);
         // 합계 표·홀 단추만 다시 그림 (고르기 창 흐름은 그대로)
         var row = inp.closest('.grp-row'), small = row && row.querySelector('.nm small'), tt = (sumN(h, 0, 9) || 0) + (sumN(h, 9, 18) || 0);
-        if (row) { if (!small) { small = document.createElement('small'); row.querySelector('.nm').appendChild(small); } small.textContent = filled(h) ? '지금까지 ' + tt + '타 · ' + filled(h) + '홀' : ''; }
+        if (row) { if (!small) { small = document.createElement('small'); row.querySelector('.nm').appendChild(small); } var rt2 = relTotal(h, pars); small.textContent = filled(h) ? '지금까지 ' + tt + '타' + (rt2 ? ' (' + rt2 + ')' : '') + ' · ' + filled(h) + '홀' : ''; }
       };
     });
     S.grp.onEnd = function () {
@@ -1726,7 +1784,7 @@ function groupEntry(rid) {
   }
   // 아래 스코어 화면도 같이 맞춤(지금 보이는 사람 칸·순위표)
   function syncMain(n, k, v) {
-    if ((S.scoreFor || S.me.name) === n) { var hi = el('.wrap [data-hole="' + k + '"]') || el('main [data-hole="' + k + '"]'); if (hi) hi.value = v; var x = scoreOf(rid, n); if (x) { var t = totalOf(x); var s1 = el('#sum'); if (s1) s1.textContent = t.f !== null || t.b !== null ? t.t : '-'; if (el('#hf')) el('#hf').textContent = t.f === null ? '-' : t.f; if (el('#hb')) el('#hb').textContent = t.b === null ? '-' : t.b; } }
+    if ((S.scoreFor || S.me.name) === n) { var hi = el('.wrap [data-hole="' + k + '"]') || el('main [data-hole="' + k + '"]'); if (hi) hi.value = cellVal(v, Number(hi.dataset.pv) || 0); var x = scoreOf(rid, n); if (x) { var t = totalOf(x); var s1 = el('#sum'); if (s1) s1.textContent = t.f !== null || t.b !== null ? t.t : '-'; if (el('#hf')) el('#hf').textContent = t.f === null ? '-' : t.f; if (el('#hb')) el('#hb').textContent = t.b === null ? '-' : t.b; } }
     refreshTables();
     var st = el('#grp-st', sh); if (st) st.textContent = S.saveState || '';
   }
@@ -2741,6 +2799,7 @@ function bindMain() {
     };
   });
   // 스코어카드
+  bindNotes(m, S.scoreRound, renderMain);
   els('[data-scan]', m).forEach(function (inp) { inp.onchange = function () { var fs = Array.prototype.slice.call(inp.files || []).slice(0, 8); if (fs.length) scanScorecards(fs); inp.value = ''; }; });
   els('[data-cards]', m).forEach(function (a) { a.onclick = function (ev) { ev.preventDefault(); showCards(a.dataset.cards); }; });
   // 경비
@@ -2833,12 +2892,11 @@ function bindMain() {
   els('[data-hole]', m).forEach(function (inp) {
     inp.oninput = function () {
       var sc = currentScore(), h = parseHoles(sc); while (h.length < 18) h.push('');
-      var v = inp.value.replace(/\D/g, '').slice(0, 2); inp.value = v;
-      h[Number(inp.dataset.hole)] = v === '' ? '' : Number(v);
+      var par = Number(inp.dataset.pv) || 0, v = cellToStrokes(inp.value, par); inp.value = cellVal(v, par);
+      h[Number(inp.dataset.hole)] = v;
       sc.holes = JSON.stringify(h); sc.mode = 'holes';
       sc.front = sumHoles(h, 0, 9); sc.back = sumHoles(h, 9, 18);
       refreshTotals(sc); queueSave(sc);
-      if (v.length >= (v === '1' ? 2 : 1)) { var nx = el('[data-hole="' + (Number(inp.dataset.hole) + 1) + '"]', m); if (nx && v !== '1') nx.focus(); }
     };
   });
   // 관리자
