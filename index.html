@@ -511,7 +511,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.13-12';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.13-13';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1276,6 +1276,7 @@ function startDrag(handle, ev) {
   li.style.width = rect.width + 'px'; li.style.position = 'fixed'; li.style.left = rect.left + 'px'; li.style.top = rect.top + 'px';
   dragState = { li: li, ph: ph, tl: tl, offY: ev.clientY - rect.top, id: li.dataset.id, overTab: null, y0: ev.clientY, moved: false };
   els('.seg', tl).forEach(function (s) { s.style.visibility = 'hidden'; });
+  toast('↕️ 끌면 순서 옮기기 · 그냥 떼면 수정·삭제 메뉴', null, 4000);
 }
 function moveDrag(ev) {
   var d = dragState; if (!d) return;
@@ -1323,7 +1324,8 @@ function endDrag() {
   var order = [];
   els('.it', d.tl).forEach(function (n) { if (n === d.ph) order.push(d.id); else if (n !== d.li) order.push(n.dataset.id); });
   var old = itemsOf(date).map(function (x) { return x.id; });
-  if (order.join() === old.join()) { renderMain(); if (!d.moved && it) itemMenu(it); return; }
+  // 제자리에서 떼면(손이 조금 흔들려도) 고르기 창
+  if (order.join() === old.join()) { renderMain(); if (it) itemMenu(it); return; }
   var idx = order.indexOf(d.id);
   var prev = itemsOf(date).filter(function (x) { return x.id === order[idx - 1]; })[0];
   var next = itemsOf(date).filter(function (x) { return x.id === order[idx + 1]; })[0];
