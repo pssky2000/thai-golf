@@ -216,7 +216,9 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .grp-sum th,.grp-sum td{padding:5px 4px;border-top:1px solid var(--line);text-align:center;white-space:nowrap}
 .grp-sum th{color:var(--sub);font-weight:600}
 .grp-sum td:first-child,.grp-sum th:first-child{text-align:left}
-.seg-tabs.six{grid-template-columns:repeat(3,1fr)}
+.seg-tabs.six{grid-template-columns:repeat(6,1fr);gap:3px}
+/* 정보 탭 5~6칸을 앞화면 한 줄에: 글씨는 화면 폭에 맞춰 줄임(아주 크게여도 넘치지 않게) */
+.seg-tabs.six button,.seg-tabs.five button{font-size:min(calc(13px*var(--fs)),4.3vw);letter-spacing:-.07em;padding:10px 0}
 .vrow{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;width:100%;text-align:left;border:0;border-top:1px solid var(--line);background:transparent;color:var(--ink);padding:10px 2px;font:inherit;cursor:pointer}
 .vrow:first-of-type{border-top:0}
 .vrow .ic{font-size:calc(24px*var(--fs))}
@@ -416,7 +418,7 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 /* 정보 탭 안쪽 탭 (4칸) */
 .seg-tabs.four{grid-template-columns:repeat(4,1fr)}
 .seg-tabs.five{grid-template-columns:repeat(5,1fr);gap:4px}
-.seg-tabs.five button{font-size:calc(13px*var(--fs))}
+.seg-tabs.five button{font-size:min(calc(13px*var(--fs)),4.3vw)}
 .seg-tabs button.adm{border:2px solid var(--warn);color:var(--warn)}
 .seg-tabs button.adm.on{background:var(--warn);color:#fff;border-style:solid}
 .adm-title{font-weight:800;color:var(--warn);padding:8px 2px 0}
@@ -504,7 +506,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.13-6';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.13-7';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
