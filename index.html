@@ -511,7 +511,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.13-10';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.13-11';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -616,6 +616,7 @@ function toast(msg, action, ms) {
 
 function sheet(html, onMount, center) {
   removeSheets();
+  var oldToast = el('.toast'); if (oldToast) oldToast.remove();   // 앞 작업 알림이 새 창 위에 겹쳐 보이지 않게
   var bg = document.createElement('div');
   bg.className = 'sheet-bg' + (center ? ' center' : '');
   bg.innerHTML = '<div class="sheet" role="dialog">' + html + '</div>';
@@ -1105,7 +1106,7 @@ function openItem(id) {
   var links = hasLL(it)
     ? '<div class="row wrap-row" style="margin:10px 0"><a class="btn sm" target="_blank" href="' + esc(gmapOpen(it)) + '">🗺️ 구글지도에서 열기</a>' +
       '<a class="btn sm" target="_blank" href="' + esc(gmapNearby(it)) + '">🍽️ 주변 맛집</a></div>'
-    : '<p class="small muted">아직 위치가 없습니다.' + (S.me.isAdmin ? ' 수정에서 구글지도 링크를 넣어 주세요.' : '') + '</p>';
+    : '<p class="small muted">아직 위치가 없습니다.' + (S.me.isAdmin ? ' 수정 → 🔎 장소 찾기로 넣어 주세요.' : '') + '</p>';
   var html =
     '<h3>' + icon(it.type) + ' ' + esc(it.time) + ' ' + esc(it.title) + (it.fixed ? ' 🔒' : '') + '</h3>' +
     '<div class="muted small">' + md(it.date) + '(' + wd(it.date) + ')</div>' +
@@ -1121,7 +1122,8 @@ function openItem(id) {
     '<div class="row" style="margin-top:16px;justify-content:flex-end">' +
       (canMoney() ? '<button class="btn" id="iexp">💰 지출 적기</button>' : '') +
       (S.me.isAdmin ? '<button class="btn pri" id="iedit">✏️ 수정</button>' : '<button class="btn" id="ireq">✋ 수정 요청</button>') +
-      '<button class="btn" id="iclose">닫기</button></div>';
+      '<button class="btn" id="iclose">닫기</button></div>' +
+    (S.me.isAdmin ? '<div style="text-align:right;margin-top:10px"><button class="btn sm ghost" id="idel" style="color:var(--bad)">🗑️ 이 일정 삭제</button></div>' : '');
   var sh = sheet(html);
   el('#iclose', sh).onclick = closeSheet;
   el('#cadd', sh).onclick = function () {
@@ -1140,6 +1142,7 @@ function openItem(id) {
     expenseForm(null, { date: it.date, item_id: it.id, category: cat, title: nameOf(it) || it.title });
   };
   if (S.me.isAdmin) el('#iedit', sh).onclick = function () { editItem(it); };
+  if (S.me.isAdmin) el('#idel', sh).onclick = function () { deleteItemAsk(it); };
   else el('#ireq', sh).onclick = function () { requestEdit(it); };
 }
 
@@ -1176,7 +1179,7 @@ function editItem(it, preset) {
     '<label class="lb">메모</label><textarea class="inp" id="e-memo" rows="2">' + esc(it.memo) + '</textarea>' +
     '<label class="row" style="margin-top:10px"><input type="checkbox" id="e-fixed"' + (it.fixed ? ' checked' : '') + '> 🔒 고정 일정 (예약된 시각, 자동으로 밀지 않음)</label>' +
     '<p class="small" id="e-msg" style="color:var(--bad);min-height:18px"></p>' +
-    '<div class="row between" style="margin-top:6px">' + (isNew ? '<span></span>' : '<button class="btn bad" id="e-del">삭제</button>') +
+    '<div class="row between" style="margin-top:6px">' + (isNew ? '<span></span>' : '<button class="btn bad" id="e-del">🗑️ 삭제</button>') +
     '<div class="row"><button class="btn" id="e-x">취소</button><button class="btn pri" id="e-ok">저장</button></div></div>';
   var sh = sheet(html);
   var loc = { lat: it.lat, lng: it.lng };
@@ -1223,12 +1226,7 @@ function editItem(it, preset) {
       el('#e-msg', sh).textContent = '';
     }).catch(function (e) { el('#e-msg', sh).textContent = e.message; });
   };
-  if (!isNew) el('#e-del', sh).onclick = function () {
-    confirmBox('"' + (it.display || it.title) + '" 일정을 삭제할까요? (되돌리기 가능)', '삭제').then(function (y) {
-      if (!y) return;
-      call('deleteItem', { id: it.id }).then(afterAdmin).catch(function (e) { toast(e.message); });
-    });
-  };
+  if (!isNew) el('#e-del', sh).onclick = function () { deleteItemAsk(it); };
   el('#e-ok', sh).onclick = function () {
     if (el('#e-time', sh).value.trim() && !parseTime(el('#e-time', sh).value)) { el('#e-msg', sh).textContent = '시각은 숫자 4개로 적어 주세요. 예) 0930, 1730'; return; }
     var out = {
@@ -1243,6 +1241,12 @@ function editItem(it, preset) {
     call('saveItem', { item: out }).then(afterAdmin).catch(function (e) { el('#e-msg', sh).textContent = e.message; });
   };
 }
+function deleteItemAsk(it) {
+  confirmBox('"' + (it.display || it.title) + '" 일정을 삭제할까요? (바로 뒤 알림에서 되돌릴 수 있어요)', '삭제').then(function (y) {
+    if (!y) return;
+    call('deleteItem', { id: it.id }).then(function (r) { afterAdmin(r, '삭제했습니다.'); }).catch(function (e) { toast(e.message); });
+  });
+}
 function parseMapUrlLocal(url) {
   var m = url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/) || url.match(/[?&](?:q|query|ll)=(-?\d+\.\d+),\s*(-?\d+\.\d+)/) || url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) || url.match(/^\s*(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)\s*$/);
   if (!m) return null;
@@ -1250,11 +1254,11 @@ function parseMapUrlLocal(url) {
   if (p) { try { name = decodeURIComponent(p[1].replace(/\+/g, ' ')); } catch (e) {} }
   return { lat: Number(m[1]), lng: Number(m[2]), name: name };
 }
-function afterAdmin(r) {
+function afterAdmin(r, msg) {
   closeSheet();
   S.D.items = r.items;
   renderMain();
-  toast('저장했습니다. 모두의 화면에 반영됩니다.', { label: '되돌리기', fn: function () {
+  toast(msg || '저장했습니다. 모두의 화면에 반영됩니다.', { label: '되돌리기', fn: function () {
     call('undo', { logId: r.logId }).then(function (u) { S.D.items = u.items; renderMain(); toast('되돌렸습니다.'); }).catch(function (e) { toast(e.message); });
   } });
 }
@@ -1334,11 +1338,17 @@ function askTime(it, date, prev, next, done) {
   if (prev && next && prev.time && next.time) sug = fromMin(Math.round((toMin(prev.time) + toMin(next.time)) / 2 / 5) * 5);
   else if (prev && prev.time && !next) sug = fromMin(toMin(prev.time) + 60);
   else if (next && next.time && !prev) sug = fromMin(toMin(next.time) - 60);
+  // 지금 시각이 이미 앞뒤 일정 사이에 맞으면 묻지 않고 그대로 옮김
+  var known = (prev && prev.time) || (next && next.time);
+  var fits = it.time && known && (!prev || !prev.time || toMin(prev.time) <= toMin(it.time)) && (!next || !next.time || toMin(it.time) <= toMin(next.time));
+  if (fits) { done(null); return; }
+  if (sug === it.time) sug = null;   // 추천 시각이 지금 시각과 같으면 버튼 하나만
   var range = (prev && prev.time ? prev.time : '처음') + ' ~ ' + (next && next.time ? next.time : '끝');
-  var sh = sheet('<h3>⏰ 시각은 어떻게 할까요?</h3><p class="small muted">"' + esc(it.display || it.title) + '"을 ' + md(date) + ' ' + esc(range) + ' 사이로 옮겼습니다.</p>' +
-    (sug ? '<button class="btn pri" style="width:100%;margin:4px 0" data-t="' + sug + '">' + sug + '으로</button>' : '') +
-    '<button class="btn" style="width:100%;margin:4px 0" data-t="__keep">시각 그대로 (' + esc(it.time || '없음') + ')</button>' +
-    '<label class="lb">다른 시각 (숫자 4개, 예: 1730 → 17:30)</label><div class="row"><input class="inp time-in" id="tm-in" inputmode="numeric" maxlength="5" placeholder="1730"><button class="btn pri" id="tm-ok">이 시각으로</button></div>' +
+  var sh = sheet('<h3>⏰ 시각은 어떻게 할까요?</h3><p class="small muted">"' + esc(it.display || it.title) + '"을 ' + md(date) + ' ' + esc(range) + ' 사이로 옮겼습니다.' +
+      (it.time ? ' 지금 시각 ' + esc(it.time) + '은 이 사이에 맞지 않아요.' : '') + '</p>' +
+    (sug ? '<button class="btn pri" style="width:100%;margin:4px 0" data-t="' + sug + '">' + sug + '으로 바꾸기</button>' : '') +
+    '<button class="btn' + (sug ? '' : ' pri') + '" style="width:100%;margin:4px 0" data-t="__keep">' + (it.time ? '시각 안 바꾸기 (' + esc(it.time) + ')' : '시각 없이 두기') + '</button>' +
+    '<label class="lb">다른 시각 (숫자 4개, 예: 1730 → 17:30)</label><div class="row"><input class="inp time-in" id="tm-in" inputmode="numeric" maxlength="5" placeholder="1730"><button class="btn pri" id="tm-ok" style="flex:none;white-space:nowrap">바꾸기</button></div>' +
     '<p class="small" id="tm-msg" style="color:var(--bad);min-height:18px"></p>' +
     '<button class="btn ghost" style="width:100%;margin-top:8px" id="tm-x">취소</button>');
   els('[data-t]', sh).forEach(function (b) { b.onclick = function () { closeSheet(); done(b.dataset.t === '__keep' ? null : b.dataset.t); }; });
