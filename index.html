@@ -216,6 +216,19 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .grp-sum th,.grp-sum td{padding:5px 4px;border-top:1px solid var(--line);text-align:center;white-space:nowrap}
 .grp-sum th{color:var(--sub);font-weight:600}
 .grp-sum td:first-child,.grp-sum th:first-child{text-align:left}
+.seg-tabs.six{grid-template-columns:repeat(3,1fr)}
+.vrow{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;width:100%;text-align:left;border:0;border-top:1px solid var(--line);background:transparent;color:var(--ink);padding:10px 2px;font:inherit;cursor:pointer}
+.vrow:first-of-type{border-top:0}
+.vrow .ic{font-size:calc(24px*var(--fs))}
+.vrow .t{font-weight:700}
+.vrow .s{font-size:calc(12px*var(--fs));color:var(--sub)}
+.vday{font-weight:800;color:var(--pri);margin:12px 0 2px;font-size:calc(14px*var(--fs))}
+.sheet.vview{background:#0b0d0c;color:#eee;padding:10px;max-width:900px;width:100%}
+.vview .vbar{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:8px}
+.vview .vbar b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.vview .btn{background:#1d221f;color:#eee;border-color:#333}
+.vview .vbody{max-height:78vh;overflow:auto;background:#222;border-radius:8px;-webkit-overflow-scrolling:touch}
+.vview .vbody img,.vview .vbody canvas{display:block;margin:0 auto 6px;background:#fff}
 .meet-grid{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;align-items:start}
 .meet-grid>span{white-space:nowrap}
 .meet-grid>div>div{margin-bottom:2px}
@@ -491,7 +504,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.13-5';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.13-6';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1003,7 +1016,7 @@ function viewDay(date) {
   var adminTip = S.me.isAdmin ? '<p class="small muted" style="margin:6px 2px">✋ 관리자: 일정을 <b>꾹 누르면</b> 끌어서 순서를 바꿀 수 있고, 위 날짜 탭에 놓으면 다른 날로 옮겨집니다. 눌러서 열면 ✏️ 수정.</p>' : '';
   var addBtn = S.me.isAdmin ? '<button class="btn add-item" data-act="add">＋ 이 날에 일정 추가</button>' : '';
 
-  return nextCard(date) + fl + wxCard(date) +
+  return nextCard(date) + fl + wxCard(date) + dayVouchers(date) +
     '<div class="day-grid"><div class="map-col">' + map + '</div>' +
     '<div class="list-col">' + adminTip + '<ul class="tl" id="tl">' + list + '</ul>' + addBtn + '</div></div>' +
     photoCard(date, md(date) + '(' + wd(date) + ') 사진');
@@ -2477,6 +2490,128 @@ function bindFull(box) {
   });
 }
 
+/* ═════════ 📄 바우처: 드라이브 '바우처' 폴더 + 앱에서 올린 것. 일정(그날)과 정보 › 바우처에서 봄 ═════════ */
+function vouchersOf(date) { return (S.D.vouchers || []).filter(function (v) { return v.date === date; }); }
+function vIcon(v) { return /pdf/.test(v.mime) ? '📄' : '🖼️'; }
+function vSize(n) { n = Number(n) || 0; return n > 1048576 ? (Math.round(n / 104857.6) / 10) + 'MB' : Math.max(1, Math.round(n / 1024)) + 'KB'; }
+function vRow(v) { return '<button class="vrow" data-vid="' + esc(v.id) + '"><span class="ic">' + vIcon(v) + '</span><span><div class="t">' + esc(v.title) + '</div><div class="s">' + (/pdf/.test(v.mime) ? 'PDF' : '사진') + ' · ' + vSize(v.size) + ' <span data-vok="' + esc(v.id) + '"></span></div></span><span class="small muted">보기 ›</span></button>'; }
+/* 일정 화면 위쪽: 그날 바우처 */
+function dayVouchers(date) {
+  var vs = vouchersOf(date); if (!vs.length) return '';
+  return '<div class="card"><b>📄 이날 바우처</b>' + vs.map(vRow).join('') + '</div>';
+}
+/* 정보 › 바우처: 날짜별 전체 */
+function vouchersHtml() {
+  var vs = S.D.vouchers || [], days = {}, none = [];
+  vs.forEach(function (v) { if (v.date) (days[v.date] = days[v.date] || []).push(v); else none.push(v); });
+  return '<div class="card"><div class="row between"><b>📄 바우처</b><span class="small muted">' + (vs.length ? vs.length + '개' : '') + '</span></div>' +
+    '<div class="small muted" style="margin-top:4px">누르면 화면 가득 보여요. 이 칸을 한 번 열어 두면 폰에 저장돼서 인터넷이 약해도 열려요. <span id="v-pre"></span></div>' +
+    (vs.length ? '' : '<p class="muted" style="margin:12px 0 4px">아직 올린 바우처가 없습니다.' + (S.me.isAdmin ? ' 구글 드라이브 「여행 자료 폴더 › 바우처」에 PDF·사진을 넣거나 아래 버튼으로 올려 주세요.' : '') + '</p>') +
+    Object.keys(days).sort().map(function (d) { return '<div class="vday">' + md(d) + '(' + wd(d) + ')</div>' + days[d].map(vRow).join(''); }).join('') +
+    (none.length ? '<div class="vday">날짜 없음</div>' + none.map(vRow).join('') : '') +
+    (S.me.isAdmin ? '<div class="admin-box" style="margin-top:12px;padding:10px"><b class="small">🛠️ 관리자</b>' +
+      '<div class="small muted" style="margin:4px 0 8px">PC: 드라이브 「2026 태국 골프여행 › 바우처」 폴더에 파일을 넣으면 몇 분 안에 여기 나와요. 파일 이름 앞에 날짜를 붙이면(예: <b>1215 타이항공 전자항공권.pdf</b>) 그날 일정에도 붙어요.</div>' +
+      '<label class="btn pri" style="width:100%;justify-content:center;display:flex">＋ 폰에서 바우처 올리기<input type="file" accept="application/pdf,image/*" data-vup hidden></label></div>' : '') + '</div>';
+}
+/* 바우처 파일: 메모리 → 폰(IndexedDB) → 서버. 바뀐 파일은 updated 값이 달라 새로 받음 */
+var vMem = {};
+function loadVoucher(v) {
+  var k = 'v:' + v.id + ':' + v.updated;
+  if (vMem[k]) return Promise.resolve(vMem[k]);
+  return pget(k).then(function (d) {
+    if (d) { vMem[k] = d; return d; }
+    return call('getVoucher', { id: v.id }).then(function (r) { vMem[k] = r.dataUrl; pput(k, r.dataUrl); return r.dataUrl; });
+  });
+}
+function prefetchVouchers() {
+  var vs = (S.D.vouchers || []).slice(), done = 0, el1 = function () { return el('#v-pre'); };
+  if (!vs.length) return;
+  var next = function () {
+    var v = vs.shift(); if (!v) { var e = el1(); if (e) e.textContent = '✓ 모두 폰에 저장됨'; return; }
+    loadVoucher(v).then(function () { done++; var ok = el('[data-vok="' + v.id + '"]'); if (ok) ok.textContent = '· 저장됨 ✓'; var e = el1(); if (e) e.textContent = '(' + done + '/' + (done + vs.length) + ' 저장 중…)'; }, function () {}).then(next);
+  };
+  next();
+}
+function bindVouchers(root) {
+  els('[data-vid]', root).forEach(function (b) { b.onclick = function () { var v = (S.D.vouchers || []).filter(function (x) { return x.id === b.dataset.vid; })[0]; if (v) openVoucher(v); }; });
+  els('[data-vup]', root).forEach(function (inp) { inp.onchange = function () { var f = inp.files && inp.files[0]; inp.value = ''; if (f) voucherUpForm(f); }; });
+}
+function voucherUpForm(file) {
+  if (file.size > 12 * 1024 * 1024) { toast('파일이 너무 큽니다(12MB까지).'); return; }
+  var ds = dates(), base = file.name.replace(/\.[a-z0-9]+$/i, '');
+  var sh = sheet('<h3>＋ 바우처 올리기</h3><p class="small muted">' + esc(file.name) + ' (' + vSize(file.size) + ')</p>' +
+    '<label class="lb">이름</label><input class="inp" id="vu-t" maxlength="60" value="' + esc(base) + '" placeholder="예) 타이항공 전자항공권">' +
+    '<label class="lb">어느 날 바우처인가요?</label><select class="inp" id="vu-d"><option value="">날짜 없음 (전체 목록에만)</option>' + ds.map(function (d) { return '<option value="' + d + '">' + md(d) + '(' + wd(d) + ') · ' + esc(dayLabel(d)) + '</option>'; }).join('') + '</select>' +
+    '<p class="small" id="vu-msg" style="color:var(--bad);min-height:18px"></p>' +
+    '<div class="row" style="justify-content:flex-end"><button class="btn" data-close>취소</button><button class="btn pri" id="vu-ok">올리기</button></div>');
+  el('#vu-ok', sh).onclick = function () {
+    var b = el('#vu-ok', sh); b.disabled = true; b.textContent = '올리는 중…';
+    var fr = new FileReader();
+    fr.onload = function () {
+      var url = String(fr.result);
+      var go = function (u) {
+        call('addVoucher', { dataUrl: u, title: el('#vu-t', sh).value.trim() || base, date: el('#vu-d', sh).value }).then(function (r) {
+          S.D.vouchers = r.vouchers; saveCache(); closeSheet(); renderMain(); toast('바우처를 올렸습니다.');
+        }).catch(function (e) { el('#vu-msg', sh).textContent = e.message; b.disabled = false; b.textContent = '올리기'; });
+      };
+      // 사진은 크면 줄여서(글자가 보이게 2400px), PDF는 그대로
+      if (/^image\//.test(file.type) && file.size > 1.5 * 1024 * 1024) shrinkImage(file, 2400, 0.9).then(go, function () { go(url); }); else go(url);
+    };
+    fr.onerror = function () { el('#vu-msg', sh).textContent = '파일을 읽지 못했습니다.'; b.disabled = false; b.textContent = '올리기'; };
+    fr.readAsDataURL(file);
+  };
+}
+/* 크게 보기: 사진은 그대로, PDF는 pdf.js로 페이지마다 그림(누를 때만 불러옴). [−][＋]로 확대 */
+var PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+function loadPdfJs() {
+  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  return new Promise(function (ok, no) {
+    var sc = document.createElement('script'); sc.src = PDFJS + 'pdf.min.js';
+    sc.onload = function () { window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.js'; ok(window.pdfjsLib); };
+    sc.onerror = function () { no(new Error('PDF 보기 도구를 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.')); };
+    document.head.appendChild(sc);
+  });
+}
+function openVoucher(v) {
+  var zoom = 1, pdf = null, img = null;
+  var sh = sheet('<div class="vbar"><b>' + vIcon(v) + ' ' + esc(v.title) + '</b><span class="row" style="gap:4px;flex:none"><button class="btn sm" data-vz="-1">−</button><button class="btn sm" data-vz="1">＋</button><button class="btn sm" data-close>✕</button></span></div>' +
+    '<div class="vbody" id="vb"><p style="color:#aaa;padding:20px;text-align:center" id="v-ld">불러오는 중…</p></div>' +
+    (v.date ? '<div class="small" style="color:#aaa;margin-top:6px">' + md(v.date) + '(' + wd(v.date) + ')' + '</div>' : '') +
+    (S.me.isAdmin ? '<div class="row" style="justify-content:flex-end;margin-top:6px"><button class="btn sm bad" id="v-del">🗑️ 지우기</button></div>' : ''), null, true);
+  sh.classList.add('vview');
+  var body = el('#vb', sh);
+  function render() {
+    var w = body.clientWidth - 4;
+    if (img) { body.innerHTML = '<img src="' + img + '" style="width:' + Math.round(w * zoom) + 'px;max-width:none">'; return; }
+    if (!pdf) return;
+    body.innerHTML = '';
+    var dpr = Math.min(window.devicePixelRatio || 1, 3);
+    (function page(n) {
+      if (n > pdf.numPages || !document.body.contains(body)) return;
+      pdf.getPage(n).then(function (pg) {
+        var vp1 = pg.getViewport({ scale: 1 }), scale = (w * zoom) / vp1.width, vp = pg.getViewport({ scale: scale * dpr });
+        var cv = document.createElement('canvas'); cv.width = vp.width; cv.height = vp.height; cv.style.width = Math.round(vp.width / dpr) + 'px'; cv.style.maxWidth = 'none';
+        body.appendChild(cv);
+        return pg.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+      }).then(function () { page(n + 1); }, function () {});
+    })(1);
+  }
+  loadVoucher(v).then(function (d) {
+    if (!/pdf/.test(v.mime)) { img = d; render(); return; }
+    return loadPdfJs().then(function (lib) {
+      var b64 = d.slice(d.indexOf(',') + 1), bin = atob(b64), u8 = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      return lib.getDocument({ data: u8 }).promise;
+    }).then(function (doc) { pdf = doc; render(); });
+  }).catch(function (e) { body.innerHTML = '<p style="color:#f99;padding:20px">' + esc(e.message || '불러오지 못했습니다.') + '</p>'; });
+  els('[data-vz]', sh).forEach(function (b) { b.onclick = function () { zoom = Math.max(1, Math.min(3, zoom + Number(b.dataset.vz) * 0.5)); render(); }; });
+  var del = el('#v-del', sh);
+  if (del) del.onclick = function () {
+    if (!del.dataset.sure) { del.dataset.sure = '1'; del.textContent = '정말 지울까요? 한 번 더 누르면 드라이브에서 지워져요'; return; }
+    call('deleteVoucher', { id: v.id }).then(function (r) { S.D.vouchers = r.vouchers; saveCache(); closeSheet(); renderMain(); toast('바우처를 지웠습니다.'); }).catch(function (e) { toast(e.message); });
+  };
+}
+
 /* ═════════ 📸 날짜별 사진: 일정(그날 아래)·스코어(그날 순위 아래)에 같은 사진이 보임 ═════════ */
 var photoMem = {}, PDB = null;
 function pdb() {
@@ -2845,15 +2980,16 @@ function viewInfo() {
   S.D.contacts.forEach(function (c) { (groups[c.group] = groups[c.group] || []).push(c); });
   var tel = function (p) { return 'tel:' + esc(String(p).replace(/[^\d+]/g, '')); };
   var tab = S.infoTab || LS.get('trip_itab', 'thai');
-  var list = [['thai', '태국어'], ['hotel', '숙소'], ['call', '연락처'], ['me', '내 정보']];
+  var list = [['voucher', '바우처'], ['thai', '태국어'], ['hotel', '숙소'], ['call', '연락처'], ['me', '내 정보']];
   if (S.me.isAdmin) list.push(['admin', '관리자']);
   else if (tab === 'admin') tab = 'me';
   var wait = S.D.requests.filter(function (r) { return r.status === '대기'; }).length;
-  var tabs = '<div class="seg-tabs ' + (list.length === 5 ? 'five' : 'four') + '">' + list.map(function (t) {
+  var tabs = '<div class="seg-tabs ' + (list.length === 6 ? 'six' : list.length === 5 ? 'five' : 'four') + '">' + list.map(function (t) {
     return '<button class="' + (tab === t[0] ? 'on' : '') + (t[0] === 'admin' ? ' adm' : '') + '" data-itab="' + t[0] + '">' + t[1] + (t[0] === 'admin' && wait ? ' ' + wait : '') + '</button>';
   }).join('') + '</div>';
   if (tab === 'admin') return tabs + '<div class="admin-box" style="margin-top:8px"><div class="adm-title">🛠️ 관리자만 보이는 화면</div>' + adminHtml() + '</div>';
   if (tab === 'thai') return tabs + thaiHtml();
+  if (tab === 'voucher') return tabs + vouchersHtml();
   var hotelHtml =
     '<div class="card"><b>🏨 숙소</b><p style="margin:6px 0"><b>' + esc(s.hotel_name) + '</b><br><span class="small">' + esc(s.hotel_address) + '</span><br><span class="small muted">' + esc(s.hotel_memo) + '</span></p>' +
       '<div class="row wrap-row">' +
@@ -3035,6 +3171,8 @@ function bindMain() {
   // 스코어카드
   bindNotes(m, S.scoreRound, renderMain);
   bindPhotos(m);
+  bindVouchers(m);
+  if (el('#v-pre', m)) prefetchVouchers();
   els('[data-scan]', m).forEach(function (inp) { inp.onchange = function () { var fs = Array.prototype.slice.call(inp.files || []).slice(0, 8); if (fs.length) scanScorecards(fs); inp.value = ''; }; });
   els('[data-cards]', m).forEach(function (a) { a.onclick = function (ev) { ev.preventDefault(); showCards(a.dataset.cards); }; });
   // 경비
