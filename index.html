@@ -429,7 +429,16 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .thai-cats button{border:1px solid var(--line);border-bottom:0;background:var(--bg);border-radius:12px 12px 0 0;padding:9px 0 7px;font-weight:700;font-size:calc(14px*var(--fs));color:var(--sub);white-space:nowrap}
 .thai-cats button.on{background:var(--pri);color:var(--pri-ink);border-color:var(--pri)}
 .thai-body{background:var(--bg);border-radius:0 0 12px 12px;padding:0 10px 4px}
-.thai-body .tp:first-child{border-top:0}
+.thai-body .tp:first-child,.thai-body .tnum-row .tp:first-child{border-top:0}
+.tp.tnum{display:grid;grid-template-columns:4.2em 1fr;gap:8px;align-items:center}
+.tp.tnum .n{font-size:calc(24px*var(--fs));font-weight:900;text-align:center;color:var(--ink)}
+@media(min-width:600px){
+  .thai-cats{grid-template-columns:repeat(7,1fr)}   /* 펼친 화면: 분류 7개 한 줄 */
+  .tnum-row{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;padding:6px 0;border-bottom:1px solid var(--line)}
+  .tnum-row .tp.tnum{display:block;text-align:center;border:1px solid var(--line);border-radius:10px;padding:8px 2px}
+  .tnum-row .tp.tnum .say{font-size:calc(16px*var(--fs))}
+  .tnum-row .tp.tnum .th{font-size:calc(13px*var(--fs))}
+}
 .tp{display:block;width:100%;text-align:left;border:0;border-top:1px solid var(--line);background:transparent;padding:10px 2px;color:var(--ink)}
 .tp .ko{font-size:calc(14px*var(--fs));color:var(--sub)}
 .tp .say{font-size:calc(19px*var(--fs));font-weight:800;color:var(--pri);line-height:1.3}
@@ -482,7 +491,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.13-4';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.13-5';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -2808,20 +2817,25 @@ var THAI = {
     ['천천히 해요', '차차 꼰 크랍', 'ช้าๆก่อนครับ'], ['수고했어요 (캐디에게)', '컵쿤 막 크랍', 'ขอบคุณมากครับ']
   ],
   '숫자': [
-    ['1 · 2 · 3', '능 · 썽 · 쌈', 'หนึ่ง · สอง · สาม'], ['4 · 5 · 6', '씨 · 하 · 혹', 'สี่ · ห้า · หก'],
-    ['7 · 8 · 9', '쩻 · 뺏 · 까오', 'เจ็ด · แปด · เก้า'], ['10 · 20', '씹 · 이씹', 'สิบ · ยี่สิบ'],
-    ['100 · 1,000', '러이 · 판', 'ร้อย · พัน'], ['500바트', '하 러이 밧', 'ห้าร้อยบาท']
+    ['1', '능', 'หนึ่ง'], ['2', '썽', 'สอง'], ['3', '쌈', 'สาม'], ['4', '씨', 'สี่'], ['5', '하', 'ห้า'],
+    ['6', '혹', 'หก'], ['7', '쩻', 'เจ็ด'], ['8', '뺏', 'แปด'], ['9', '까오', 'เก้า'], ['10', '씹', 'สิบ'],
+    ['20', '이씹', 'ยี่สิบ'], ['100', '러이', 'ร้อย'], ['1,000', '판', 'พัน'], ['500바트', '하 러이 밧', 'ห้าร้อยบาท']
   ]
 };
 /* 분류 순서: 인사 → 숫자 → 식당 → 쇼핑 → 이동 → 마사지 → 골프 */
 var THAI_ORDER = ['인사', '숫자', '식당', '쇼핑', '이동', '마사지', '골프'];
+/* 숫자: 1~10은 앞화면에선 한 줄에 하나씩(숫자 | 읽기·태국 글자), 펼친 화면에선 10개를 한 줄에 */
+function thaiNums() {
+  var a = THAI['숫자'], row = function (p, i) { return '<button class="tp tnum" data-tp="' + i + '"><div class="n">' + esc(p[0]) + '</div><div><div class="say">' + esc(p[1]) + '</div><div class="th">' + esc(p[2]) + '</div></div></button>'; };
+  return '<div class="tnum-row">' + a.slice(0, 10).map(row).join('') + '</div>' + a.slice(10).map(function (p, k) { return row(p, k + 10); }).join('');
+}
 function thaiHtml() {
   var cat = S.thaiCat || '인사';
   return '<div class="card thai"><b>🗣️ 필수 태국어</b><div class="small muted">문장을 누르면 크게 보여요. 상대에게 화면을 보여 주세요.</div>' +
     '<div class="thai-cats">' + THAI_ORDER.filter(function (c) { return THAI[c]; }).map(function (c) { return '<button data-tcat="' + c + '"' + (c === cat ? ' class="on"' : '') + '>' + c + '</button>'; }).join('') + '</div>' +
-    '<div class="thai-body">' + THAI[cat].map(function (p, i) {
+    '<div class="thai-body">' + (cat === '숫자' ? thaiNums() : THAI[cat].map(function (p, i) {
       return '<button class="tp" data-tp="' + i + '"><div class="ko">' + esc(p[0]) + '</div><div class="say">' + esc(p[1]) + '</div><div class="th">' + esc(p[2]) + '</div></button>';
-    }).join('') + '</div>' +
+    }).join('')) + '</div>' +
     '<div class="small muted" style="margin-top:6px">말끝 \'크랍\'은 남자 말투예요. (여자는 \'카\')</div></div>';
 }
 function viewInfo() {
