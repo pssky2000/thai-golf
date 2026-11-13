@@ -421,6 +421,10 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .seg-tabs.five button{font-size:min(calc(13px*var(--fs)),4.3vw)}
 .seg-tabs button.adm{border:2px solid var(--warn);color:var(--warn)}
 .seg-tabs button.adm.on{background:var(--warn);color:#fff;border-style:solid}
+/* 정보 탭: 폴더 모양 + 한 줄(글씨는 화면 폭에 맞춰) */
+.seg-tabs.folder.six,.seg-tabs.folder.five{gap:3px;margin-bottom:10px}
+.seg-tabs.folder.six button,.seg-tabs.folder.five button{font-size:min(calc(13px*var(--fs)),4.3vw);letter-spacing:-.07em;padding:10px 0 8px}
+.seg-tabs.folder button.adm{border-bottom:0}
 .adm-title{font-weight:800;color:var(--warn);padding:8px 2px 0}
 /* 회비: 회원별 연도 줄 */
 .fee-y{display:flex;justify-content:space-between;font-size:calc(14px*var(--fs));padding:2px 0 2px 8px;color:var(--sub)}
@@ -506,7 +510,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.13-7';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.13-8';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -2986,7 +2990,7 @@ function viewInfo() {
   if (S.me.isAdmin) list.push(['admin', '관리자']);
   else if (tab === 'admin') tab = 'me';
   var wait = S.D.requests.filter(function (r) { return r.status === '대기'; }).length;
-  var tabs = '<div class="seg-tabs ' + (list.length === 6 ? 'six' : list.length === 5 ? 'five' : 'four') + '">' + list.map(function (t) {
+  var tabs = '<div class="seg-tabs folder ' + (list.length === 6 ? 'six' : list.length === 5 ? 'five' : 'four') + '">' + list.map(function (t) {
     return '<button class="' + (tab === t[0] ? 'on' : '') + (t[0] === 'admin' ? ' adm' : '') + '" data-itab="' + t[0] + '">' + t[1] + (t[0] === 'admin' && wait ? ' ' + wait : '') + '</button>';
   }).join('') + '</div>';
   if (tab === 'admin') return tabs + '<div class="admin-box" style="margin-top:8px"><div class="adm-title">🛠️ 관리자만 보이는 화면</div>' + adminHtml() + '</div>';
