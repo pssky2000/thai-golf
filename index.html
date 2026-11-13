@@ -216,6 +216,9 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .grp-sum th,.grp-sum td{padding:5px 4px;border-top:1px solid var(--line);text-align:center;white-space:nowrap}
 .grp-sum th{color:var(--sub);font-weight:600}
 .grp-sum td:first-child,.grp-sum th:first-child{text-align:left}
+.meet-grid{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;align-items:start}
+.meet-grid>span{white-space:nowrap}
+.meet-grid>div>div{margin-bottom:2px}
 .scan-thumbs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 /* 날짜별 사진 */
 .pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px}
@@ -476,7 +479,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.13-2';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.13-3';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -828,6 +831,13 @@ function renderMain() {
 function bahtSign(h) { return h.replace(/(\d[\d,.]*(?:\s?~\s?\d[\d,.]*)?)\s?바트/g, '฿$1'); }
 
 /* ─── 공통 카드: 항공 · 환율 ─── */
+/* 모이는 곳: '04:00 (1순위) 임시 공영주차장' + 2순위 → 시각은 왼쪽, 장소는 오른쪽에 위아래로 맞춤 */
+function meetHtml(f) {
+  var link = function (t, u) { return u ? '<a class="meet-link" target="_blank" href="' + esc(u) + '">' + esc(t) + ' 🗺️</a>' : esc(t); };
+  var m = /^(\d{1,2}:\d{2})\s+(.*)$/.exec(String(f.meet || '').trim()), time = m ? m[1] : '', first = m ? m[2] : f.meet;
+  return '<div class="meet-grid"><span>⏰' + (time ? ' ' + esc(time) : '') + '</span><div><div>' + link(first, f.meet_url) + '</div>' +
+    (f.meet2 ? '<div>' + link(f.meet2, f.meet_url2) + '</div>' : '') + '</div></div>';
+}
 function flightCard(f) {
   var off = Number(S.D.settings.tz_offset_from_korea || 0);
   // 시각 밑 셋째 줄: 해외 공항은 한국 시각, 인천은 터미널 (양쪽 줄 수를 같게 해서 시각이 나란히 보이게)
@@ -839,8 +849,7 @@ function flightCard(f) {
     '<div class="times"><div><div class="t">' + esc(f.dep) + '</div><div class="ap">' + esc(f.from) + ' ' + esc(f.from_code) + '</div>' + kr(f.dep, f.from_code) + '</div>' +
     '<div class="arrow">✈</div>' +
     '<div style="text-align:right"><div class="t">' + esc(f.arr) + '</div><div class="ap">' + esc(f.to) + ' ' + esc(f.to_code) + (f.arr_date && f.arr_date !== f.date ? ' (+1일)' : '') + '</div>' + kr(f.arr, f.to_code) + '</div></div>' +
-    (f.meet ? '<div class="meta fnote"><div>⏰ ' + (f.meet_url ? '<a class="meet-link" target="_blank" href="' + esc(f.meet_url) + '">' + esc(f.meet) + ' 🗺️</a>' : esc(f.meet)) + '</div>' +
-      (f.meet2 ? '<div style="padding-left:1.6em">' + (f.meet_url2 ? '<a class="meet-link" target="_blank" href="' + esc(f.meet_url2) + '">' + esc(f.meet2) + ' 🗺️</a>' : esc(f.meet2)) + '</div>' : '') + '</div>' : '') +
+    (f.meet ? '<div class="meta fnote">' + meetHtml(f) + '</div>' : '') +
     // 메모는 " · " 마다 줄을 나누고 앞에 그림 표시
     (f.note ? '<div class="meta fnote">' + String(f.note).split(/\s*·\s*/).filter(Boolean).map(function (t) {
       var ic = /비행/.test(t) ? '⏱️' : /위탁/.test(t) ? '🧳' : /기내/.test(t) ? '🎒' : /도착/.test(t) ? '🌅' : '•';
