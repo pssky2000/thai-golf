@@ -69,7 +69,9 @@ a{color:var(--pri)}
 .row{display:flex;gap:8px;align-items:center}
 .between{justify-content:space-between}
 .wrap-row{flex-wrap:wrap}
-.btn{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:10px 14px;min-height:44px}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:10px 14px;min-height:44px;white-space:nowrap}
+.row>.btn{flex-shrink:0}
+.act-row{flex-wrap:wrap;gap:6px}.act-row>.btn{padding:10px 9px}
 .btn.pri{background:var(--pri);color:var(--pri-ink);border-color:var(--pri);font-weight:700}
 .btn.ghost{background:transparent}
 .btn.bad{color:var(--bad);border-color:var(--bad)}
@@ -301,8 +303,9 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .pad button{height:60px;font-size:calc(24px*var(--fs));font-weight:700;border-radius:14px;border:1px solid var(--line);background:var(--card)}
 
 /* 토스트 */
-.toast{position:fixed;left:50%;bottom:calc(90px*var(--fs));transform:translateX(-50%);background:#222;color:#fff;border-radius:14px;padding:12px 16px;z-index:60;display:flex;gap:12px;align-items:center;max-width:92vw;box-shadow:0 8px 24px rgba(0,0,0,.3)}
-.toast button{background:transparent;border:1px solid #fff;color:#fff;border-radius:10px;padding:6px 10px}
+.toast{position:fixed;left:50%;bottom:calc(90px*var(--fs));transform:translateX(-50%);background:#222;color:#fff;border-radius:14px;padding:12px 16px;z-index:60;display:flex;gap:12px;align-items:center;width:max-content;max-width:92vw;box-shadow:0 8px 24px rgba(0,0,0,.3)}
+.toast.one span{white-space:nowrap;font-size:min(1em,4.7vw)}
+.toast button{background:transparent;border:1px solid #fff;color:#fff;border-radius:10px;padding:6px 10px;white-space:nowrap;flex:none}
 .sec-title{font-size:calc(19px*var(--fs));margin:10px 0 2px;padding-bottom:8px;border-bottom:2px solid var(--pri)}
 .bnav{position:fixed;left:0;right:0;bottom:0;z-index:40;display:grid;grid-template-columns:repeat(5,1fr);background:var(--nav-bg);border-top:3px solid var(--nav-line);padding:4px 4px calc(4px + env(safe-area-inset-bottom));box-shadow:0 -4px 16px rgba(0,0,0,.18)}
 .bnav button{border:0;background:transparent;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;border-radius:12px;font-size:calc(13px*var(--fs));font-weight:700;color:var(--sub)}
@@ -333,12 +336,12 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .sum3 .lab{font-size:calc(12px*var(--fs));color:var(--sub)}
 /* 경비 아래 탭: 폴더 모양 (고른 탭이 아래 선과 이어짐) */
 .seg-tabs.folder{gap:4px;margin:14px 0 0;border-bottom:3px solid var(--pri)}
-.seg-tabs.folder button{border-radius:12px 12px 0 0;border-bottom:0;padding:10px 0 8px;font-size:calc(13.5px*var(--fs));letter-spacing:-.05em;color:var(--sub);background:var(--bg)}
+.seg-tabs.folder button{border-radius:12px 12px 0 0;border-bottom:0;padding:10px 0 8px;font-size:min(calc(13.5px*var(--fs)),4.7vw);letter-spacing:-.05em;color:var(--sub);background:var(--bg)}
 .seg-tabs.folder button.on{background:var(--pri);color:var(--pri-ink);border-color:var(--pri);padding-top:12px;margin-top:-2px}
 .folder-body{padding-top:10px}
 /* 회비 탭 세 칸: 누르면 아래 내용이 바뀜 */
 .sum3 button.fv{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 2px;font:inherit;color:inherit;cursor:pointer;min-width:0}
-.sum3 button.fv b{display:block;font-size:calc(17px*var(--fs));white-space:nowrap}
+.sum3 button.fv b{display:block;font-size:min(calc(17px*var(--fs)),5.4vw);white-space:nowrap;letter-spacing:-.03em}
 .sum3 button.fv .small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:calc(11px*var(--fs));letter-spacing:-.04em}
 .sum3 button.fv.on{border:2px solid var(--pri);background:color-mix(in srgb,var(--pri) 12%,var(--card))}
 .sum3 button.fv.on .lab{color:var(--pri);font-weight:700}
@@ -409,7 +412,7 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 /* 스코어: 라운드 버튼 4칸 같은 크기 · 사진 버튼 2칸 같은 크기 */
 .rounds{display:grid!important;grid-template-columns:repeat(4,1fr);gap:6px;overflow:visible}
 .rounds .tab{min-width:0;padding:6px 4px;display:flex;flex-direction:column;justify-content:flex-start}   /* 날짜가 한 줄로 나란히 */
-.rounds .tab .s{white-space:normal;word-break:keep-all;line-height:1.25;font-size:calc(11.5px*var(--fs))}
+.rounds .tab .s{white-space:normal;word-break:keep-all;line-height:1.25;font-size:min(calc(11.5px*var(--fs)),3.6vw)}
 .scan-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .scan-btns .btn{display:flex;align-items:center;justify-content:center;white-space:nowrap;padding:10px 4px;font-weight:700}
 /* 화면 가운데에 뜨는 창 (태국어 크게 보기) */
@@ -511,7 +514,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.13-13';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.13-15';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -607,11 +610,11 @@ function localNow() {
 function toast(msg, action, ms) {
   var old = el('.toast'); if (old) old.remove();
   var t = document.createElement('div');
-  t.className = 'toast';
+  t.className = 'toast' + (action || String(msg).length <= 24 ? ' one' : '');   // 짧은 알림은 한 줄로
   t.innerHTML = '<span>' + esc(msg) + '</span>' + (action ? '<button>' + esc(action.label) + '</button>' : '');
   document.body.appendChild(t);
   if (action) t.querySelector('button').onclick = function () { t.remove(); action.fn(); };
-  setTimeout(function () { t.remove(); }, ms || (action ? 8000 : 2600));
+  setTimeout(function () { t.remove(); }, ms || (action ? 4500 : 2600));
 }
 
 function sheet(html, onMount, center) {
@@ -1120,7 +1123,7 @@ function openItem(id) {
         ((c.member === S.me.name || S.me.isAdmin) ? ' <button class="btn sm ghost" data-delc="' + esc(c.id) + '">지우기</button>' : '') + '<div>' + esc(c.text) + '</div></div>';
     }).join('') : '<p class="small muted">아직 없습니다.</p>') +
     '<div class="row" style="margin-top:8px"><input class="inp" id="ctext" placeholder="모두에게 보이는 메모"><button class="btn pri" id="cadd">등록</button></div>' +
-    '<div class="row" style="margin-top:16px;justify-content:flex-end">' +
+    '<div class="row act-row" style="margin-top:16px;justify-content:flex-end">' +
       (canMoney() ? '<button class="btn" id="iexp">💰 지출 적기</button>' : '') +
       (S.me.isAdmin ? '<button class="btn pri" id="iedit">✏️ 수정</button>' : '<button class="btn" id="ireq">✋ 수정 요청</button>') +
       '<button class="btn" id="iclose">닫기</button></div>' +
@@ -1259,7 +1262,7 @@ function afterAdmin(r, msg) {
   closeSheet();
   S.D.items = r.items;
   renderMain();
-  toast(msg || '저장했습니다. 모두의 화면에 반영됩니다.', { label: '되돌리기', fn: function () {
+  toast(msg || '저장했습니다.', { label: '되돌리기', fn: function () {
     call('undo', { logId: r.logId }).then(function (u) { S.D.items = u.items; renderMain(); toast('되돌렸습니다.'); }).catch(function (e) { toast(e.message); });
   } });
 }
@@ -1276,7 +1279,7 @@ function startDrag(handle, ev) {
   li.style.width = rect.width + 'px'; li.style.position = 'fixed'; li.style.left = rect.left + 'px'; li.style.top = rect.top + 'px';
   dragState = { li: li, ph: ph, tl: tl, offY: ev.clientY - rect.top, id: li.dataset.id, overTab: null, y0: ev.clientY, moved: false };
   els('.seg', tl).forEach(function (s) { s.style.visibility = 'hidden'; });
-  toast('↕️ 끌면 순서 옮기기 · 그냥 떼면 수정·삭제 메뉴', null, 4000);
+  toast('↕️ 끌면 옮기기 · 그냥 떼면 메뉴', null, 4000);
 }
 function moveDrag(ev) {
   var d = dragState; if (!d) return;
