@@ -424,7 +424,8 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 /* 정보 탭: 폴더 모양 + 한 줄(글씨는 화면 폭에 맞춰) */
 .seg-tabs.folder.six,.seg-tabs.folder.five{gap:3px;margin-bottom:10px}
 .seg-tabs.folder.six button,.seg-tabs.folder.five button{font-size:min(calc(13px*var(--fs)),4.3vw);letter-spacing:-.07em;padding:10px 0 8px}
-.seg-tabs.folder button.adm{border-bottom:0}
+.seg-tabs.folder button.adm{border:1px solid var(--line);border-bottom:0;color:var(--warn)}   /* 관리자 칸도 폴더 모양, 글씨만 주황 */
+.seg-tabs.folder button.adm.on{background:var(--warn);border-color:var(--warn);color:#fff}
 .adm-title{font-weight:800;color:var(--warn);padding:8px 2px 0}
 /* 회비: 회원별 연도 줄 */
 .fee-y{display:flex;justify-content:space-between;font-size:calc(14px*var(--fs));padding:2px 0 2px 8px;color:var(--sub)}
@@ -510,7 +511,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.13-8';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.13-9';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1163,7 +1164,11 @@ function editItem(it, preset) {
     '<div style="flex:1"><label class="lb">시각 (예: 1730)</label><input class="inp time-in" id="e-time" inputmode="numeric" maxlength="5" placeholder="1730" value="' + esc(it.time) + '"></div></div>' +
     '<label class="lb">할 일</label><input class="inp" id="e-title" value="' + esc(it.title) + '" placeholder="예) 저녁">' +
     '<label class="lb">종류</label><select class="inp" id="e-type">' + Object.keys(TYPES).map(function (k) { return '<option value="' + k + '"' + (k === it.type ? ' selected' : '') + '>' + TYPES[k][0] + ' ' + TYPES[k][1] + '</option>'; }).join('') + '</select>' +
-    '<label class="lb">구글지도 링크 (붙여넣으면 위치·이름 자동 입력)</label><div class="row"><input class="inp" id="e-link" placeholder="구글지도 → 공유 → 링크 복사"><button class="btn sm" id="e-resolve">가져오기</button></div>' +
+    '<label class="lb">🔎 장소 찾기 (이름이나 주소)</label><div class="row"><input class="inp" id="e-q" placeholder="예) 터미널21 파타야" value="' + esc(it.place || '') + '"><button class="btn sm pri" id="e-find" style="flex:none;white-space:nowrap">찾기</button></div>' +
+    '<div id="e-res"></div>' +
+    '<details style="margin-top:6px"><summary class="small muted">구글지도 링크로 넣기</summary>' +
+      '<div class="row" style="margin-top:6px"><input class="inp" id="e-link" placeholder="구글지도 → 공유 → 링크 복사"><button class="btn sm" id="e-resolve" style="flex:none;white-space:nowrap">가져오기</button></div>' +
+      '<a class="small" id="e-gmap" target="_blank" href="#">구글지도에서 직접 찾기 ↗</a> <span class="small muted">(찾은 뒤 공유 → 링크 복사 → 위 칸에 붙여넣기)</span></details>' +
     '<label class="lb">원래 이름 (장소)</label><input class="inp" id="e-place" value="' + esc(it.place) + '">' +
     '<label class="lb">표시 이름 (화면에 보일 짧은 이름, 비우면 원래 이름)</label><input class="inp" id="e-display" value="' + esc(it.display) + '" placeholder="예) 신오복">' +
     '<div class="row small muted" style="margin-top:6px"><span id="e-ll">' + (hasLL(it) ? '위치 ' + Number(it.lat).toFixed(5) + ', ' + Number(it.lng).toFixed(5) : '위치 없음') + '</span>' +
@@ -1177,6 +1182,24 @@ function editItem(it, preset) {
   var loc = { lat: it.lat, lng: it.lng };
   el('#e-x', sh).onclick = closeSheet;
   if (el('#e-clear', sh)) el('#e-clear', sh).onclick = function () { loc = { lat: '', lng: '' }; el('#e-ll', sh).textContent = '위치 없음'; };
+  // 이름으로 찾기 → 고르면 위치와 이름을 채움
+  var setLoc = function (r, name) {
+    loc = { lat: r.lat, lng: r.lng };
+    el('#e-ll', sh).textContent = '위치 ' + Number(r.lat).toFixed(5) + ', ' + Number(r.lng).toFixed(5) + (r.address ? ' · ' + r.address : '');
+    if (name) el('#e-place', sh).value = name;
+  };
+  var find = function () {
+    var q = el('#e-q', sh).value.trim(); if (!q) return;
+    var box = el('#e-res', sh); box.innerHTML = '<p class="small muted">찾는 중…</p>';
+    call('searchPlace', { q: q }).then(function (r) {
+      if (!r.results.length) { box.innerHTML = '<p class="small" style="color:var(--warn)">찾지 못했습니다. 이름을 조금 바꾸거나 "구글지도 링크로 넣기"를 써 주세요.</p>'; return; }
+      box.innerHTML = r.results.map(function (x, i) { return '<button class="vrow" data-er="' + i + '" style="grid-template-columns:auto 1fr"><span class="ic">📍</span><span><div class="t">' + esc(x.name) + '</div><div class="s">' + esc(x.address) + '</div></span></button>'; }).join('');
+      els('[data-er]', box).forEach(function (b) { b.onclick = function () { var x = r.results[Number(b.dataset.er)]; setLoc(x, el('#e-place', sh).value.trim() || (x.name === q ? q : x.name)); box.innerHTML = '<p class="small" style="color:var(--pri)">✓ 위치를 넣었습니다: ' + esc(x.name) + '</p>'; }; });
+    }).catch(function (e) { box.innerHTML = '<p class="small" style="color:var(--bad)">' + esc(e.message) + '</p>'; });
+  };
+  el('#e-find', sh).onclick = find;
+  el('#e-q', sh).onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); find(); } };
+  el('#e-gmap', sh).onclick = function () { this.href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(el('#e-q', sh).value.trim() || el('#e-place', sh).value.trim()); };
   el('#e-resolve', sh).onclick = function () {
     var url = el('#e-link', sh).value.trim(); if (!url) return;
     var local = parseMapUrlLocal(url);
