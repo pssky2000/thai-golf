@@ -476,7 +476,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.13-1';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.13-2';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -839,7 +839,8 @@ function flightCard(f) {
     '<div class="times"><div><div class="t">' + esc(f.dep) + '</div><div class="ap">' + esc(f.from) + ' ' + esc(f.from_code) + '</div>' + kr(f.dep, f.from_code) + '</div>' +
     '<div class="arrow">✈</div>' +
     '<div style="text-align:right"><div class="t">' + esc(f.arr) + '</div><div class="ap">' + esc(f.to) + ' ' + esc(f.to_code) + (f.arr_date && f.arr_date !== f.date ? ' (+1일)' : '') + '</div>' + kr(f.arr, f.to_code) + '</div></div>' +
-    (f.meet ? '<div class="meta fnote"><div>⏰ ' + (f.meet_url ? '<a class="meet-link" target="_blank" href="' + esc(f.meet_url) + '">' + esc(f.meet) + ' 🗺️</a>' : esc(f.meet)) + '</div></div>' : '') +
+    (f.meet ? '<div class="meta fnote"><div>⏰ ' + (f.meet_url ? '<a class="meet-link" target="_blank" href="' + esc(f.meet_url) + '">' + esc(f.meet) + ' 🗺️</a>' : esc(f.meet)) + '</div>' +
+      (f.meet2 ? '<div style="padding-left:1.6em">' + (f.meet_url2 ? '<a class="meet-link" target="_blank" href="' + esc(f.meet_url2) + '">' + esc(f.meet2) + ' 🗺️</a>' : esc(f.meet2)) + '</div>' : '') + '</div>' : '') +
     // 메모는 " · " 마다 줄을 나누고 앞에 그림 표시
     (f.note ? '<div class="meta fnote">' + String(f.note).split(/\s*·\s*/).filter(Boolean).map(function (t) {
       var ic = /비행/.test(t) ? '⏱️' : /위탁/.test(t) ? '🧳' : /기내/.test(t) ? '🎒' : /도착/.test(t) ? '🌅' : '•';
