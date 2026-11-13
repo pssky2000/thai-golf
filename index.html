@@ -134,6 +134,12 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .next{display:flex;gap:12px;align-items:center;border-radius:var(--r);padding:14px 16px;background:var(--pri-soft);border:1px solid var(--pri)}
 .next.soon{background:var(--warn-soft);border-color:var(--warn)}
 .next .big{font-size:calc(18px*var(--fs));font-weight:800}
+.golf-day{display:flex;gap:12px;align-items:center;width:100%;margin:10px 0 0;border-radius:var(--r);padding:12px 16px;background:var(--card);border:2px solid var(--pri);color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+.golf-day .gi{font-size:calc(28px*var(--fs))}
+.golf-day .gt{flex:1;min-width:0;display:flex;flex-direction:column}
+.golf-day .gt .small{color:var(--sub)}
+.golf-day .gt b{font-size:calc(19px*var(--fs));color:var(--pri);word-break:keep-all}
+.golf-day .gx{font-size:calc(24px*var(--fs));color:var(--sub)}
 
 /* 날씨 */
 .wx{display:flex;gap:14px;align-items:center}
@@ -518,7 +524,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.13-16';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.13-17';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -780,7 +786,8 @@ function defaultTab() {
 }
 function dayLabel(date) {
   var its = itemsOf(date);
-  if (its.some(function (i) { return i.type === 'golf'; })) return '골프';
+  var g = its.filter(function (i) { return i.type === 'golf'; })[0];
+  if (g) { var nm = nameOf(g).split(/[\s(]/)[0]; return nm ? '⛳ ' + nm : '골프'; }   // 그날 골프장 이름 첫 낱말
   if (date === S.D.settings.start_date) return '출발';
   if (date === S.D.settings.end_date) return '도착';
   return '일정';
@@ -990,6 +997,19 @@ function nextCard(date) {
     '<div class="big">' + esc(nx.time) + ' ' + esc(nx.title) + '</div><div class="small">' + (nameOf(nx) ? esc(nameOf(nx)) + ' · ' : '') + '<b>' + durText(left) + ' 남음</b></div></div></div>';
 }
 
+/* 골프 치는 날: 그날 골프장을 크게 (누르면 그 일정 열기) */
+function golfDay(date) {
+  var gs = itemsOf(date).filter(function (i) { return i.type === 'golf'; });
+  if (!gs.length) return '';
+  var today = localNow().date === date;
+  return gs.map(function (g) {
+    return '<button class="golf-day" data-open="' + esc(g.id) + '"><span class="gi">⛳</span><span class="gt">' +
+      '<span class="small">' + (today ? '오늘' : md(date) + '(' + wd(date) + ')') + ' 골프장</span>' +
+      '<b>' + esc(nameOf(g) || g.title) + '</b>' +
+      '<span class="small">' + (g.time ? '티오프 ' + esc(g.time) : esc(g.title)) + '</span></span><span class="gx">›</span></button>';
+  }).join('');
+}
+
 function wxCard(date) {
   var w = S.wx && S.wx[date];
   if (w) {
@@ -1032,7 +1052,7 @@ function viewDay(date) {
   var adminTip = S.me.isAdmin ? '<p class="small muted" style="margin:6px 2px">✋ 관리자: 일정을 <b>꾹 누르면</b> 끌어서 순서를 바꿀 수 있고, 위 날짜 탭에 놓으면 다른 날로 옮겨집니다. 눌러서 열면 ✏️ 수정.</p>' : '';
   var addBtn = S.me.isAdmin ? '<button class="btn add-item" data-act="add">＋ 이 날에 일정 추가</button>' : '';
 
-  return nextCard(date) + fl + wxCard(date) + dayVouchers(date) +
+  return nextCard(date) + golfDay(date) + fl + wxCard(date) + dayVouchers(date) +
     '<div class="day-grid"><div class="map-col">' + map + '</div>' +
     '<div class="list-col">' + adminTip + '<ul class="tl" id="tl">' + list + '</ul>' + addBtn + '</div></div>' +
     photoCard(date, md(date) + '(' + wd(date) + ') 사진');
@@ -3122,7 +3142,7 @@ function viewInfo() {
         '<li>삼성 인터넷이라면: 아래 <b>≡</b> → <b>현재 페이지 추가</b> → <b>홈 화면</b></li>' +
       '</ol><p class="small muted">⛳ 아이콘이 생깁니다. 처음 한 번은 PIN을 다시 넣어야 할 수 있습니다.</p>' +
       '<button class="btn sm" data-act="copy-link">🔗 앱 링크 복사</button>' +
-      '<p class="small muted" style="margin-top:8px">화면 버전 ' + APP_VER + '</p></div>' +
+      '<p class="small muted" style="margin-top:8px">화면 버전 ' + APP_VER + ' · 화면 폭 ' + window.innerWidth + 'px · 글씨 ' + esc(fsLabel()) + ' (' + getComputedStyle(document.documentElement).getPropertyValue('--fs').trim() + ')</p></div>' +
     '<div class="card"><b>👤 내 정보 · ' + esc(S.me.name) + '</b><div class="row wrap-row" style="margin-top:8px"><button class="btn sm" data-act="pin">🔑 PIN 바꾸기</button><button class="btn sm" data-act="req">✋ 관리자에게 요청</button><button class="btn sm" data-act="logout">나가기</button></div>' +
       '<div class="small muted" style="margin-top:10px">🌙 화면 밝기</div><div class="seg-tabs" style="margin-top:4px">' + [['auto', '자동'], ['light', '밝게'], ['dark', '어둡게']].map(function (x) {
         return '<button class="' + ((LS.get('trip_theme', 'auto') || 'auto') === x[0] ? 'on' : '') + '" data-theme="' + x[0] + '">' + x[1] + '</button>';
@@ -3152,8 +3172,8 @@ function adminHtml() {
       '<div class="row" style="margin-top:6px"><select class="inp" id="rn-from" style="flex:1">' + S.D.members.map(function (m) { return '<option>' + esc(m.name) + '</option>'; }).join('') + '</select>' +
       '<span>→</span><input class="inp" id="rn-to" placeholder="새 이름" style="flex:1;min-width:0"></div>' +
       '<button class="btn sm pri" data-act="rename" style="margin-top:8px">이름 바꾸기</button></div>' +
-    '<div class="card"><b>🔑 PIN 초기화</b><p class="small muted">PIN을 잊은 회원의 PIN을 임시 번호로 바꿉니다. 회원은 다음 입장 때 새 PIN을 정합니다.</p><div class="row wrap-row">' +
-      S.D.members.map(function (m) { return '<button class="btn sm" data-reset="' + esc(m.name) + '">' + esc(m.name) + '</button>'; }).join('') + '</div></div>';
+    '<div class="card"><b>🔑 PIN 초기화</b><p class="small muted">PIN을 잊은 회원의 PIN을 임시 번호로 바꿉니다. 회원은 다음 입장 때 새 PIN을 정합니다.</p><div style="display:grid;grid-template-columns:repeat(' + Math.min(S.D.members.length, 4) + ',1fr);gap:6px">' +
+      S.D.members.map(function (m) { return '<button class="btn sm" style="padding-left:0;padding-right:0" data-reset="' + esc(m.name) + '">' + esc(m.name) + '</button>'; }).join('') + '</div></div>';
 }
 
 /* ═════════ 이벤트 연결 ═════════ */
