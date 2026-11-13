@@ -71,6 +71,10 @@ a{color:var(--pri)}
 .wrap-row{flex-wrap:wrap}
 .btn{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:10px 14px;min-height:44px;white-space:nowrap}
 .row>.btn{flex-shrink:0}
+.tgrid{display:grid;grid-template-columns:repeat(6,1fr);gap:5px}
+.tgrid button{min-height:42px;padding:6px 0;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font:inherit;font-size:min(calc(15px*var(--fs)),4.6vw);font-variant-numeric:tabular-nums}
+.tgrid button.on{background:var(--pri);border-color:var(--pri);color:var(--pri-ink);font-weight:800}
+.tp-now{font-size:calc(30px*var(--fs));font-weight:800;text-align:center;font-variant-numeric:tabular-nums;margin:4px 0}
 .act-row{flex-wrap:wrap;gap:6px}.act-row>.btn{padding:10px 9px}
 .btn.pri{background:var(--pri);color:var(--pri-ink);border-color:var(--pri);font-weight:700}
 .btn.ghost{background:transparent}
@@ -514,7 +518,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.13-15';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.13-16';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1168,7 +1172,8 @@ function editItem(it, preset) {
   var html =
     '<h3>' + (isNew ? '＋ 일정 추가' : '✏️ 일정 수정') + '</h3>' +
     '<div class="row"><div style="flex:1"><label class="lb">날짜</label><select class="inp" id="e-date">' + dates().map(function (d) { return '<option value="' + d + '"' + (d === it.date ? ' selected' : '') + '>' + md(d) + '(' + wd(d) + ')</option>'; }).join('') + '</select></div>' +
-    '<div style="flex:1"><label class="lb">시각 (예: 1730)</label><input class="inp time-in" id="e-time" inputmode="numeric" maxlength="5" placeholder="1730" value="' + esc(it.time) + '"></div></div>' +
+    '<div style="flex:1"><label class="lb">시각 (눌러서 고르기)</label><input class="inp" id="e-time" readonly placeholder="🕐 고르기" style="cursor:pointer" value="' + esc(it.time) + '"></div></div>' +
+    '<div id="e-tp" style="display:none;margin-top:8px"><div id="e-tpg"></div><button type="button" class="btn sm ghost" id="e-tclear" style="margin-top:6px">시각 비우기</button></div>' +
     '<label class="lb">할 일</label><input class="inp" id="e-title" value="' + esc(it.title) + '" placeholder="예) 저녁">' +
     '<label class="lb">종류</label><select class="inp" id="e-type">' + Object.keys(TYPES).map(function (k) { return '<option value="' + k + '"' + (k === it.type ? ' selected' : '') + '>' + TYPES[k][0] + ' ' + TYPES[k][1] + '</option>'; }).join('') + '</select>' +
     '<label class="lb">🔎 장소 찾기 (이름이나 주소)</label><div class="row"><input class="inp" id="e-q" placeholder="예) 터미널21 파타야" value="' + esc(it.place || '') + '"><button class="btn sm pri" id="e-find" style="flex:none;white-space:nowrap">찾기</button></div>' +
@@ -1188,6 +1193,13 @@ function editItem(it, preset) {
   var sh = sheet(html);
   var loc = { lat: it.lat, lng: it.lng };
   el('#e-x', sh).onclick = closeSheet;
+  // 시각: 칸을 누르면 시·분 단추가 펼쳐짐
+  el('#e-time', sh).onclick = function () {
+    var tp = el('#e-tp', sh), open = tp.style.display === 'none';
+    tp.style.display = open ? '' : 'none';
+    if (open) timeGrid(el('#e-tpg', sh), el('#e-time', sh).value, function (v) { el('#e-time', sh).value = v; tp.style.display = 'none'; });
+  };
+  el('#e-tclear', sh).onclick = function () { el('#e-time', sh).value = ''; el('#e-tp', sh).style.display = 'none'; };
   if (el('#e-clear', sh)) el('#e-clear', sh).onclick = function () { loc = { lat: '', lng: '' }; el('#e-ll', sh).textContent = '위치 없음'; };
   // 이름으로 찾기 → 고르면 위치와 이름을 채움
   var setLoc = function (r, name) {
@@ -1313,15 +1325,15 @@ function endDrag() {
   if (d.overTab && d.overTab !== date) {
     var target = d.overTab;
     renderMain();
-    askTime(it, target, null, null, function (time) {
-      var ids = itemsOf(target).map(function (x) { return x.id; });
-      var tm = time === null ? it.time : time;
-      var pos = ids.length; // 시각 순서에 맞는 자리 찾기
-      var tl = itemsOf(target);
-      for (var i = 0; i < tl.length; i++) if (tl[i].time && tm && tl[i].time > tm) { pos = i; break; }
-      ids.splice(pos, 0, it.id);
-      call('reorder', { date: target, ids: ids, moved: { id: it.id, date: target, time: tm } }).then(function (r) { S.tab = target; LS.set('trip_tab', target); r.items && (S.D.items = r.items); render(); afterAdminToast(r); }).catch(function (e) { toast(e.message); });
-    });
+    // 다른 날로: 시각은 그대로, 그날 시각 순서 자리에
+    var ids = itemsOf(target).map(function (x) { return x.id; });
+    var tm = it.time, pos = ids.length, tl = itemsOf(target);
+    for (var i = 0; i < tl.length; i++) if (tl[i].time && tm && tl[i].time > tm) { pos = i; break; }
+    ids.splice(pos, 0, it.id);
+    call('reorder', { date: target, ids: ids, moved: { id: it.id, date: target, time: tm } }).then(function (r) {
+      S.tab = target; LS.set('trip_tab', target); r.items && (S.D.items = r.items); render();
+      movedToast(r, it.id, md(target) + '(' + wd(target) + ') 일정으로 옮겼어요');
+    }).catch(function (e) { toast(e.message); });
     return;
   }
   var order = [];
@@ -1333,12 +1345,13 @@ function endDrag() {
   var prev = itemsOf(date).filter(function (x) { return x.id === order[idx - 1]; })[0];
   var next = itemsOf(date).filter(function (x) { return x.id === order[idx + 1]; })[0];
   renderMain();
-  var go = function (time) {
-    call('reorder', { date: date, ids: order, moved: { id: it.id, date: date, time: time === null ? it.time : time } })
-      .then(function (r) { S.D.items = r.items; renderMain(); afterAdminToast(r); }).catch(function (e) { toast(e.message); });
-  };
-  if (it.fixed) { go(null); toast('🔒 고정 일정이라 시각은 그대로 둡니다.'); return; }
-  askTime(it, date, prev, next, go);
+  // 묻지 않고 바로 옮김: 시각이 앞뒤 사이에 맞으면 그대로, 아니면 앞뒤 가운데로 (고정 일정은 그대로)
+  var tm = it.fixed ? it.time : autoTime(it, prev, next);
+  call('reorder', { date: date, ids: order, moved: { id: it.id, date: date, time: tm } })
+    .then(function (r) {
+      S.D.items = r.items; renderMain();
+      movedToast(r, it.id, it.fixed ? '🔒 순서만 옮겼어요' : tm && tm !== it.time ? timeRo(tm) + ' 옮겼어요' : '옮겼어요');
+    }).catch(function (e) { toast(e.message); });
 }
 /* 꾹 눌렀다가 끌지 않고 떼면: 이 일정으로 할 일 고르기 */
 function itemMenu(it) {
@@ -1352,31 +1365,54 @@ function itemMenu(it) {
   el('#im-edit', sh).onclick = function () { editItem(it); };
   el('#im-del', sh).onclick = function () { deleteItemAsk(it); };
 }
-function askTime(it, date, prev, next, done) {
-  var sug = null;
-  if (prev && next && prev.time && next.time) sug = fromMin(Math.round((toMin(prev.time) + toMin(next.time)) / 2 / 5) * 5);
-  else if (prev && prev.time && !next) sug = fromMin(toMin(prev.time) + 60);
-  else if (next && next.time && !prev) sug = fromMin(toMin(next.time) - 60);
-  // 지금 시각이 이미 앞뒤 일정 사이에 맞으면 묻지 않고 그대로 옮김
-  var known = (prev && prev.time) || (next && next.time);
-  var fits = it.time && known && (!prev || !prev.time || toMin(prev.time) <= toMin(it.time)) && (!next || !next.time || toMin(it.time) <= toMin(next.time));
-  if (fits) { done(null); return; }
-  if (sug === it.time) sug = null;   // 추천 시각이 지금 시각과 같으면 버튼 하나만
-  var range = (prev && prev.time ? prev.time : '처음') + ' ~ ' + (next && next.time ? next.time : '끝');
-  var sh = sheet('<h3>⏰ 시각은 어떻게 할까요?</h3><p class="small muted">"' + esc(it.display || it.title) + '"을 ' + md(date) + ' ' + esc(range) + ' 사이로 옮겼습니다.' +
-      (it.time ? ' 지금 시각 ' + esc(it.time) + '은 이 사이에 맞지 않아요.' : '') + '</p>' +
-    (sug ? '<button class="btn pri" style="width:100%;margin:4px 0" data-t="' + sug + '">' + sug + '으로 바꾸기</button>' : '') +
-    '<button class="btn' + (sug ? '' : ' pri') + '" style="width:100%;margin:4px 0" data-t="__keep">' + (it.time ? '시각 안 바꾸기 (' + esc(it.time) + ')' : '시각 없이 두기') + '</button>' +
-    '<label class="lb">다른 시각 (숫자 4개, 예: 1730 → 17:30)</label><div class="row"><input class="inp time-in" id="tm-in" inputmode="numeric" maxlength="5" placeholder="1730"><button class="btn pri" id="tm-ok" style="flex:none;white-space:nowrap">바꾸기</button></div>' +
-    '<p class="small" id="tm-msg" style="color:var(--bad);min-height:18px"></p>' +
-    '<button class="btn ghost" style="width:100%;margin-top:8px" id="tm-x">취소</button>');
-  els('[data-t]', sh).forEach(function (b) { b.onclick = function () { closeSheet(); done(b.dataset.t === '__keep' ? null : b.dataset.t); }; });
-  el('#tm-ok', sh).onclick = function () {
-    var v = parseTime(el('#tm-in', sh).value);
-    if (!v) { el('#tm-msg', sh).textContent = '숫자 4개로 적어 주세요. 예) 0930, 1730'; return; }
-    closeSheet(); done(v);
+/* 옮긴 자리의 시각: 지금 시각이 앞뒤 사이에 맞으면 그대로, 아니면 앞뒤 가운데(5분 단위), 한쪽만 있으면 ±1시간 */
+/* '13:15로' · '13:30으로' (끝 숫자 0·3·6은 '으로') */
+function timeRo(t) { return t + (/[036]$/.test(t) ? '으로' : '로'); }
+function autoTime(it, prev, next) {
+  var pt = prev && prev.time, nt = next && next.time;
+  if (!pt && !nt) return it.time;
+  if (it.time && (!pt || toMin(pt) <= toMin(it.time)) && (!nt || toMin(it.time) <= toMin(nt))) return it.time;
+  if (pt && nt) return fromMin(Math.round((toMin(pt) + toMin(nt)) / 2 / 5) * 5);
+  if (pt) return fromMin(Math.min(toMin(pt) + 60, 23 * 60 + 55));
+  return fromMin(Math.max(toMin(nt) - 60, 0));
+}
+/* 옮긴 뒤 알림: [시각 고치기] → 시·분 단추 창 (되돌리기도 여기서) */
+function movedToast(r, id, msg) {
+  toast(msg, { label: '시각 고치기', fn: function () {
+    var it = S.D.items.filter(function (x) { return x.id === id; })[0]; if (!it) return;
+    var sh = sheet('<h3>🕐 ' + esc(it.display || it.title) + ' 시각</h3><div id="tp"></div>' +
+      '<button class="btn" style="width:100%;margin-top:12px" id="tp-undo">↩️ 옮기기 전으로 되돌리기</button>' +
+      '<button class="btn ghost" style="width:100%;margin-top:6px" data-close>닫기</button>');
+    timeGrid(el('#tp', sh), it.time, function (v) {
+      var o = {}; ['id', 'date', 'time', 'title', 'type', 'place', 'display', 'lat', 'lng', 'memo', 'fixed', 'round_id'].forEach(function (k) { o[k] = it[k]; });
+      o.time = v;
+      call('saveItem', { item: o }).then(function (x) { afterAdmin(x, timeRo(v) + ' 바꿨어요'); }).catch(function (e) { toast(e.message); });
+    });
+    el('#tp-undo', sh).onclick = function () {
+      call('undo', { logId: r.logId }).then(function (u) { closeSheet(); S.D.items = u.items; renderMain(); toast('되돌렸어요'); }).catch(function (e) { toast(e.message); });
+    };
+  } }, 6000);
+}
+/* 시·분 단추로 시각 고르기: 시를 누르고 분을 누르면 끝 (onPick('HH:MM')) */
+function timeGrid(box, cur, onPick) {
+  var m0 = String(cur || '').match(/^(\d{1,2}):(\d{2})$/);
+  var h = m0 ? Number(m0[1]) : null, mi = m0 ? Number(m0[2]) : null;
+  var p2 = function (n) { return (n < 10 ? '0' : '') + n; };
+  var draw = function () {
+    var hs = '', ms = '';
+    for (var i = 0; i < 24; i++) hs += '<button type="button" data-h="' + i + '"' + (i === h ? ' class="on"' : '') + '>' + p2(i) + '</button>';
+    for (var j = 0; j < 60; j += 5) ms += '<button type="button" data-m="' + j + '"' + (j === mi ? ' class="on"' : '') + '>' + p2(j) + '</button>';
+    box.innerHTML = '<div class="tp-now">' + (h === null ? '--' : p2(h)) + ':' + (mi === null ? '--' : p2(mi)) + '</div>' +
+      '<div class="small muted">시를 누르고, 분을 누르면 바로 들어가요</div>' +
+      '<div class="lb">시</div><div class="tgrid">' + hs + '</div><div class="lb">분</div><div class="tgrid">' + ms + '</div>';
+    els('[data-h]', box).forEach(function (b) { b.onclick = function () { h = Number(b.dataset.h); draw(); }; });
+    els('[data-m]', box).forEach(function (b) { b.onclick = function () {
+      mi = Number(b.dataset.m);
+      if (h === null) { draw(); return; }
+      onPick(p2(h) + ':' + p2(mi));
+    }; });
   };
-  el('#tm-x', sh).onclick = function () { closeSheet(); renderMain(); };
+  draw();
 }
 function afterAdminToast(r) {
   toast('바꿨습니다.', { label: '되돌리기', fn: function () {
