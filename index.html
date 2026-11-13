@@ -424,8 +424,8 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 /* 정보 탭: 폴더 모양 + 한 줄(글씨는 화면 폭에 맞춰) */
 .seg-tabs.folder.six,.seg-tabs.folder.five{gap:3px;margin-bottom:10px}
 .seg-tabs.folder.six button,.seg-tabs.folder.five button{font-size:min(calc(13px*var(--fs)),4.3vw);letter-spacing:-.07em;padding:10px 0 8px}
-.seg-tabs.folder button.adm{border:1px solid var(--line);border-bottom:0;color:var(--warn)}   /* 관리자 칸도 폴더 모양, 글씨만 주황 */
-.seg-tabs.folder button.adm.on{background:var(--warn);border-color:var(--warn);color:#fff}
+.seg-tabs.folder button.adm{border:2px solid var(--warn);border-radius:12px;margin-bottom:5px;color:var(--warn)}   /* 관리자 칸은 주황 상자로, 아래 초록 선과 띄움 */
+.seg-tabs.folder button.adm.on{background:var(--warn);border-color:var(--warn);color:#fff;margin-top:0;padding-top:10px}
 .adm-title{font-weight:800;color:var(--warn);padding:8px 2px 0}
 /* 회비: 회원별 연도 줄 */
 .fee-y{display:flex;justify-content:space-between;font-size:calc(14px*var(--fs));padding:2px 0 2px 8px;color:var(--sub)}
@@ -511,7 +511,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.13-9';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.13-10';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1194,7 +1194,17 @@ function editItem(it, preset) {
     call('searchPlace', { q: q }).then(function (r) {
       if (!r.results.length) { box.innerHTML = '<p class="small" style="color:var(--warn)">찾지 못했습니다. 이름을 조금 바꾸거나 "구글지도 링크로 넣기"를 써 주세요.</p>'; return; }
       box.innerHTML = r.results.map(function (x, i) { return '<button class="vrow" data-er="' + i + '" style="grid-template-columns:auto 1fr"><span class="ic">📍</span><span><div class="t">' + esc(x.name) + '</div><div class="s">' + esc(x.address) + '</div></span></button>'; }).join('');
-      els('[data-er]', box).forEach(function (b) { b.onclick = function () { var x = r.results[Number(b.dataset.er)]; setLoc(x, el('#e-place', sh).value.trim() || (x.name === q ? q : x.name)); box.innerHTML = '<p class="small" style="color:var(--pri)">✓ 위치를 넣었습니다: ' + esc(x.name) + '</p>'; }; });
+      box.insertAdjacentHTML('beforeend', '<div id="e-map"></div>');
+      els('[data-er]', box).forEach(function (b) { b.onclick = function () {
+        var x = r.results[Number(b.dataset.er)];
+        setLoc(x, el('#e-place', sh).value.trim() || (x.name === q ? q : x.name));
+        els('[data-er]', box).forEach(function (o) { o.style.background = o === b ? 'var(--pri-soft)' : ''; });
+        // 지도로 바로 확인 (핀 위치가 맞는지 보고, 아니면 다른 줄을 누르면 됨)
+        el('#e-map', box).innerHTML = '<div class="small" style="color:var(--pri);margin:6px 0 4px">✓ 이 위치로 넣었어요. 지도에서 핀이 맞는지 확인하세요. 아니면 다른 줄을 누르세요.</div>' +
+          '<iframe referrerpolicy="no-referrer-when-downgrade" src="' + esc(embedPlace(x, 16)) + '" style="width:100%;height:220px;border:0;border-radius:10px;display:block"></iframe>' +
+          '<a class="small" target="_blank" href="' + esc(gmapOpen(x)) + '">구글지도 앱에서 크게 보기 ↗</a>';
+      }; });
+      if (r.results.length === 1) els('[data-er]', box)[0].click();
     }).catch(function (e) { box.innerHTML = '<p class="small" style="color:var(--bad)">' + esc(e.message) + '</p>'; });
   };
   el('#e-find', sh).onclick = find;
