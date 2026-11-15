@@ -566,7 +566,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.15-21';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.15-22';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1877,9 +1877,9 @@ function viewScore() {
       (who !== S.me.name ? '<button class="btn sm" data-for="">내 스코어로 돌아가기</button>' : '') + '</div></div></div>';
 
   return '<div class="rounds">' + rs.map(function (x) { return '<button class="tab' + (x.round_id === r.round_id ? ' on' : '') + '" data-round="' + x.round_id + '"><span class="d">' + md(x.date) + '</span><span class="s">' + esc(x.course) + '</span></button>'; }).join('') + '</div>' +
-    '<div class="card scan"><b>📋 스코어카드 사진으로 입력</b><div class="small muted" style="margin:4px 0 8px">종이 스코어카드를 찍으면 점수를 읽어서 채워 줍니다. 각자 카드(1인 카드)는 <b>사진에서</b>로 여러 장을 한꺼번에 골라도 돼요. 저장 전에 확인할 수 있어요.</div>' +
-      '<div class="scan-btns"><label class="btn pri">📷 카드 찍기<input type="file" accept="image/*" capture="environment" data-scan hidden></label>' +
-      '<label class="btn">🖼️ 사진에서<input type="file" accept="image/*" multiple data-scan hidden></label></div>' +
+    '<div class="card scan"><b>📋 스코어카드 사진으로 입력</b><div class="small muted" style="margin:4px 0 8px">종이 스코어카드를 찍으면 점수를 읽어서 채워 줍니다. 각자 카드(1인 카드)는 <b>갤러리</b>에서 여러 장을 한꺼번에 골라도 돼요. 저장 전에 확인할 수 있어요.</div>' +
+      '<div class="scan-btns"><label class="btn pri">카드 찍기<input type="file" accept="image/*" capture="environment" data-scan hidden></label>' +
+      '<label class="btn">갤러리<input type="file" accept="image/*" multiple data-scan hidden></label></div>' +
       (String(r.cards || '').split(',').filter(Boolean).length ? '<div class="small muted" style="margin-top:6px">이 라운드 스코어카드 ' + String(r.cards).split(',').filter(Boolean).length + '장 · <a href="#" data-cards="' + esc(r.round_id) + '">보기</a></div>' : '') +
     '</div>' +
     '<button class="btn big-btn" data-act="grp-open" style="margin:0 0 12px">⛳ ' + members.length + '명 함께 입력 (홀마다)</button>' +
@@ -2713,8 +2713,8 @@ function expenseForm(e, preset) {
   var html =
     '<h3>' + (isNew ? '＋ 지출 적기' : (canEdit ? '✏️ 지출 고치기' : '🧾 지출')) + '</h3>' +
     '<div class="row" style="margin-bottom:8px"><label class="lb" style="margin:0;white-space:nowrap">📅 날짜</label><select class="inp" id="x-date" style="flex:1">' + ds.map(function (d) { return '<option value="' + d + '"' + (d === e.date ? ' selected' : '') + '>' + md(d) + '(' + wd(d) + ')</option>'; }).join('') + '</select></div>' +
-    '<div class="rc-box"><div class="row wrap-row"><label class="btn pri sm">📷 영수증 찍기<input type="file" accept="image/*" capture="environment" id="x-cam" hidden></label>' +
-      '<label class="btn sm">🖼️ 사진에서<input type="file" accept="image/*" id="x-pic" hidden></label></div>' +
+    '<div class="rc-box"><div class="row wrap-row"><label class="btn pri sm">영수증 찍기<input type="file" accept="image/*" capture="environment" id="x-cam" hidden></label>' +
+      '<label class="btn sm">갤러리<input type="file" accept="image/*" id="x-pic" hidden></label></div>' +
       '<div class="rc-row"><div id="x-rimg"></div><span class="small" id="x-rst">' + (st.receipt ? '영수증 있음' : '영수증을 찍으면 금액을 자동으로 채워 드려요') + '</span></div></div>' +
     '<label class="lb">금액 (어느 쪽이든 적으면 자동 계산 · 1바트 ≈ ' + st.rate.toFixed(2) + '원)</label>' +
     '<div class="fx-grid x-money"><label class="mwrap"><span class="unit">THB</span><input class="inp money" id="x-thb" inputmode="decimal" placeholder="0" value="' + esc(e.thb) + '"></label><span>⇄</span><label class="mwrap won"><span class="unit">원</span><input class="inp money" id="x-krw" inputmode="numeric" placeholder="0" value="' + esc(e.krw ? num(e.krw) : '') + '"></label></div>' +
