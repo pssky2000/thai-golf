@@ -556,7 +556,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.15-10';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.15-11';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1061,7 +1061,7 @@ function nextCard(date) {
   var nx = its[0], left = minsUntil(nx);
   // 남은 시간은 오른쪽 흰 칸에 크게 ('1시간 20분'은 두 줄)
   var lt = durText(left).split(' ').map(function (t) { return '<b>' + t + '</b>'; }).join('');
-  return '<div class="next' + (left <= 30 ? ' soon' : '') + '"><div class="nx-i">' + icon(nx.type) + '</div><div class="nx-b"><div class="nx-l">⏰ 다음 일정</div>' +
+  return '<div class="next' + (left <= 30 ? ' soon' : '') + '"><div class="nx-i">' + icon(nx.type) + '</div><div class="nx-b"><div class="nx-l">⏰ 티오프까지</div>' +
     '<div class="big">' + esc(nx.time) + ' ' + esc(nx.title) + '</div>' + (nameOf(nx) ? '<div class="nx-p">' + esc(nameOf(nx)) + '</div>' : '') + '</div>' +
     '<div class="nx-left">' + lt + '<span>남음</span></div></div>';
 }
