@@ -196,7 +196,6 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .rnav span{color:var(--sub);text-align:center;white-space:nowrap}
 .rnav .btn{width:100%}
 .rname{display:block;font-weight:800;font-size:calc(16px*var(--fs));color:var(--ink);text-decoration:none}
-.rname u{text-decoration-color:var(--pri);text-underline-offset:3px}
 .rname .rgo{color:var(--pri);font-size:.85em}
 .rsub{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
 .rsub .btn{padding-left:2px;padding-right:2px}
@@ -547,7 +546,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.15-7';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.15-8';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1066,7 +1065,25 @@ function golfDay(date) {
   }).join('');
 }
 
+// 도착날(마지막 날)은 한국 날씨: 인천공항·청주 (12월 한국은 영하일 수 있음)
+var WX_KR = [['✈️', '인천공항', 37.4602, 126.4407], ['🏠', '청주', 36.6424, 127.4890]];
+function wxKrCard(date) {
+  var rows = WX_KR.map(function (p, i) {
+    var w = S.wxKr && S.wxKr[i] && S.wxKr[i][date];
+    if (!w) return '';
+    return '<div class="row" style="gap:8px;align-items:center;margin-top:4px"><span style="font-size:calc(22px*var(--fs))">' + wxIcon(w.code) + '</span>' +
+      '<div style="flex:1;min-width:0"><b>' + p[0] + ' ' + p[1] + '</b> <b class="temp" style="font-size:inherit">' + Math.round(w.max) + '° / ' + Math.round(w.min) + '°</b>' +
+      '<div class="small muted">비·눈 올 확률 ' + (w.rain === null ? '-' : w.rain + '%') + '</div></div></div>';
+  }).join('');
+  var cold = WX_KR.some(function (p, i) { var w = S.wxKr && S.wxKr[i] && S.wxKr[i][date]; return w && w.min < 3; });
+  if (rows) return '<div class="card wx" style="display:block"><div class="small muted">🇰🇷 도착하는 날 한국 날씨</div>' + rows +
+    (cold ? '<div class="small" style="margin-top:6px;color:var(--warn)">🧥 한국은 춥습니다. 두꺼운 겉옷을 기내 가방에 챙기세요.</div>' : '') + '</div>';
+  if (!S.wxKr) return '';
+  return '<div class="card wx"><div class="ico">🧥</div><div><div class="small"><b>🇰🇷 도착하는 날 인천공항·청주 날씨는 약 2주 전부터 보입니다.</b></div>' +
+    '<div class="small muted">12월 하순 인천·청주는 보통 낮 3℃ 안팎 · 밤 영하 6℃ 안팎입니다. 두꺼운 겉옷을 기내 가방에 챙기세요.</div></div></div>';
+}
 function wxCard(date) {
+  if (S.D && S.D.settings && date === S.D.settings.end_date) return wxKrCard(date);
   var w = S.wx && S.wx[date];
   if (w) {
     return '<div class="card wx"><div class="ico">' + wxIcon(w.code) + '</div><div><div class="temp">' + Math.round(w.max) + '° / ' + Math.round(w.min) + '°</div>' +
@@ -1076,7 +1093,7 @@ function wxCard(date) {
   return '<div class="card wx"><div class="ico">🌤️</div><div><div class="small"><b>날씨 예보는 약 2주 전부터 보입니다.</b></div>' +
     '<div class="small muted">12월 파타야는 건기로 맑은 날이 많고, 보통 낮 30℃ 안팎 · 밤 23℃ 안팎입니다.</div></div></div>';
 }
-function wxIcon(c) { c = Number(c); if (c === 0) return '☀️'; if (c <= 2) return '🌤️'; if (c === 3) return '☁️'; if (c <= 48) return '🌫️'; if (c <= 67 || (c >= 80 && c <= 82)) return '🌧️'; if (c >= 95) return '⛈️'; return '🌦️'; }
+function wxIcon(c) { c = Number(c); if ((c >= 71 && c <= 77) || c === 85 || c === 86) return '❄️'; if (c === 0) return '☀️'; if (c <= 2) return '🌤️'; if (c === 3) return '☁️'; if (c <= 48) return '🌫️'; if (c <= 67 || (c >= 80 && c <= 82)) return '🌧️'; if (c >= 95) return '⛈️'; return '🌦️'; }
 
 function viewDay(date) {
   var its = itemsOf(date), pts = routePoints(its);
@@ -1245,16 +1262,18 @@ function requestEdit(it) {
 /* ─── 관리자: 일정 수정 ─── */
 function editItem(it, preset) {
   var isNew = !it;
-  it = it || Object.assign({ date: S.tab, time: '', title: '', type: 'etc', place: '', display: '', lat: '', lng: '', fixed: false, memo: '' }, preset || {});
+  it = it || Object.assign({ date: S.tab, time: '', title: '', type: '', place: '', display: '', lat: '', lng: '', fixed: false, memo: '' }, preset || {});
+  var ty0 = TYPES[it.type] ? it.type : (isNew ? '' : 'etc');   // 새 일정은 아무 종류도 안 고른 상태
   var html =
     '<h3>' + (isNew ? '＋ 일정 추가' : '✏️ 일정 수정') + '</h3>' +
     '<div class="row"><div style="flex:1"><label class="lb">날짜</label><select class="inp" id="e-date">' + dates().map(function (d) { return '<option value="' + d + '"' + (d === it.date ? ' selected' : '') + '>' + md(d) + '(' + wd(d) + ')</option>'; }).join('') + '</select></div>' +
     '<div style="flex:1"><label class="lb">시각 (눌러서 고르기)</label><input class="inp" id="e-time" readonly placeholder="🕐 고르기" style="cursor:pointer" value="' + esc(it.time) + '"></div></div>' +
     '<div id="e-tp" style="display:none;margin-top:8px"><div id="e-tpg"></div><button type="button" class="btn sm ghost" id="e-tclear" style="margin-top:6px">시각 비우기</button></div>' +
-    '<label class="lb">종류</label><input type="hidden" id="e-type" value="' + esc(TYPES[it.type] ? it.type : 'etc') + '"><div class="tygrid" id="e-tyg">' + Object.keys(TYPES).map(function (k) { return '<button type="button" data-ty="' + k + '"' + (k === (TYPES[it.type] ? it.type : 'etc') ? ' class="on"' : '') + '><span class="e">' + TYPES[k][0] + '</span>' + TYPES[k][1] + '</button>'; }).join('') + '</div>' +
+    '<label class="lb">종류' + (ty0 ? '' : ' <span class="small muted">(골라 주세요)</span>') + '</label><input type="hidden" id="e-type" value="' + esc(ty0) + '"><div class="tygrid" id="e-tyg">' + Object.keys(TYPES).map(function (k) { return '<button type="button" data-ty="' + k + '"' + (k === ty0 ? ' class="on"' : '') + '><span class="e">' + TYPES[k][0] + '</span>' + TYPES[k][1] + '</button>'; }).join('') + '</div>' +
     '<label class="lb">할 일 <span class="small muted">(종류를 고르면 자동으로 채워져요. 고쳐 써도 돼요)</span></label><input class="inp" id="e-title" value="' + esc(it.title) + '" placeholder="예) 저녁">' +
     '<div class="fbox"><div class="fbt">📍 장소</div>' +
     '<label class="lb" style="margin-top:0">🔎 장소 찾기 (이름이나 주소)</label><div class="row"><input class="inp" id="e-q" placeholder="예) 터미널21 파타야" value="' + esc(it.place || '') + '"><button class="btn sm pri" id="e-find" style="flex:none;white-space:nowrap">찾기</button></div>' +
+    '<button type="button" class="btn sm" id="e-here" style="width:100%;margin-top:6px">📡 지금 있는 곳으로 찾기</button>' +
     '<div id="e-res"></div>' +
     '<details style="margin-top:6px"><summary class="small muted">구글지도 링크로 넣기</summary>' +
       '<div class="row" style="margin-top:6px"><input class="inp" id="e-link" placeholder="구글지도 → 공유 → 링크 복사"><button class="btn sm" id="e-resolve" style="flex:none;white-space:nowrap">가져오기</button></div>' +
@@ -1303,7 +1322,7 @@ function editItem(it, preset) {
       box.insertAdjacentHTML('beforeend', '<div id="e-map"></div>');
       els('[data-er]', box).forEach(function (b) { b.onclick = function () {
         var x = r.results[Number(b.dataset.er)];
-        setLoc(x, reco ? x.name : el('#e-place', sh).value.trim() || (x.name === q ? q : x.name));
+        setLoc(x, x.here ? (el('#e-place', sh).value.trim() || x.address.split(',')[0]) : (reco || !q) ? x.name : el('#e-place', sh).value.trim() || (x.name === q ? q : x.name));
         if (reco) { el('#e-display', sh).value = ''; if (!el('#e-title', sh).value.trim()) el('#e-title', sh).value = defaultTitle(reco); }
         else drawReco();   // 추천 기준 장소가 바뀜
         els('[data-er]', box).forEach(function (o) { o.style.background = o === b ? 'var(--pri-soft)' : ''; });
@@ -1368,14 +1387,13 @@ function editItem(it, preset) {
       cur = (i + list.length) % list.length; var x = list[cur];
       if (M) { M.active(cur); if (pan) M.pan(cur); }
       el('#e-rcard', sh).innerHTML = '<div class="rcard">' +
-        '<a class="rname" target="_blank" href="' + esc(gmapOpen(x)) + '"><span class="rno">' + (cur + 1) + '</span> <u>' + esc(x.name) + '</u> <span class="rgo">↗</span></a>' +
+        '<a class="rname" target="_blank" href="' + esc(gmapOpen(x)) + '"><span class="rno">' + (cur + 1) + '</span> ' + esc(x.name) + ' <span class="rgo">↗</span></a>' +
         '<div class="small" style="margin-top:2px"><b style="color:var(--warn)">★ ' + x.rating.toFixed(1) + '</b> (' + x.count.toLocaleString() + '명) · ' + x.km + 'km</div>' +
         (openTag(x, tm) ? '<div class="small" style="margin-top:2px">' + openTag(x, tm) + (x.hours ? ' <span class="muted">(그날 ' + esc(x.hours) + ')</span>' : '') + '</div>' : '') +
         '<div class="small muted">' + esc(x.address) + '</div>' +
         '<div class="rnav"><button type="button" class="btn" id="e-rp">◀ 이전</button><span><b>' + (cur + 1) + '</b> / ' + list.length + '</span><button type="button" class="btn" id="e-rn">다음 ▶</button></div>' +
-        '<div class="row" style="margin-top:8px;gap:8px"><button type="button" class="btn pri" id="e-rput" style="flex:1">✓ 이 곳으로 넣기</button>' +
-        '<a class="btn" target="_blank" href="' + esc(gmapOpen(x)) + '" style="flex:none">구글지도 ↗</a></div>' +
-        '<div class="small muted" style="margin-top:4px">가게 이름을 누르면 구글지도에서 사진·후기·영업시간을 볼 수 있어요</div></div>';
+        '<button type="button" class="btn pri" id="e-rput" style="width:100%;margin-top:8px">✓ 이 곳으로 넣기</button>' +
+        '<div class="small muted" style="margin-top:4px">가게 이름(↗)을 누르면 구글지도에서 사진·후기·영업시간을 볼 수 있어요</div></div>';
       el('#e-rp', sh).onclick = function () { pick(cur - 1, true); };
       el('#e-rn', sh).onclick = function () { pick(cur + 1, true); };
       // 카드를 옆으로 밀어도 넘어감
@@ -1392,7 +1410,7 @@ function editItem(it, preset) {
     var useLeaflet = function () {
       return loadLeaflet().then(function (L) {
         var map = L.map(box, { zoomControl: true, attributionControl: true }), marks = [];
-        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: '© Esri' }).addTo(map);   // 위성
         var pts = [[b.lat, b.lng]];
         L.marker([b.lat, b.lng], { icon: L.divIcon({ className: '', html: '<div class="rpin base">★</div>', iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(map);
         list.forEach(function (x, i) {
@@ -1410,7 +1428,7 @@ function editItem(it, preset) {
     };
     var useGoogle = function () {
       return loadGmaps(mapsKey).then(function (g) {
-        var map = new g.maps.Map(box, { center: { lat: b.lat, lng: b.lng }, zoom: 14, disableDefaultUI: true, zoomControl: true, clickableIcons: false, gestureHandling: 'greedy' });
+        var map = new g.maps.Map(box, { center: { lat: b.lat, lng: b.lng }, zoom: 14, mapTypeId: 'hybrid', disableDefaultUI: true, zoomControl: true, clickableIcons: false, gestureHandling: 'greedy' });
         var bounds = new g.maps.LatLngBounds(), marks = [];
         var dot = function (color, scale) { return { path: g.maps.SymbolPath.CIRCLE, scale: scale, fillColor: color, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }; };
         bounds.extend({ lat: b.lat, lng: b.lng });
@@ -1441,6 +1459,21 @@ function editItem(it, preset) {
   el('#e-date', sh).onchange = drawReco;
   drawReco();
   el('#e-find', sh).onclick = find;
+  // 현위치: 폰 위치 → '지금 있는 곳' + 바로 옆 가게들(가까운 순) → 고르면 넣음
+  el('#e-here', sh).onclick = function () {
+    var box = el('#e-res', sh);
+    if (!navigator.geolocation) { box.innerHTML = '<p class="small" style="color:var(--bad)">이 폰에서는 위치를 쓸 수 없어요.</p>'; return; }
+    box.innerHTML = '<p class="small muted">지금 위치를 찾는 중… (위치 허용을 물으면 [허용]을 눌러 주세요)</p>';
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      call('placesHere', { lat: pos.coords.latitude, lng: pos.coords.longitude }).then(function (r) {
+        r.results.forEach(function (x) { if (!x.here && x.km !== undefined) x.address = Math.round(x.km * 1000) + 'm · ' + x.address; });
+        showRes(box, r.results, '');
+        box.insertAdjacentHTML('afterbegin', '<p class="small muted" style="margin:6px 0 2px">맨 위는 지금 서 있는 곳, 아래는 바로 옆 가게예요. 맞는 줄을 누르세요.</p>');
+      }).catch(function (e) { box.innerHTML = '<p class="small" style="color:var(--bad)">' + esc(e.message) + '</p>'; });
+    }, function (err) {
+      box.innerHTML = '<p class="small" style="color:var(--bad)">' + (err.code === 1 ? '위치 사용이 꺼져 있어요. Chrome 주소창 옆 설정에서 위치를 [허용]으로 바꿔 주세요.' : '위치를 찾지 못했어요. 잠시 뒤 다시 눌러 주세요.') + '</p>';
+    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 });
+  };
   el('#e-q', sh).onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); find(); } };
   el('#e-gmap', sh).onclick = function () { this.href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(el('#e-q', sh).value.trim() || el('#e-place', sh).value.trim()); };
   el('#e-resolve', sh).onclick = function () {
@@ -1461,7 +1494,7 @@ function editItem(it, preset) {
     if (el('#e-time', sh).value.trim() && !parseTime(el('#e-time', sh).value)) { el('#e-msg', sh).textContent = '시각은 숫자 4개로 적어 주세요. 예) 0930, 1730'; return; }
     var out = {
       id: isNew ? undefined : it.id, date: el('#e-date', sh).value, time: el('#e-time', sh).value.trim() ? parseTime(el('#e-time', sh).value) : '',
-      title: el('#e-title', sh).value.trim(), type: el('#e-type', sh).value,
+      title: el('#e-title', sh).value.trim(), type: el('#e-type', sh).value || 'etc',
       place: el('#e-place', sh).value.trim(), display: el('#e-display', sh).value.trim(),
       lat: loc.lat, lng: loc.lng, gurl: loc.gurl || '', memo: el('#e-memo', sh).value.trim(), fixed: el('#e-fixed', sh).checked,
       round_id: it.round_id || ''
@@ -3744,6 +3777,18 @@ function loadWx() {
       S.wx = out;
       if (/^\d{4}-/.test(S.tab)) rerenderSoft();
     }).catch(function () { S.wx = {}; });
+  // 한국(인천공항·청주) — 도착날 카드용
+  fetch('https://api.open-meteo.com/v1/forecast?latitude=' + WX_KR.map(function (p) { return p[2]; }).join(',') + '&longitude=' + WX_KR.map(function (p) { return p[3]; }).join(',') +
+    '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FSeoul&forecast_days=16')
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      S.wxKr = (Array.isArray(j) ? j : [j]).map(function (one) {
+        var out = {}, d = one.daily || {};
+        (d.time || []).forEach(function (t, i) { out[t] = { code: d.weather_code[i], max: d.temperature_2m_max[i], min: d.temperature_2m_min[i], rain: d.precipitation_probability_max[i] }; });
+        return out;
+      });
+      if (/^\d{4}-/.test(S.tab)) rerenderSoft();
+    }).catch(function () { S.wxKr = []; });
 }
 function rerenderSoft() {
   if (el('.sheet-bg') || dragState) return;
