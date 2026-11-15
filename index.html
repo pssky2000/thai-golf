@@ -535,6 +535,8 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .sc-alllink{display:block;width:100%;margin:-2px 0 12px;text-align:center}
 .aw-tot th:nth-child(2),.aw-tot td:nth-child(2){width:auto}
 .aw-tot th:first-child,.aw-tot td:first-child{width:4.6em;text-align:left}
+.repay{border:2px solid var(--pri)}
+#rp-w .pick small{font-size:calc(11px*var(--fs));color:var(--sub);font-weight:600}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
 .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
@@ -691,7 +693,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-15';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-16';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -3300,7 +3302,7 @@ function viewSettle(c) {
         '<div class="eq-part"><span class="lab">회원이 낸<br>공동경비</span><b>' + baht(c.personalShared) + '</b><span class="small muted">' + wonShort(c.personalShared * c.rate) + '</span></div><span class="eq-op">+</span>' +
         '<div class="eq-part"><span class="lab">지원<br>(쏨)</span><b>' + baht(c.supportTotal) + '</b><span class="small muted">' + wonShort(c.supportTotal * c.rate) + '</span></div></div></div>' +
     '<div class="row between" style="margin:6px 2px 0;flex-wrap:wrap"><span>정산 환율 <b>฿1 = ' + c.rate + '원</b></span>' + (S.me.isAdmin ? '<button class="btn sm" data-act="settle-rate">✏️ 환율 바꾸기</button>' : '') + '</div>' +
-    '<p class="small muted">회원끼리 주고받을 돈은 <b>각자 카드·현금으로 낸 공동경비</b>만 계산합니다. 공금으로 낸 돈은 이미 다 같이 낸 돈이라 빠집니다.</p>';
+    '<p class="small muted">회원끼리 주고받을 돈은 <b>각자 카드·현금으로 낸 공동경비</b>만 계산합니다. 공금으로 낸 돈은 이미 다 같이 낸 돈이라 빠집니다.</p>' + repayCard(c);
 
   // 송금 안내
   html += '<div class="card"><b>💸 이렇게 보내면 끝</b>';
@@ -3904,6 +3906,46 @@ function feeBankForm() {
     }).catch(function (e) { el('#fb-msg', sh).textContent = e.message; });
   };
 }
+/* 💡 남은 공금으로 먼저 갚기 (관리자): 회원이 낸 공동경비를 공금에서 돌려주면 회원끼리 주고받을 돈이 없어짐 */
+function repayList() {
+  var by = {}, ids = [];
+  (S.D.expenses || []).forEach(function (e) {
+    if (e.payer === '공금' || (e.kind !== '공동' && e.kind !== '일부지원')) return;
+    var thb = Number(e.thb) || 0, sh = e.kind === '일부지원' ? thb - (Number(e.support_thb) || 0) : thb;
+    if (!(sh > 0)) return;
+    by[e.payer] = by[e.payer] || { amt: 0, n: 0 }; by[e.payer].amt += sh; by[e.payer].n++; ids.push(e.id);
+  });
+  var total = Object.keys(by).reduce(function (a, k) { return a + by[k].amt; }, 0);
+  return { by: by, ids: ids, total: Math.round(total * 100) / 100 };
+}
+function repayCard(c) {
+  if (!S.me.isAdmin) return '';
+  var L = repayList(); if (!L.total) return '';
+  var enough = c.cashLeft >= L.total;
+  return '<div class="card repay"><b>💡 남은 공금으로 먼저 갚기</b>' +
+    '<p class="small muted" style="margin:4px 0 6px">회원이 카드·현금으로 낸 공동경비를 남은 공금(바트 현금)에서 돌려주면, 회원끼리 원화로 보낼 돈이 없어져요.</p>' +
+    Object.keys(L.by).map(function (n) { return '<div class="kv"><span>' + esc(n) + ' 님에게 돌려줄 돈 <span class="muted">(' + L.by[n].n + '건)</span></span><b>' + baht(L.by[n].amt) + '</b></div>'; }).join('') +
+    '<div class="kv"><span>남은 공금</span><b>' + baht(c.cashLeft) + ' → ' + baht(c.cashLeft - L.total) + '</b></div>' +
+    (enough ? '<button class="btn pri" data-act="repay" style="width:100%;margin-top:8px">공금에서 돌려주기</button>'
+      : '<p class="small" style="color:var(--bad);margin:6px 0 0">남은 공금이 ' + baht(L.total - c.cashLeft) + ' 모자라요. 추가 환전 뒤에 할 수 있어요.</p>') + '</div>';
+}
+function repayForm() {
+  var L = repayList(), w = cashByHolder().list.filter(function (h) { return h.left > 0; }).sort(function (a, b) { return b.left - a.left; });
+  if (!w.length) { toast('공금을 갖고 있는 사람이 없어요.'); return; }
+  var st = { holder: w[0].name };
+  var sh = sheet('<h3>💡 공금에서 돌려주기</h3><p class="small muted">아래 금액을 공금을 가진 사람이 현금(바트)으로 돌려주고, 지출 기록은 "공금으로 낸 것"으로 바뀌어요(메모에 원래 낸 사람이 남아요).</p>' +
+    Object.keys(L.by).map(function (n) { return '<div class="kv"><span>' + esc(n) + ' 님에게</span><b>' + baht(L.by[n].amt) + '</b></div>'; }).join('') +
+    '<label class="lb">👛 누구 지갑의 공금으로 돌려주나요?</label><div class="grid4" id="rp-w">' + w.map(function (h) { return '<button class="pick' + (h.name === st.holder ? ' on' : '') + '" data-v="' + esc(h.name) + '">' + esc(h.name) + '<br><small>' + baht(h.left) + '</small></button>'; }).join('') + '</div>' +
+    '<p class="small" id="rp-msg" style="color:var(--bad);min-height:18px"></p>' +
+    '<div class="row" style="justify-content:flex-end"><button class="btn" id="rp-x">취소</button><button class="btn pri" id="rp-ok">돌려줬어요</button></div>');
+  els('#rp-w .pick', sh).forEach(function (b) { b.onclick = function () { st.holder = b.dataset.v; els('#rp-w .pick', sh).forEach(function (x) { x.classList.toggle('on', x === b); }); }; });
+  el('#rp-x', sh).onclick = closeSheet;
+  el('#rp-ok', sh).onclick = function () {
+    var btn = this; btn.disabled = true; el('#rp-msg', sh).textContent = '바꾸는 중…';
+    call('repayFromCash', { holder: st.holder, ids: L.ids }).then(function (r) { S.D.expenses = r.expenses; saveCache(); closeSheet(); renderMain(); toast('공금에서 돌려줬어요. 이제 회원끼리 보낼 돈이 없어요.'); })
+      .catch(function (e) { el('#rp-msg', sh).textContent = e.message; btn.disabled = false; });
+  };
+}
 function feeForm(kind, u) {
   var names = memberNames(), ed = !!u;   // u = 고칠 사용 기록
   u = u || {};
@@ -4377,6 +4419,7 @@ function bindMain() {
     b.onclick = function () {
       var a = b.dataset.act;
       if (a === 'album' || a.indexOf('ar-') === 0) { archiveAct(a, b); return; }   // 여행 보관 · 종료
+      if (a === 'repay') { repayForm(); return; }   // 남은 공금으로 먼저 갚기
       if (a === 'edit-on') { S.editMode = true; renderMain(); }
       else if (a === 'edit-off') { S.editMode = false; renderMain(); }
       else if (a === 'add') editItem(null);
