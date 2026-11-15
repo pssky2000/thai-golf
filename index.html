@@ -563,7 +563,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.15-12';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.15-13';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1064,11 +1064,19 @@ function nextCard(date) {
   if (n.date !== date && nowFor({ date: date, time: '00:00' }).date !== date) return '';
   // 알림 카드: 골프는 티오프 3시간 전부터, 비행기 출발은 5시간 전부터 (사용자 결정 2026-11-15, 다른 일정은 카드 없음)
   // 비행기는 항공 탭의 출발 날짜·시각과 같은 일정만 (도착·체크인 일정은 빼고)
-  var isDep = function (i) { return i.type === 'flight' && (S.D.flights || []).some(function (f) { return f.date === i.date && String(f.dep) === String(i.time); }); };
+  var depOf = function (i) { return i.type === 'flight' ? (S.D.flights || []).filter(function (f) { return f.date === i.date && String(f.dep) === String(i.time); })[0] : null; };
+  // 보이기 시작: 첫날 비행기는 모이는 시각(항공 탭 meet 앞 'HH:MM')부터, 나머지는 출발 5시간 전부터
+  var flWin = function (i, f) {
+    var mt = String(f.meet || '').match(/^\s*(\d{1,2}):(\d{2})/);
+    if (i.date === S.D.settings.start_date && mt) { var w = toMin(i.time) - (Number(mt[1]) * 60 + Number(mt[2])); if (w > 0) return w; }
+    return 300;
+  };
   var its = itemsOf(date).filter(function (i) {
     if (!i.time) return false;
     var m = minsUntil(i);
-    return m > 0 && ((i.type === 'golf' && m <= 180) || (isDep(i) && m <= 300));
+    if (m <= 0) return false;
+    if (i.type === 'golf') return m <= 180;
+    var f = depOf(i); return !!f && m <= flWin(i, f);
   });
   if (!its.length) return '';
   var nx = its[0], left = minsUntil(nx), fl = nx.type === 'flight';
