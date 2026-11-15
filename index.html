@@ -712,7 +712,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-26';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-27';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1974,7 +1974,7 @@ function editItem(it, preset) {
     '<label class="lb">할 일 <span class="small muted">(종류를 고르면 자동으로 채워져요. 고쳐 써도 돼요)</span></label><input class="inp" id="e-title" value="' + esc(it.title) + '" placeholder="예) 저녁">' +
     '<div class="fbox"><div class="fbt">📍 장소</div>' +
     '<label class="lb" style="margin-top:0">🔎 장소 찾기 (이름이나 주소)</label><div class="row"><input class="inp" id="e-q" placeholder="예) 터미널21 파타야" value="' + esc(it.place || '') + '"><button class="btn sm pri" id="e-find" style="flex:none;white-space:nowrap">찾기</button></div>' +
-    '<button type="button" class="btn sm" id="e-here" style="width:100%;margin-top:6px">📡 지금 있는 곳으로 찾기</button>' +
+    '<button type="button" class="btn" id="e-here" style="width:100%;margin-top:6px">📡 지금 있는 곳으로 찾기</button>' +
     '<div id="e-res"></div>' +
     '<details style="margin-top:6px"><summary class="small muted">구글지도 링크로 넣기</summary>' +
       '<div class="row" style="margin-top:6px"><input class="inp" id="e-link" placeholder="구글지도 → 공유 → 링크 복사"><button class="btn sm" id="e-resolve" style="flex:none;white-space:nowrap">가져오기</button></div>' +
