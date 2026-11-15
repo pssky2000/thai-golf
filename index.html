@@ -723,7 +723,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-31';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-32';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -987,7 +987,7 @@ function setSync(t) { syncMsg = t; updateSync(); }
 function loadAll() {
   return call('data').then(function (d) {
     if (S.queue.length && S.D) d.scores = S.D.scores;
-    S.D = d; S.me = d.me; saveCache();
+    S.D = d; S.me = d.me; saveCache(); setTimeout(resumeOrig, 1500);
     if (!S.boot) S.boot = { trip_title: d.settings.trip_title, start_date: d.settings.start_date, end_date: d.settings.end_date, pin_len: Number(d.settings.pin_len || 4), members: d.members.map(function (m) { return m.name; }) };
     if (!S.tab) S.tab = defaultTab();
     if (el('#main') && (el('.sheet-bg') || dragState || (document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName)))) { /* 입력 중이면 화면은 그대로 */ }
@@ -2800,6 +2800,7 @@ function flushQueue() {
 function setSave(t) { S.saveState = t; var e = el('#sst'); if (e) e.textContent = t; var g = el('#grp-st'); if (g) g.textContent = t; updateSync(); }
 function updateSync() { var e = el('#sync'); if (e) e.textContent = S.queue.length ? '📶 미전송 ' + S.queue.length + '건' : syncMsg; }
 window.addEventListener('online', flushQueue);
+window.addEventListener('online', function () { setTimeout(resumeOrig, 1500); });
 
 function refreshTotals(sc) {
   var t = totalOf(sc);
@@ -3911,18 +3912,49 @@ function origDataUrl(f) {
   if (/^image\/(jpeg|png|webp)$/.test(f.type) && f.size < 18 * 1024 * 1024) return fileDataUrl(f);
   return shrinkImage(f, 6000, 0.92);
 }
-var origQ = [], origRun = false;
-function queueOrig(date, id, f) { origQ.push({ date: date, id: id, f: f }); pumpOrig(); }
+/* 원본 대기열: 올릴 원본 사본을 폰(앱 저장소)에 잠시 보관 → 앱을 닫았다 열어도 이어서 올림. 다 올라가면 사본만 지움(갤러리 사진은 그대로) */
+var origQ = [], origRun = false, origHas = {}, origHold = 0;
+function pdel(k) { pdb().then(function (db) { if (!db) return; try { db.transaction('p', 'readwrite').objectStore('p').delete(k); } catch (e) {} }); }
+function origList() { try { return JSON.parse(localStorage.getItem('trip_origq') || '[]'); } catch (e) { return []; } }
+function origListSet(a) { try { localStorage.setItem('trip_origq', JSON.stringify(a)); } catch (e) {} }
+function origDone(id) { origListSet(origList().filter(function (x) { return x !== id; })); pdel('origb:' + id); delete origHas[id]; }
+function queueOrig(date, id, f) {
+  if (origHas[id]) return; origHas[id] = 1;
+  var l = origList(); if (l.indexOf(id) < 0) { l.push(id); origListSet(l); }
+  pput('origb:' + id, { date: date, id: id, f: f });
+  origQ.push({ date: date, id: id, f: f }); pumpOrig();
+}
+/* 앱을 열 때·다시 볼 때·인터넷이 돌아올 때: 남은 원본을 이어서 올림 */
+function resumeOrig() {
+  if (!S.D || !S.token || isRO()) return;
+  origList().forEach(function (id) {
+    if (origHas[id]) return;
+    var p = (S.D.photos || []).filter(function (x) { return x.id === id; })[0];
+    if (!p || p.orig_id) { origDone(id); return; }   // 지워졌거나 이미 원본 있음
+    origHas[id] = 1;
+    pget('origb:' + id).then(function (v) {
+      if (!v || !v.f) { origDone(id); return; }
+      origQ.push(v); pumpOrig();
+    });
+  });
+  if (!origRun && origQ.length) pumpOrig();
+}
 function pumpOrig() {
-  if (origRun) return;
-  var j = origQ.shift();
+  if (origRun || origHold > 0) return;
   var st = function (t) { els('[data-pst]').forEach(function (e) { if (!/올리는 중/.test(e.textContent) || /원본/.test(e.textContent)) e.textContent = t; }); };
+  if (!navigator.onLine) { st(origQ.length ? '💾 원본 ' + origQ.length + '장은 인터넷이 되면 올려요' : ''); return; }
+  var j = origQ.shift();
   if (!j) { st(''); return; }
   origRun = true;
-  st('💾 원본 저장 중… 남은 ' + (origQ.length + 1) + '장 (기다리지 않아도 돼요)');
+  st('💾 원본 저장 중… 남은 ' + (origQ.length + 1) + '장 (앱을 닫아도 다음에 이어서 올려요)');
   origDataUrl(j.f).then(function (u) { return call('addPhotoOrig', { id: j.id, dataUrl: u }); })
-    .then(function (r) { S.D.photos = r.photos; saveCache(); }, function () {})
-    .then(function () { origRun = false; pumpOrig(); });
+    .then(function (r) { S.D.photos = r.photos; saveCache(); origDone(j.id); origRun = false; pumpOrig(); },
+      function (e) {
+        origRun = false;
+        var msg = String((e && e.message) || '');
+        if (/찾을 수 없|형식|너무 큽|읽지 못|올린 사람만/.test(msg)) { origDone(j.id); pumpOrig(); return; }   // 다시 해도 안 되는 것은 버림
+        origQ.unshift(j); st('💾 원본 ' + origQ.length + '장은 나중에 이어서 올려요');   // 인터넷 등 → 다음 기회에
+      });
 }
 /* 폰에 저장할 사진: 원본이 있으면 원본, 없으면 줄인 사진. 원본은 커서 폰에 담아 두지 않음 */
 function loadForSave(p) {
@@ -4060,7 +4092,7 @@ function uploadPhotos(date, files) {
   var n = files.length, done = 0, fail = 0;
   var st = function (t) { els('[data-pdate="' + date + '"] [data-pst]').forEach(function (e) { e.textContent = t; }); };
   st('📤 사진 올리는 중… 0/' + n);
-  var list = pendPh[date] = (pendPh[date] || []), mine = [];
+  var list = pendPh[date] = (pendPh[date] || []), mine = []; origHold++;
   var drop = function (q) { var k = list.indexOf(q); if (k >= 0) list.splice(k, 1); };
   // 먼저 작은 사진만 만들어 칸에 바로 보여 주고, 큰 사진은 한 장씩 뒤에서 올림
   files.reduce(function (pr, f) {
@@ -4075,7 +4107,7 @@ function uploadPhotos(date, files) {
         return shrinkImage(q.f, 1600, 0.82).then(function (big) {
           return call('addPhoto', { date: date, dataUrl: big, thumbUrl: q.small }).then(function (r) {
             S.D.photos = r.photos; photoMem[r.photo.id + ':thumb'] = q.small; photoMem[r.photo.id + ':full'] = big; pput(r.photo.id + ':thumb', q.small);
-            q.pid = r.photo.id;
+            q.pid = r.photo.id; queueOrig(date, q.pid, q.f);   // 사본 보관(올리기는 이 묶음이 끝난 뒤)
           });
         }).then(function () { done++; drop(q); st('📤 사진 올리는 중… ' + done + '/' + n); refreshPhotoGrid(date); },
                 function () { fail++; drop(q); refreshPhotoGrid(date); });
@@ -4084,7 +4116,7 @@ function uploadPhotos(date, files) {
   }).then(function () {
     saveCache(); st(''); renderMain();
     toast(done + '장 올렸습니다.' + (fail ? ' (' + fail + '장은 실패 — 다시 올려 주세요)' : ''));
-    mine.forEach(function (q) { if (q.pid) queueOrig(date, q.pid, q.f); });   // 원본은 뒤에서 한 장씩
+    origHold--; pumpOrig();   // 원본은 뒤에서 한 장씩
   });
 }
 /* 크게 보기: 좌우로 넘기기(◀ ▶·밀기), 설명 고치기, 지우기(올린 사람·관리자) */
@@ -5116,7 +5148,7 @@ setInterval(function () {
   }).catch(function () {});
 }, 60000);
 setInterval(function () { if (S.D && /^\d{4}-/.test(S.tab)) rerenderSoft(); }, 60000);  // 다음 일정 남은 시간
-document.addEventListener('visibilitychange', function () { if (!document.hidden && S.D) { flushQueue(); call('data').then(function (d) { if (S.queue.length) d.scores = S.D.scores; S.D = d; saveCache(); rerenderSoft(); }).catch(function () {}); } });
+document.addEventListener('visibilitychange', function () { if (!document.hidden && S.D) { flushQueue(); setTimeout(resumeOrig, 1500); call('data').then(function (d) { if (S.queue.length) d.scores = S.D.scores; S.D = d; saveCache(); rerenderSoft(); }).catch(function () {}); } });
 
 /* ═════════ 뒤로가기 ═════════ */
 /* 원칙 (2026-11-12 결정): 확인 없이 바로 나감. 뒤로가기는 열린 창만 닫고, 창이 없으면 다른 앱처럼 그대로 꺼짐
