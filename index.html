@@ -135,6 +135,7 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .next.soon{background:linear-gradient(135deg,#b71c1c,#d32f2f);box-shadow:0 4px 14px rgba(211,47,47,.45);animation:nxpulse 1.6s ease-in-out infinite}
 @keyframes nxpulse{50%{box-shadow:0 0 0 6px rgba(211,47,47,.25)}}
 @media (prefers-reduced-motion:reduce){.next.soon{animation:none}}
+.next{margin-bottom:12px}
 .next .nx-i{font-size:calc(26px*var(--fs));line-height:1}
 .next .nx-b{flex:1;min-width:0}
 .next .nx-l{font-size:calc(12px*var(--fs));font-weight:700;opacity:.9}
@@ -563,7 +564,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.15-13';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.15-14';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1164,7 +1165,9 @@ function viewDay(date) {
   var adminTip = S.me.isAdmin ? '<p class="small muted" style="margin:6px 2px">✋ 관리자: 일정을 <b>꾹 누르면</b> 끌어서 순서를 바꿀 수 있고, 위 날짜 탭에 놓으면 다른 날로 옮겨집니다. 눌러서 열면 ✏️ 수정.</p>' : '';
   var addBtn = S.me.isAdmin ? '<button class="btn add-item" data-act="add">＋ 이 날에 일정 추가</button>' : '';
 
-  return nextCard(date) + golfDay(date) + fl + wxCard(date) + dayVouchers(date) +
+  // 알림 카드 순서: 골프 알림은 골프장 카드 위, 비행기 알림은 골프장 카드 아래(그날 골프가 먼저)·항공 카드 바로 위
+  var nc = nextCard(date), ncFl = nc.indexOf('next fl') >= 0;
+  return (ncFl ? golfDay(date) + nc : nc + golfDay(date)) + fl + wxCard(date) + dayVouchers(date) +
     '<div class="day-grid"><div class="map-col">' + map + '</div>' +
     '<div class="list-col">' + adminTip + '<ul class="tl" id="tl">' + list + '</ul>' + addBtn + '</div></div>' +
     photoCard(date, md(date) + '(' + wd(date) + ') 사진');
