@@ -507,9 +507,12 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
   body.printing-album .al-cover{padding-top:30mm}
 }
 .mrow-btn{width:100%;border:0;background:transparent;font:inherit;color:inherit;text-align:left;cursor:pointer}
-.seg-row .seg-res{margin-left:auto;text-align:right}
-.seg-lose{color:var(--warn)}
-.seg-detail{margin:-4px 0 4px;text-align:right}
+.seg-row{padding:8px 0;border-bottom:1px solid var(--line)}
+.seg-h{font-weight:700}
+.seg-res{margin-top:2px}
+.seg-lose{color:var(--warn);font-size:calc(16px*var(--fs))}
+.seg-tie{display:inline-block;font-size:calc(12px*var(--fs));background:var(--warn-soft);color:var(--warn);border-radius:999px;padding:1px 8px;margin-left:2px;white-space:nowrap}
+.seg-detail{margin-top:2px}
 .grp-brk{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:6px 0}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
@@ -667,7 +670,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-9';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-10';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -2460,10 +2463,10 @@ function restSegHtml(r) {   // (이름 주의: segHtml은 일정 사이 이동 �
   var h = '<div class="aw-sub">🍺 쉼터 내기 <span class="small muted">(구간 타수 꼴찌가 쉼터 계산)</span></div>';
   if (!b.length) h += '<p class="small muted" style="margin:4px 0">구간을 아직 안 정했어요. 쉼터에 도착하면 <b>함께 입력</b>에서 [🍺 여기서 쉼터]를 누르거나 아래에서 정하세요.</p>';
   else h += segs.map(function (s) {
-    var res = s.done ? '<b class="seg-lose">🍺 ' + s.losers.map(esc).join('·') + '</b> <span class="muted">' + s.max + '타' + (s.losers.length > 1 ? ' · 공동 꼴찌(나눠 냄)' : '') + '</span>'
+    var res = s.done ? '<b class="seg-lose">🍺 ' + s.losers.map(esc).join(' · ') + '</b> <span class="muted">' + s.max + '타</span>' + (s.losers.length > 1 ? ' <span class="seg-tie">공동 꼴찌 · 나눠 냄</span>' : '')
       : s.started ? '<span class="muted">진행 중 · ' + s.rows.filter(function (x) { return x.done; }).length + '/' + s.rows.length + '명 다 침</span>' : '<span class="muted">아직</span>';
-    return '<div class="aw-row seg-row"><span>' + s.i + '구간 <span class="muted">' + s.a + '~' + s.b + '번</span></span><span class="seg-res">' + res + '</span></div>' +
-      (s.done ? '<div class="seg-detail small muted">' + s.rows.slice().sort(function (x, y) { return x.sum - y.sum; }).map(function (x) { return esc(x.n) + ' ' + x.sum; }).join(' · ') + '</div>' : '');
+    return '<div class="seg-row"><div class="seg-h">' + s.i + '구간 <span class="muted">' + s.a + '~' + s.b + '번 홀</span></div><div class="seg-res">' + res + '</div>' +
+      (s.done ? '<div class="seg-detail small muted">' + s.rows.slice().sort(function (x, y) { return x.sum - y.sum; }).map(function (x) { return esc(x.n) + ' ' + x.sum; }).join(' · ') + '</div>' : '') + '</div>';
   }).join('');
   if (!isRO()) h += '<button class="btn sm" data-brk style="margin-top:6px">✂️ 구간 ' + (b.length ? '고치기' : '정하기') + '</button>';
   return h;
