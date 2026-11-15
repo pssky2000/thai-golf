@@ -436,6 +436,13 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .aw-holes .pick small{font-size:calc(11px*var(--fs));color:var(--sub);font-weight:600}
 .aw-holes .pick.dim{opacity:.45}
 .aw-holes .pick.on{opacity:1}
+.pack-card{display:block;width:100%;text-align:left;font:inherit;color:var(--ink);cursor:pointer;border:2px solid var(--warn)}
+.pk-cat{margin:14px 0 4px;font-weight:800;color:var(--pri)}
+.pk-row{display:flex;align-items:center;gap:4px;border-bottom:1px solid var(--line)}
+.pk-chk{flex:1;display:flex;align-items:center;gap:10px;border:0;background:transparent;font:inherit;color:var(--ink);text-align:left;padding:9px 2px;cursor:pointer;min-height:44px}
+.pk-box{flex:none;width:calc(24px*var(--fs));height:calc(24px*var(--fs));border:2px solid var(--sub);border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:900;color:#fff}
+.pk-row.on .pk-box{background:var(--pri);border-color:var(--pri)}
+.pk-row.on .pk-t{color:var(--sub);text-decoration:line-through}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
 .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
@@ -592,7 +599,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-2';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-3';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1274,15 +1281,69 @@ function fxHtml() {
 }
 
 /* ─── 전체 요약 ─── */
+/* ═════════ 🧳 준비물 체크리스트 (체크는 각자 폰에 저장, 내 것 추가 가능) ═════════ */
+var PACK = [
+  ['필수', ['여권 (유효기간 6개월 이상)', '전자항공권 (앱 › 정보 › 바우처)', '바트 현금 · 해외 결제 카드', '휴대폰 · 충전기', '보조배터리 (기내 가방에만)', '상비약 (소화제·지사제·두통약·밴드)', '여행자 보험', '해외 데이터 (유심·eSIM·로밍)']],
+  ['골프', ['골프백 · 항공 커버', '골프화', '장갑 여러 장', '공 · 티 · 볼마커', '모자 · 선캡', '팔토시 · 쿨토시', '선크림 · 선글라스', '골프웨어 (4라운드)', '캐디팁 바트 (하루 400~500)']],
+  ['옷 · 생활', ['반팔 · 반바지', '수영복', '슬리퍼', '얇은 겉옷 (에어컨 · 기내)', '두꺼운 겉옷 (12/20 한국 도착, 영하)', '세면도구 · 면도기', '우산 · 우비']],
+  ['폰 준비', ['이 앱 홈 화면에 설치', 'Grab 앱 설치 · 카드 등록', '카카오톡 단톡방 알림 켜기']]
+];
+function packState() { var s = LS.get('trip_pack', null) || {}; s.done = s.done || {}; s.mine = s.mine || []; return s; }
+function packItems() {
+  var st = packState(), out = [];
+  PACK.forEach(function (g) { g[1].forEach(function (t) { out.push({ k: g[0] + '|' + t, cat: g[0], t: t }); }); });
+  st.mine.forEach(function (t, i) { out.push({ k: 'mine|' + t, cat: '내가 추가', t: t, mine: i }); });
+  return out;
+}
+function packStats() { var st = packState(), it = packItems(); return { n: it.length, done: it.filter(function (x) { return st.done[x.k]; }).length }; }
+function packCard() {
+  var s = packStats(), pct = s.n ? Math.round(s.done / s.n * 100) : 0, left = dayDiff(localNow().date, S.D.settings.start_date);
+  return '<button class="card pack-card" data-pack><div class="row between"><b>🧳 준비물 체크</b><span class="muted small">' + (left > 0 ? '출발 ' + left + '일 전' : '') + ' ›</span></div>' +
+    '<div class="bar-bg"><div class="bar-fg' + (pct < 100 ? ' warn' : '') + '" style="width:' + pct + '%"></div></div>' +
+    '<div class="small">' + (s.done === s.n ? '✅ 다 챙겼어요!' : '<b>' + s.done + '</b> / ' + s.n + ' 챙김 · 남은 것 ' + (s.n - s.done) + '개') + '</div></button>';
+}
+function packOpen() {
+  var draw = function () {
+    var st = packState(), items = packItems(), s = packStats(), cats = [];
+    items.forEach(function (x) { if (cats.indexOf(x.cat) < 0) cats.push(x.cat); });
+    return '<h3>🧳 준비물 체크</h3><p class="small muted">체크는 이 폰에만 저장돼요. 다른 사람에게는 안 보여요.</p>' +
+      '<div class="bar-bg"><div class="bar-fg' + (s.done < s.n ? ' warn' : '') + '" style="width:' + (s.n ? Math.round(s.done / s.n * 100) : 0) + '%"></div></div><div class="small" style="margin-bottom:6px"><b>' + s.done + '</b> / ' + s.n + ' 챙김</div>' +
+      cats.map(function (c) {
+        var its = items.filter(function (x) { return x.cat === c; }), dn = its.filter(function (x) { return st.done[x.k]; }).length;
+        return '<div class="pk-cat">' + esc(c) + ' <span class="muted small">' + dn + '/' + its.length + '</span></div>' +
+          its.map(function (x) { var on = !!st.done[x.k]; return '<div class="pk-row' + (on ? ' on' : '') + '"><button type="button" class="pk-chk" data-pk="' + esc(x.k) + '"><span class="pk-box">' + (on ? '✓' : '') + '</span><span class="pk-t">' + esc(x.t) + '</span></button>' + (x.mine !== undefined ? '<button type="button" class="aw-del" data-pkdel="' + x.mine + '" aria-label="지우기">✕</button>' : '') + '</div>'; }).join('');
+      }).join('') +
+      '<label class="lb">＋ 내 준비물 추가</label><div class="row"><input class="inp" id="pk-new" placeholder="예) 혈압약, 돋보기"><button class="btn pri" id="pk-add" style="flex:none">추가</button></div>' +
+      '<div class="row between" style="margin-top:14px"><button class="btn sm ghost" id="pk-reset">체크 모두 지우기</button><button class="btn" id="pk-x">닫기</button></div>';
+  };
+  var sh = sheet(draw());
+  var bind = function () {
+    els('[data-pk]', sh).forEach(function (b) { b.onclick = function () { var st = packState(); if (st.done[b.dataset.pk]) delete st.done[b.dataset.pk]; else st.done[b.dataset.pk] = 1; LS.set('trip_pack', st); redraw(); }; });
+    els('[data-pkdel]', sh).forEach(function (b) { b.onclick = function () { var st = packState(), t = st.mine[Number(b.dataset.pkdel)]; st.mine.splice(Number(b.dataset.pkdel), 1); delete st.done['mine|' + t]; LS.set('trip_pack', st); redraw(); }; });
+    el('#pk-add', sh).onclick = function () { var v = el('#pk-new', sh).value.trim(); if (!v) return; var st = packState(); if (st.mine.indexOf(v) < 0) st.mine.push(v.slice(0, 40)); LS.set('trip_pack', st); redraw(true); };
+    el('#pk-new', sh).onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); el('#pk-add', sh).click(); } };
+    el('#pk-reset', sh).onclick = function () { confirmBox('체크 표시를 모두 지울까요? (내가 추가한 항목은 남아요)', '지우기').then(function (y) { if (y) { var st = packState(); st.done = {}; LS.set('trip_pack', st); } packOpen(); }); };   // 확인 창이 이 창을 대신하므로 다시 엶
+    el('#pk-x', sh).onclick = function () { closeSheet(); if (S.tab === 'all') renderMain(); };
+  };
+  var redraw = function (focusNew) {
+    var box = el('.sheet', sh) || sh, y = box.scrollTop;
+    box.innerHTML = draw(); box.scrollTop = y; bind();
+    if (focusNew) { var i = el('#pk-new', sh); if (i) { i.scrollIntoView({ block: 'center' }); } }
+  };
+  bind();
+}
+
 function viewAll() {
-  var html = flightsHtml() + fxHtml();
+  // 출발 전(출발일까지)은 준비물 카드를 맨 위에, 여행 중에는 맨 아래에 (도착일 지나면 숨김)
+  var nd = localNow().date, pk = nd <= S.D.settings.end_date ? packCard() : '', early = nd <= S.D.settings.start_date;
+  var html = (early ? pk : '') + flightsHtml() + fxHtml();
   dates().forEach(function (d) {
     var its = itemsOf(d).filter(function (i) { return i.fixed || i.type === 'golf' || i.type === 'flight' || i.type === 'hotel'; });
     html += '<div class="card daycard" data-go="' + d + '" style="cursor:pointer"><div class="row between"><b class="dhead">' + md(d) + ' (' + wd(d) + ') · ' + esc(dayLabel(d)) + '</b><span class="muted small">자세히 ›</span></div>' +
       its.map(function (i) { return '<div class="row small" style="margin-top:6px"><b style="width:46px">' + esc(i.time) + '</b><span>' + icon(i.type) + ' ' + esc(i.title) + (nameOf(i) ? ' · ' + esc(nameOf(i)) : '') + '</span></div>'; }).join('') +
       '</div>';
   });
-  return html;
+  return html + (early ? '' : pk);
 }
 
 /* ─── 날짜 화면 ─── */
@@ -3832,6 +3893,7 @@ function adminHtml() {
 function bindMain() {
   var m = el('#main');
   els('[data-go]', m).forEach(function (c) { c.onclick = function () { go(c.dataset.go); }; });
+  els('[data-pack]', m).forEach(function (c) { c.onclick = packOpen; });
   // 필수 태국어 · 관리자 상자
   els('[data-tcat]', m).forEach(function (b) { b.onclick = function () { S.thaiCat = b.dataset.tcat; renderMain(); }; });
   els('[data-tp]', m).forEach(function (b) {
