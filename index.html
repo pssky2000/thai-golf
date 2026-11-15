@@ -430,7 +430,12 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .aw-row .aw-who{margin-left:auto;font-weight:800}
 .aw-row>span:first-child{white-space:nowrap}
 .aw-del{border:0;background:transparent;color:var(--sub);font-size:calc(16px*var(--fs));padding:2px 6px;cursor:pointer}
-.aw-sub{margin-top:12px;padding-top:8px;border-top:1px dashed var(--line);font-weight:700}
+.aw-sub{margin:16px 0 4px;padding:7px 10px;border-radius:10px;background:var(--pri-soft);color:var(--pri);font-weight:800;font-size:calc(15px*var(--fs))}   /* 내기 칸 소제목: 띠로 구분 */
+.aw-sub.first{margin-top:10px}
+.aw-sub .muted,.aw-sub .small{color:var(--pri);opacity:.75;font-weight:600}
+.bd-row{align-items:baseline}
+.bd-who{flex:0 0 4.6em;font-weight:800}
+.bd-what{flex:1;min-width:0}
 .aw-holes{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
 .aw-holes .pick{padding:6px 0;border-radius:12px;display:flex;flex-direction:column;align-items:center;line-height:1.15;min-height:46px}
 .aw-holes .pick small{font-size:calc(11px*var(--fs));color:var(--sub);font-weight:600}
@@ -670,7 +675,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-10';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-11';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -2505,9 +2510,10 @@ function awardsHtml(r) {
   var anyHoles = names.some(function (n) { return bd[n].holes > 0; });
   var birdieRows = names.filter(function (n) { return bd[n].b.length || bd[n].e.length || bd[n].a.length; }).map(function (n) {
     var x = bd[n];
-    return '<div class="aw-row"><span class="aw-who">' + esc(n) + '</span><span>' + (x.a.length ? '🎉 홀인원 <b>' + x.a.length + '</b> <span class="muted">(' + x.a.join('·') + '번)</span> ' : '') + (x.e.length ? '🦅 이글 <b>' + x.e.length + '</b> <span class="muted">(' + x.e.join('·') + '번)</span> ' : '') + (x.b.length ? '🐦 버디 <b>' + x.b.length + '</b> <span class="muted">(' + x.b.join('·') + '번)</span>' : '') + '</span></div>';
+    return '<div class="aw-row bd-row"><span class="bd-who">' + esc(n) + '</span><span class="bd-what">' + (x.a.length ? '🎉 홀인원 <b>' + x.a.length + '</b> <span class="muted">(' + x.a.join('·') + '번)</span> ' : '') + (x.e.length ? '🦅 이글 <b>' + x.e.length + '</b> <span class="muted">(' + x.e.join('·') + '번)</span> ' : '') + (x.b.length ? '🐦 버디 <b>' + x.b.length + '</b> <span class="muted">(' + x.b.join('·') + '번)</span>' : '') + '</span></div>';
   }).join('');
   return '<div class="card aw"><b>🏆 ' + md(r.date) + ' 내기</b>' +
+    '<div class="aw-sub first">🎯 니어핀 · 롱기스트</div>' +
     (list.length ? list.map(function (a) {
       var mine = a.by === S.me.name || S.me.isAdmin;
       return '<div class="aw-row"><span>' + AW[a.kind][0] + ' ' + AW[a.kind][1] + ' <span class="muted">' + Number(a.hole) + '번 홀</span></span><b class="aw-who">' + esc(a.member) + '</b>' +
