@@ -142,6 +142,13 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .next .nx-p{font-size:calc(13px*var(--fs));opacity:.92;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .next .nx-left{flex:none;background:#fff;color:#c2410c;border-radius:12px;padding:6px 10px;text-align:center;font-weight:800;line-height:1.15;min-width:calc(60px*var(--fs))}
 .next.soon .nx-left{color:#c62828}
+/* 비행기 알림: 항공 카드(가는 날 파랑·오는 날 주황)와 헷갈리지 않게 진한 장미색 */
+.next.fl{background:linear-gradient(135deg,#9f1239,#e11d48);box-shadow:0 4px 14px rgba(225,29,72,.4)}
+.next.fl .nx-left{color:#be123c}
+.next.fl.soon{animation:nxpulse2 1.6s ease-in-out infinite}
+@keyframes nxpulse2{50%{box-shadow:0 0 0 6px rgba(225,29,72,.3)}}
+@media (prefers-reduced-motion:reduce){.next.fl.soon{animation:none}}
+.next .nx-air{font-size:calc(13px*var(--fs));margin-top:2px}
 .next .nx-left b{display:block;font-size:calc(17px*var(--fs));white-space:nowrap}
 .next .nx-left span{font-size:calc(12px*var(--fs))}
 .golf-day{display:flex;gap:12px;align-items:center;width:100%;margin:10px 0 12px;border-radius:var(--r);padding:12px 16px;background:var(--card);border:2px solid var(--pri);color:var(--ink);font:inherit;text-align:left;cursor:pointer}
@@ -556,7 +563,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.15-11';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.15-12';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1055,14 +1062,24 @@ function minsUntil(it) { var n = nowFor(it); return dayDiff(n.date, it.date) * 1
 function nextCard(date) {
   var n = localNow();
   if (n.date !== date && nowFor({ date: date, time: '00:00' }).date !== date) return '';
-  // 골프(티오프)만, 3시간 전부터 (사용자 결정 2026-11-15: 다른 일정은 덜 중요)
-  var its = itemsOf(date).filter(function (i) { return i.type === 'golf' && i.time && minsUntil(i) > 0 && minsUntil(i) <= 180; });
+  // 알림 카드: 골프는 티오프 3시간 전부터, 비행기 출발은 5시간 전부터 (사용자 결정 2026-11-15, 다른 일정은 카드 없음)
+  // 비행기는 항공 탭의 출발 날짜·시각과 같은 일정만 (도착·체크인 일정은 빼고)
+  var isDep = function (i) { return i.type === 'flight' && (S.D.flights || []).some(function (f) { return f.date === i.date && String(f.dep) === String(i.time); }); };
+  var its = itemsOf(date).filter(function (i) {
+    if (!i.time) return false;
+    var m = minsUntil(i);
+    return m > 0 && ((i.type === 'golf' && m <= 180) || (isDep(i) && m <= 300));
+  });
   if (!its.length) return '';
-  var nx = its[0], left = minsUntil(nx);
+  var nx = its[0], left = minsUntil(nx), fl = nx.type === 'flight';
   // 남은 시간은 오른쪽 흰 칸에 크게 ('1시간 20분'은 두 줄)
   var lt = durText(left).split(' ').map(function (t) { return '<b>' + t + '</b>'; }).join('');
-  return '<div class="next' + (left <= 30 ? ' soon' : '') + '"><div class="nx-i">' + icon(nx.type) + '</div><div class="nx-b"><div class="nx-l">⏰ 티오프까지</div>' +
-    '<div class="big">' + esc(nx.time) + ' ' + esc(nx.title) + '</div>' + (nameOf(nx) ? '<div class="nx-p">' + esc(nameOf(nx)) + '</div>' : '') + '</div>' +
+  // 비행기: 공항엔 출발 2시간 전까지 → 그 시각이 지나면 빨강 / 골프: 30분 이하면 빨강
+  var by = fl ? fromMin(toMin(nx.time) - 120) : '';
+  var soon = fl ? left <= 120 : left <= 30;
+  return '<div class="next' + (fl ? ' fl' : '') + (soon ? ' soon' : '') + '"><div class="nx-i">' + icon(nx.type) + '</div><div class="nx-b"><div class="nx-l">⏰ ' + (fl ? '비행기 출발까지' : '티오프까지') + '</div>' +
+    '<div class="big">' + esc(nx.time) + ' ' + esc(nx.title) + '</div>' + (nameOf(nx) ? '<div class="nx-p">' + esc(nameOf(nx)) + '</div>' : '') +
+    (fl ? '<div class="nx-air">🛄 공항엔 <b>' + by + '</b>까지</div>' : '') + '</div>' +
     '<div class="nx-left">' + lt + '<span>남음</span></div></div>';
 }
 
