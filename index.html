@@ -566,7 +566,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.15-17';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.15-18';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1089,7 +1089,7 @@ function nextCard(date) {
   var by = fl ? fromMin(toMin(nx.time) - 120) : '';
   var soon = fl ? left <= 120 : left <= 30;
   return '<div class="next' + (fl ? ' fl' : '') + (soon ? ' soon' : '') + '"><div class="nx-i">' + icon(nx.type) + '</div><div class="nx-b"><div class="nx-l">⏰ ' + (fl ? '비행기 출발까지' : '티오프까지') + '</div>' +
-    bigLine(nx, fl) + (!fl && nameOf(nx) ? '<div class="nx-p">' + esc(nameOf(nx)) + '</div>' : '') +
+    bigLine(nx, fl) +
     (fl ? '<div class="nx-air">🛄 공항엔 <b>' + by + '</b>까지</div>' : '') + '</div>' +
     '<div class="nx-left">' + lt + '<span>남음</span></div></div>';
 }
@@ -1101,7 +1101,8 @@ function bigLine(nx, fl) {
   // 윗줄: 시각(아주 크게) + 출발지(작고 진하게) / 아랫줄: 편명 · 공항(작게)
   if (fl) return '<div class="nx-time">' + esc(nx.time) + ' <span class="nx-from">' + esc(m ? m[2] : nx.title) + '</span></div>' +
     '<div class="nx-p">' + [m ? m[1] : '', nameOf(nx)].filter(Boolean).map(esc).join(' · ') + '</div>';
-  return '<div class="big">' + esc(nx.time) + ' ' + esc(nx.title) + '</div>';
+  // 골프: '08:00'(아주 크게) + '티오프'(작고 진하게) 한 줄만 — 골프장 이름은 바로 아래 골프장 카드에 있음
+  return '<div class="nx-time">' + esc(nx.time) + ' <span class="nx-from">' + esc(nx.title) + '</span></div>';
 }
 
 /* 골프 치는 날: 그날 골프장을 크게 (누르면 그 일정 열기) */
