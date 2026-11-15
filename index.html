@@ -443,6 +443,36 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .pk-box{flex:none;width:calc(24px*var(--fs));height:calc(24px*var(--fs));border:2px solid var(--sub);border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:900;color:#fff}
 .pk-row.on .pk-box{background:var(--pri);border-color:var(--pri)}
 .pk-row.on .pk-t{color:var(--sub);text-decoration:line-through}
+.wrap-card{display:block;width:100%;text-align:left;font:inherit;color:#2b1d00;cursor:pointer;border:0;background:linear-gradient(135deg,#ffe082,#ffb300)}
+.wrap-card .muted{color:#5d4300}
+.wrap-page{padding:4px 2px}
+.wp-head{text-align:center;margin:4px 0 12px}
+.wp-t{font-size:calc(21px*var(--fs));font-weight:900}
+.wp-s{font-size:calc(13px*var(--fs));color:var(--sub);margin-top:2px}
+.wp-win{margin:0 0 12px}
+.wp-sec{border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px;background:var(--card)}
+.wp-tbl{margin-top:6px;width:100%;table-layout:fixed}
+.wp-tbl th,.wp-tbl td{padding:5px 1px;font-size:calc(13px*var(--fs));text-align:center;white-space:nowrap;overflow:hidden}
+.wp-tbl th:nth-child(1),.wp-tbl td:nth-child(1){width:1.6em}
+.wp-tbl th:nth-child(2),.wp-tbl td:nth-child(2){width:4.2em;text-align:left}
+.wp-rw{margin-top:8px;font-size:calc(13px*var(--fs));line-height:1.6}
+.wp-king{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
+.wp-king:last-child{border-bottom:0}
+.wp-king b{margin-left:auto}
+.wp-thx{display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.wp-thx:last-child{border-bottom:0}
+.wp-thx>div{flex:1;min-width:0}
+.wp-amt{color:var(--good);white-space:nowrap}
+.wp-money{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px;text-align:center}
+.wp-money>div{display:flex;flex-direction:column;background:var(--bg);border-radius:10px;padding:8px 2px}
+.wp-money span:first-child{font-size:calc(12px*var(--fs));color:var(--sub)}
+.wp-money b{font-size:calc(16px*var(--fs))}
+.wp-day{margin:10px 0 4px;font-weight:700;font-size:calc(14px*var(--fs))}
+.wp-photos{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.wp-ph{position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;background:var(--bg)}
+.wp-ph img{width:100%;height:100%;object-fit:cover;display:block}
+.wp-ph .ld{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--sub)}
+.wp-end{text-align:center;margin:14px 0 6px;font-size:calc(15px*var(--fs));line-height:1.6}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
 .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
@@ -599,7 +629,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-3';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-4';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1333,10 +1363,122 @@ function packOpen() {
   bind();
 }
 
+/* ═════════ 🎉 여행 마무리 페이지 ═════════
+   마지막 라운드 날부터 요약 탭 맨 위 카드 → 한 화면에 최종 순위·우승자·내기·지원 감사·경비 요약·날짜별 사진.
+   [이미지로 보내기]는 화면을 그림 한 장으로 만들어 카톡 등으로 보냄(안 되면 내려받기). 관리자는 언제든 미리 보기 */
+var h2cP = null;
+function loadH2C() {
+  if (window.html2canvas) return Promise.resolve(window.html2canvas);
+  if (h2cP) return h2cP;
+  h2cP = new Promise(function (res, rej) {
+    var sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    sc.onload = function () { res(window.html2canvas); };
+    sc.onerror = function () { h2cP = null; rej(new Error('그림 만들기 도구를 불러오지 못했어요. 인터넷을 확인해 주세요.')); };
+    document.head.appendChild(sc);
+  });
+  return h2cP;
+}
+function wrapReady() {   // 마지막 라운드 날(현지)부터 회원에게 보임
+  var rs = rounds(); if (!rs.length) return localNow().date >= S.D.settings.end_date;
+  return localNow().date >= rs[rs.length - 1].date;
+}
+function wrapCard() {
+  var ready = wrapReady();
+  if (!ready && !S.me.isAdmin) return '';
+  return '<button class="card wrap-card" data-wrap><div class="row between"><b>🎉 여행 마무리</b><span class="muted small">' + (ready ? '보기' : '관리자 미리 보기') + ' ›</span></div>' +
+    '<div class="small" style="margin-top:4px">최종 순위 · 우승자 · 내기 · 지원 감사 · 날짜별 사진을 한 장으로</div></button>';
+}
+function wrapStandings() {
+  var rs = rounds(), names = memberNames();
+  var rows = names.map(function (n) {
+    var per = rs.map(function (r) { var t = totalOf(scoreOf(r.round_id, n)); return t && t.done ? t.t : null; });
+    var done = per.filter(function (x) { return x !== null; }), sum = done.reduce(function (a, b) { return a + b; }, 0);
+    return { n: n, per: per, cnt: done.length, sum: sum, avg: done.length ? sum / done.length : null, best: done.length ? Math.min.apply(null, done) : null };
+  });
+  rows.sort(function (a, b) { return b.cnt - a.cnt || a.sum - b.sum; });
+  var allDone = rs.length && rows.every(function (x) { return x.cnt === rs.length; });
+  var roundWin = rs.map(function (r) {
+    var best = null; names.forEach(function (n) { var t = totalOf(scoreOf(r.round_id, n)); if (t && t.done && (!best || t.t < best.t)) best = { n: n, t: t.t }; });
+    var ties = best ? names.filter(function (n) { var t = totalOf(scoreOf(r.round_id, n)); return t && t.done && t.t === best.t; }) : [];
+    return { r: r, best: best, ties: ties };
+  });
+  return { rs: rs, rows: rows, allDone: allDone, roundWin: roundWin };
+}
+function wrapHtml() {
+  var s = S.D.settings, st = wrapStandings(), names = memberNames();
+  var lead = st.rows[0] && st.rows[0].cnt ? st.rows[0] : null;
+  var h = '<div class="wrap-page" id="wrap-page">' +
+    '<div class="wp-head"><div class="wp-t">' + esc(s.trip_title) + '</div><div class="wp-s">' + esc(s.start_date.replace(/-/g, '.')) + ' ~ ' + esc(s.end_date.slice(5).replace('-', '.')) + ' · ' + names.map(esc).join(' · ') + '</div></div>';
+  // 우승
+  if (lead) h += '<div class="winner wp-win"><div>' + (st.allDone ? '🏆 최종 우승' : '🏌️ 지금 1위 (' + lead.cnt + '/' + st.rs.length + '라운드)') + '</div><div class="nm">' + esc(lead.n) + '</div><div>' + lead.cnt + '라운드 합계 ' + lead.sum + '타 · 평균 ' + lead.avg.toFixed(1) + ' · 베스트 ' + lead.best + '</div></div>';
+  // 순위표
+  h += '<div class="wp-sec"><b>🏅 전체 순위</b><table class="tbl wp-tbl"><tr><th></th><th>이름</th>' + st.rs.map(function (r) { return '<th>' + Number(r.date.slice(8)) + '일</th>'; }).join('') + '<th>합계</th></tr>' +
+    st.rows.map(function (x, i) { return '<tr' + (i === 0 && x.cnt ? ' class="first"' : '') + '><td>' + (x.cnt ? i + 1 : '-') + '</td><td>' + esc(x.n) + '</td>' + x.per.map(function (p) { return '<td>' + (p === null ? '-' : p) + '</td>'; }).join('') + '<td><b>' + (x.cnt ? x.sum : '-') + '</b></td></tr>'; }).join('') + '</table>' +
+    '<div class="wp-rw">' + st.roundWin.map(function (w) { return '<div>⛳ ' + md(w.r.date) + ' ' + esc(w.r.course) + ' — ' + (w.best ? '👑 <b>' + w.ties.map(esc).join(', ') + '</b> ' + w.best.t + '타' : '<span class="muted">기록 없음</span>') + '</div>'; }).join('') + '</div></div>';
+  // 내기
+  var t = {}; names.forEach(function (n) { t[n] = { near: 0, long: 0, b: 0, e: 0, a: 0 }; });
+  (S.D.awards || []).forEach(function (a) { if (t[a.member]) t[a.member][a.kind]++; });
+  st.rs.forEach(function (r) { var bd = birdiesOf(r); names.forEach(function (n) { t[n].b += bd[n].b.length; t[n].e += bd[n].e.length; t[n].a += bd[n].a.length; }); });
+  var king = function (k, label) {
+    var mx = Math.max.apply(null, names.map(function (n) { return t[n][k]; })); if (!mx) return '';
+    return '<div class="wp-king"><span>' + label + '</span><b>' + names.filter(function (n) { return t[n][k] === mx; }).map(esc).join(', ') + '</b><span class="muted">' + mx + '번</span></div>';
+  };
+  var kings = king('a', '🎉 홀인원') + king('e', '🦅 이글') + king('b', '🐦 버디 왕') + king('near', '🎯 니어핀 왕') + king('long', '🏌️ 롱기 왕');
+  if (kings) h += '<div class="wp-sec"><b>🏆 내기 왕</b>' + kings + '</div>';
+  // 지원 감사
+  var sups = S.D.wrapSupports || [], by = {};
+  sups.forEach(function (e) { (by[e.payer] = by[e.payer] || []).push(e); });
+  var payers = Object.keys(by);
+  if (payers.length) h += '<div class="wp-sec thanks"><b>🙏 지원 감사</b>' + payers.map(function (p) {
+    var sum = by[p].reduce(function (a, e) { return a + e.thb; }, 0);
+    return '<div class="wp-thx"><div><b>' + esc(p) + '</b> 님 <span class="small muted">덕분에 잘 먹고 잘 놀았습니다!</span><div class="small">' + by[p].map(function (e) { return md(e.date) + ' ' + esc(e.title) + ' ' + baht(e.thb); }).join(' · ') + '</div></div><b class="wp-amt">' + baht(sum) + '</b></div>';
+  }).join('') + '</div>';
+  // 경비 요약 (경비를 볼 수 있는 사람만)
+  if (canMoney()) {
+    var c = calcSettle();
+    if (c.total) h += '<div class="wp-sec"><b>💰 경비 요약</b><div class="wp-money"><div><span>현지 총 지출</span><b>' + baht(c.total) + '</b><span class="small muted">' + won(c.total * c.rate) + '</span></div>' +
+      '<div><span>1인 평균</span><b>' + baht(c.total / names.length) + '</b><span class="small muted">' + won(c.total / names.length * c.rate) + '</span></div>' +
+      '<div><span>공금 사용</span><b>' + baht(c.common) + '</b><span class="small muted">' + won(c.common * c.rate) + '</span></div></div></div>';
+  }
+  // 날짜별 사진 (⭐ 고른 사진 먼저, 없으면 최근 3장)
+  var ph = S.D.photos || [], ds = dates().filter(function (d) { return ph.some(function (p) { return p.date === d; }); });
+  if (ds.length) h += '<div class="wp-sec"><b>📸 날짜별 사진</b>' + ds.map(function (d) {
+    var list = ph.filter(function (p) { return p.date === d; }).sort(function (a, b) { return (String(b.star) === 'TRUE' || b.star === true) - (String(a.star) === 'TRUE' || a.star === true) || (a.at < b.at ? 1 : -1); }).slice(0, 3);
+    return '<div class="wp-day">' + md(d) + '(' + wd(d) + ') ' + esc(dayLabel(d)) + '</div><div class="wp-photos">' + list.map(function (p) { return '<div class="wp-ph"><img alt="" data-pimg="' + esc(p.id) + '"><span class="ld">…</span></div>'; }).join('') + '</div>';
+  }).join('') + '</div>';
+  h += '<div class="wp-end">덕분에 즐겁게 잘 다녀왔습니다 🙏<br><b>' + esc(s.trip_title) + '</b></div></div>';
+  return h;
+}
+function wrapOpen() {
+  var sh = sheet(wrapHtml() +
+    '<p class="small" id="wp-msg" style="min-height:18px;margin-top:8px"></p>' +
+    '<div class="row between"><button class="btn pri" id="wp-img">📤 이미지로 보내기</button><button class="btn" id="wp-x">닫기</button></div>');
+  bindPhotos(sh);
+  el('#wp-x', sh).onclick = closeSheet;
+  el('#wp-img', sh).onclick = function () {
+    var btn = this, msg = el('#wp-msg', sh); btn.disabled = true; msg.textContent = '그림으로 만드는 중… (사진이 많으면 몇 초 걸려요)';
+    loadH2C().then(function (h2c) {
+      var node = el('#wrap-page', sh), bg = getComputedStyle(el('.sheet') || document.body).backgroundColor;
+      return h2c(node, { backgroundColor: bg, scale: 2, useCORS: true, logging: false });
+    }).then(function (cv) {
+      return new Promise(function (ok) { cv.toBlob(ok, 'image/png'); });
+    }).then(function (blob) {
+      var name = '여행마무리_' + S.D.settings.start_date + '.png';
+      var file = window.File ? new File([blob], name, { type: 'image/png' }) : null;
+      if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+        return navigator.share({ files: [file], title: S.D.settings.trip_title }).then(function () { msg.textContent = '보냈어요.'; }, function () { msg.textContent = ''; });
+      }
+      var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+      msg.textContent = '그림을 내려받았어요. 갤러리 › Download에서 볼 수 있어요.';
+    }).catch(function (e) { msg.textContent = e.message || '그림을 만들지 못했어요.'; })
+      .then(function () { btn.disabled = false; });
+  };
+}
+
 function viewAll() {
   // 출발 전(출발일까지)은 준비물 카드를 맨 위에, 여행 중에는 맨 아래에 (도착일 지나면 숨김)
   var nd = localNow().date, pk = nd <= S.D.settings.end_date ? packCard() : '', early = nd <= S.D.settings.start_date;
-  var html = (early ? pk : '') + flightsHtml() + fxHtml();
+  var html = wrapCard() + (early ? pk : '') + flightsHtml() + fxHtml();
   dates().forEach(function (d) {
     var its = itemsOf(d).filter(function (i) { return i.fixed || i.type === 'golf' || i.type === 'flight' || i.type === 'hotel'; });
     html += '<div class="card daycard" data-go="' + d + '" style="cursor:pointer"><div class="row between"><b class="dhead">' + md(d) + ' (' + wd(d) + ') · ' + esc(dayLabel(d)) + '</b><span class="muted small">자세히 ›</span></div>' +
@@ -3894,6 +4036,7 @@ function bindMain() {
   var m = el('#main');
   els('[data-go]', m).forEach(function (c) { c.onclick = function () { go(c.dataset.go); }; });
   els('[data-pack]', m).forEach(function (c) { c.onclick = packOpen; });
+  els('[data-wrap]', m).forEach(function (c) { c.onclick = wrapOpen; });
   // 필수 태국어 · 관리자 상자
   els('[data-tcat]', m).forEach(function (b) { b.onclick = function () { S.thaiCat = b.dataset.tcat; renderMain(); }; });
   els('[data-tp]', m).forEach(function (b) {
