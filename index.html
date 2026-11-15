@@ -473,6 +473,39 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .wp-ph img{width:100%;height:100%;object-fit:cover;display:block}
 .wp-ph .ld{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--sub)}
 .wp-end{text-align:center;margin:14px 0 6px;font-size:calc(15px*var(--fs));line-height:1.6}
+.ro-bar{margin-top:6px;padding:6px 10px;border-radius:10px;background:var(--warn-soft);color:var(--warn);font-weight:700;font-size:calc(13px*var(--fs))}
+.ar-step{display:flex;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.ar-n{flex:none;width:calc(26px*var(--fs));height:calc(26px*var(--fs));border-radius:50%;background:var(--bg);border:2px solid var(--pri);color:var(--pri);display:flex;align-items:center;justify-content:center;font-weight:900}
+.ar-step.done .ar-n{background:var(--pri);color:#fff}
+.ar-b{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+.al-preview{margin-top:12px;background:#fff;color:#111;border-radius:12px;padding:10px;font-size:12px}
+.al-preview .al-page{border-bottom:2px dashed #ccc;padding:10px 0}
+.al-cover{text-align:center}
+.al-ct{font-size:24px;font-weight:900}
+.al-cs{color:#555;margin-top:4px}
+.al-cimg img{width:100%;max-height:60vh;object-fit:cover;border-radius:10px;margin:10px 0}
+.al-cm{font-size:15px}
+.al-cw{font-size:18px;font-weight:800;margin-top:8px;color:#b26a00}
+.al-page h2{font-size:17px;margin:0 0 8px;color:#1e6b45;border-bottom:2px solid #1e6b45;padding-bottom:3px}
+.al-page h3{font-size:14px;margin:12px 0 4px}
+.al-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.al-grid figure{margin:0;break-inside:avoid}
+.al-grid img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;display:block;background:#eee}
+.al-grid figcaption{font-size:11px;color:#444;margin-top:2px}
+.al-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.al-tbl th,.al-tbl td{border:1px solid #ccc;padding:4px 3px;text-align:center}
+.al-tbl small{font-weight:400;color:#666}
+.al-rw{margin-top:8px;line-height:1.7}
+.al-thx{margin:4px 0;line-height:1.6}
+.al-bye{text-align:center;margin-top:24px;font-size:16px;line-height:1.7}
+#printAlbum{display:none}
+@media print{
+  body.printing-album>*:not(#printAlbum){display:none!important}
+  body.printing-album #printAlbum{display:block!important;color:#000;background:#fff;font-size:12px}
+  body.printing-album .al-page{break-after:page}
+  body.printing-album .al-page:last-child{break-after:auto}
+  body.printing-album .al-cover{padding-top:30mm}
+}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
 .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
@@ -629,7 +662,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-4';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-5';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1203,7 +1236,8 @@ function render() {
       '<header class="top"><div class="row between"><h1 class="title">' + esc(s.trip_title) + '</h1>' +
         '<span class="dday">' + esc(ddTxt) + '</span></div>' +
         '<div class="row between small muted"><span>' + esc(S.me.name) + ' 님' + (S.me.isAdmin ? ' · 관리자' : '') + ' <span id="sync" class="save-st"></span></span>' +
-        '<button class="btn sm" data-fs title="글씨 크기 바꾸기">글씨 ' + fsLabel() + '</button></div></header>' +
+        '<button class="btn sm" data-fs title="글씨 크기 바꾸기">글씨 ' + fsLabel() + '</button></div>' +
+        (isRO() ? '<div class="ro-bar">🔒 여행이 끝나 읽기 전용이에요. 보기만 할 수 있어요.</div>' : '') + '</header>' +
       (isDay
         ? '<nav class="tabs"><div class="tabs-in">' + ds.map(function (d) {
             return '<button class="tab' + (d === S.tab ? ' on' : '') + (d === now.date ? ' today' : '') + '" data-tab="' + d + '"><span class="d">' + md(d) + ' ' + wd(d) + '</span><span class="s">' + esc(dayLabel(d)) + '</span></button>';
@@ -1214,7 +1248,7 @@ function render() {
     '<nav class="bnav" style="grid-template-columns:repeat(' + SECS.length + ',1fr)">' + SECS.map(function (x) {
       return '<button class="' + (x.k === sec ? 'on' : '') + '" data-sec="' + x.k + '"><span class="i">' + x.i + '</span><span>' + x.t + '</span></button>';
     }).join('') + '</nav>' +
-    (micOn() ? '<button class="mic-fab" id="mic-fab" aria-label="말로 하기">🎤</button>' : '');
+    (micOn() && !isRO() ? '<button class="mic-fab" id="mic-fab" aria-label="말로 하기">🎤</button>' : '');
 
   if (el('#mic-fab')) { el('#mic-fab').onclick = voiceOpen; placeMic(); }
   els('[data-tab]').forEach(function (b) { b.onclick = function () { go(b.dataset.tab); }; });
@@ -2354,7 +2388,9 @@ function viewScore() {
       '<div class="row" style="white-space:nowrap;justify-content:flex-end;flex-wrap:wrap;flex:1 1 0;min-width:0">' + (tt.f !== null || tt.b !== null || tt.x !== null || filled(holes) ? '<button class="btn sm bad" data-act="score-clear">🗑️ 지우기</button>' : '') +
       (who !== S.me.name ? '<button class="btn sm" data-for="">내 스코어로 돌아가기</button>' : '') + '</div></div></div>';
 
-  return '<div class="rounds">' + rs.map(function (x) { return '<button class="tab' + (x.round_id === r.round_id ? ' on' : '') + '" data-round="' + x.round_id + '"><span class="d">' + md(x.date) + '</span><span class="s">' + esc(x.course) + '</span></button>'; }).join('') + '</div>' +
+  var tabsR = '<div class="rounds">' + rs.map(function (x) { return '<button class="tab' + (x.round_id === r.round_id ? ' on' : '') + '" data-round="' + x.round_id + '"><span class="d">' + md(x.date) + '</span><span class="s">' + esc(x.course) + '</span></button>'; }).join('') + '</div>';
+  if (isRO()) return tabsR + '<div id="sc-tables">' + scoreTables(r) + '</div>' + photoCard(r.date, md(r.date) + ' ' + r.course + ' 사진');
+  return tabsR +
     '<div class="card scan"><b>📋 스코어카드 사진으로 입력</b><div class="small muted" style="margin:4px 0 8px">종이 스코어카드를 찍으면 점수를 읽어서 채워 줍니다. 각자 카드(1인 카드)는 <b>갤러리</b>에서 여러 장을 한꺼번에 골라도 돼요. 저장 전에 확인할 수 있어요.</div>' +
       '<div class="scan-btns"><label class="btn pri">카드 찍기<input type="file" accept="image/*" capture="environment" data-scan hidden></label>' +
       '<label class="btn">갤러리<input type="file" accept="image/*" multiple data-scan hidden></label></div>' +
@@ -2388,9 +2424,9 @@ function awardsHtml(r) {
     (list.length ? list.map(function (a) {
       var mine = a.by === S.me.name || S.me.isAdmin;
       return '<div class="aw-row"><span>' + AW[a.kind][0] + ' ' + AW[a.kind][1] + ' <span class="muted">' + Number(a.hole) + '번 홀</span></span><b class="aw-who">' + esc(a.member) + '</b>' +
-        (mine ? '<button class="aw-del" data-awdel="' + esc(a.id) + '" aria-label="지우기">✕</button>' : '') + '</div>';
+        (mine && !isRO() ? '<button class="aw-del" data-awdel="' + esc(a.id) + '" aria-label="지우기">✕</button>' : '') + '</div>';
     }).join('') : '<p class="small muted" style="margin:6px 0">니어핀·롱기스트 수상자를 누구나 적을 수 있어요.</p>') +
-    '<div class="grid2" style="margin-top:8px"><button class="btn" data-aw="near">🎯 니어핀 적기</button><button class="btn" data-aw="long">🏌️ 롱기스트 적기</button></div>' +
+    (isRO() ? '' : '<div class="grid2" style="margin-top:8px"><button class="btn" data-aw="near">🎯 니어핀 적기</button><button class="btn" data-aw="long">🏌️ 롱기스트 적기</button></div>') +
     '<div class="aw-sub">🐦 버디 · 이글 <span class="small muted">(홀별 스코어에서 저절로)</span></div>' +
     (birdieRows || '<p class="small muted" style="margin:4px 0 0">' + (anyHoles ? '아직 버디가 없어요.' : '홀별로 적으면 버디·이글을 저절로 세어 드려요.') + '</p>') +
     '</div>';
@@ -2463,7 +2499,7 @@ function scoreTables(r) {
       var t = x.t;
       var crown = t && t.done && t.t === best ? ' 👑' : '';
       return '<tr' + (crown ? ' class="first"' : '') + '><td>' + esc(x.n) + crown + '</td><td>' + (t && t.f !== null ? t.f : '-') + '</td><td>' + (t && t.b !== null ? t.b : '-') + '</td>' + (xcol ? '<td>' + (t && t.x !== null ? t.x : '-') + '</td>' : '') + '<td><b>' + (t && (t.f !== null || t.b !== null || t.x !== null) ? t.t : '-') + '</b>' + (t && t.holes !== null && t.holes > 0 && t.holes < 18 ? '<div class="small muted">' + t.holes + '홀</div>' : '') + '</td>' +
-        '<td>' + (x.n !== S.me.name ? '<button class="btn sm ghost" data-for="' + esc(x.n) + '">대신 입력</button>' : '<button class="btn sm ghost" data-editme>수정</button>') + '</td></tr>';
+        '<td>' + (isRO() ? '' : x.n !== S.me.name ? '<button class="btn sm ghost" data-for="' + esc(x.n) + '">대신 입력</button>' : '<button class="btn sm ghost" data-editme>수정</button>') + '</td></tr>';
     }).join('') + '</table></div></div>';
   return table + awardsHtml(r) + overallHtml() + awardsTotalHtml();
 }
@@ -3623,9 +3659,9 @@ function photosOf(date) { return (S.D.photos || []).filter(function (p) { return
 function photoCard(date, title) {
   var ps = photosOf(date);
   return '<div class="card" data-pdate="' + date + '"><div class="row between"><b>📸 ' + esc(title || md(date) + ' 사진') + '</b><span class="small muted">' + (ps.length ? ps.length + '장' : '') + '</span></div>' +
-    (ps.length ? '' : '<div class="small muted" style="margin-top:4px">이날 찍은 사진을 올려 두면 모두 같이 볼 수 있어요. 여러 장을 한꺼번에 골라도 돼요.</div>') +
+    (isRO() ? (ps.length ? '' : '<div class="small muted" style="margin-top:4px">사진이 없어요.</div>') : (ps.length ? '' : '<div class="small muted" style="margin-top:4px">이날 찍은 사진을 올려 두면 모두 같이 볼 수 있어요. 여러 장을 한꺼번에 골라도 돼요.</div>') +
     '<div class="scan-btns" style="margin-top:8px"><label class="btn pri">사진 찍기<input type="file" accept="image/*" capture="environment" data-pup="' + date + '" hidden></label>' +
-    '<label class="btn">갤러리<input type="file" accept="image/*" multiple data-pup="' + date + '" hidden></label></div>' +
+    '<label class="btn">갤러리<input type="file" accept="image/*" multiple data-pup="' + date + '" hidden></label></div>') +
     '<div class="small" data-pst style="margin-top:6px;color:var(--pri)"></div>' +
     (ps.length ? '<div class="pgrid">' + ps.map(function (p) {
       return '<button class="pth" data-pho="' + esc(p.id) + '"><span class="ld">…</span><img data-pimg="' + esc(p.id) + '" alt="">' + (p.caption ? '<span class="cap">' + esc(p.caption) + '</span>' : '') + '</button>';
@@ -3668,20 +3704,25 @@ function openPhoto(date, id) {
   function draw() {
     ps = photosOf(date); if (!ps.length) { closeSheet(); renderMain(); return; }
     if (i >= ps.length) i = ps.length - 1;
-    var p = ps[i], mine = p.by === S.me.name || S.me.isAdmin;
+    var p = ps[i], mine = (p.by === S.me.name || S.me.isAdmin) && !isRO();
     el('#pv', sh).innerHTML =
       '<div class="pv-top"><span class="small">' + (i + 1) + ' / ' + ps.length + ' · ' + md(date) + '(' + wd(date) + ')</span><button class="btn sm" data-close>✕ 닫기</button></div>' +
       '<div class="pv-img"><img id="pv-im" alt=""><span id="pv-ld" class="small" style="position:absolute;color:#aaa">불러오는 중…</span>' +
         (i > 0 ? '<button class="pv-nav" data-pvgo="-1" style="left:6px">‹</button>' : '') + (i < ps.length - 1 ? '<button class="pv-nav" data-pvgo="1" style="right:6px">›</button>' : '') + '</div>' +
       '<div class="pv-cap" id="pv-cap">' + esc(p.caption || '') + '</div>' +
       '<div class="small" style="color:#aaa">' + esc(p.by) + ' · ' + esc(String(p.at).slice(5).replace('-', '/')) + '</div>' +
-      (mine ? '<div class="row" style="margin-top:10px;gap:8px"><button class="btn sm" data-pvcap>✏️ 설명</button><button class="btn sm bad" data-pvdel>🗑️ 지우기</button></div>' : '');
+      (mine || S.me.isAdmin ? '<div class="row" style="margin-top:10px;gap:8px">' + (S.me.isAdmin ? '<button class="btn sm' + (starred(p) ? ' pri' : '') + '" data-pvstar>' + (starred(p) ? '⭐ 앨범에 넣음' : '☆ 앨범에 넣기') + '</button>' : '') + (mine ? '<button class="btn sm" data-pvcap>✏️ 설명</button><button class="btn sm bad" data-pvdel>🗑️ 지우기</button>' : '') + '</div>' : '');
     els('[data-close]', sh).forEach(function (b) { b.onclick = function () { closeSheet(); if (changed) renderMain(); }; });
     var im = el('#pv-im', sh);
     var show = function (u) { if (document.body.contains(im)) { im.src = u; var l = el('#pv-ld', sh); if (l) l.remove(); } };
     loadPhoto(p.id, 'thumb').then(show, function () {});
     loadPhoto(p.id, 'full').then(show, function () { var l = el('#pv-ld', sh); if (l) l.textContent = '불러오지 못했습니다.'; });
     els('[data-pvgo]', sh).forEach(function (b) { b.onclick = function () { i += Number(b.dataset.pvgo); draw(); }; });
+    var sb = el('[data-pvstar]', sh);
+    if (sb) sb.onclick = function () {
+      var on = !starred(p); p.star = on ? 'Y' : ''; changed = true; draw();
+      call('setPhoto', { id: p.id, star: on }).then(function (r) { S.D.photos = r.photos; saveCache(); }).catch(function (e) { p.star = on ? '' : 'Y'; draw(); toast(e.message); });
+    };
     var cb = el('[data-pvcap]', sh);
     if (cb) cb.onclick = function () {
       el('#pv-cap', sh).innerHTML = '<div class="row" style="gap:6px"><input class="inp" id="pv-in" maxlength="80" placeholder="예) 3번 홀 버디!" value="' + esc(p.caption || '') + '" style="flex:1;background:#1d221f;color:#eee"><button class="btn pri sm" id="pv-ok">저장</button></div>';
@@ -4011,9 +4052,113 @@ function myRequests() {
   return '<div class="small" style="margin-top:10px"><b>내 요청</b>' + mine.map(function (r) { return '<div>· ' + esc(r.text) + ' <span class="chip' + (r.status === '대기' ? ' warn' : '') + '">' + esc(r.status) + '</span></div>'; }).join('') + '</div>';
 }
 function itemLabel(id) { var it = S.D.items.filter(function (x) { return x.id === id; })[0]; return it ? md(it.date) + ' ' + it.time + ' ' + (it.display || it.title) : ''; }
+/* ═════════ 📦 여행 보관 · 종료 (관리자) ═════════
+   ① 사진 앨범 PDF(⭐ 고른 사진 → 인쇄 · PDF로 저장)  ② 기록 시트 사본(드라이브 '보관' 폴더)  ③ 사진 묶음 링크(보기 전용)
+   ④ 읽기 전용 (②를 끝내야 켜짐) — 회원은 보기만, 데이터는 지우지 않음 */
+function isRO() { return !!(S.D && S.D.readOnly && !(S.me && S.me.isAdmin)); }
+function starred(p) { return p.star === 'Y' || p.star === true || String(p.star).toUpperCase() === 'TRUE'; }
+function archiveCard() {
+  var st = S.D.settings || {}, nStar = (S.D.photos || []).filter(starred).length, nPh = (S.D.photos || []).length;
+  var step = function (n, done, title, body) { return '<div class="ar-step' + (done ? ' done' : '') + '"><div class="ar-n">' + (done ? '✓' : n) + '</div><div class="ar-b"><b>' + title + '</b>' + body + '</div></div>'; };
+  return '<div class="card"><b>📦 여행 보관 · 종료</b><p class="small muted">여행이 끝나면 위에서부터 차례로 하세요. 데이터는 지우지 않아요.</p>' +
+    step(1, false, '📖 사진 앨범 PDF', '<div class="small muted">표지 · 날짜별 사진 · 스코어 · 지원 감사. 사진 ' + nPh + '장 중 ⭐ ' + nStar + '장 고름 (사진을 크게 열어 ⭐ 누르기, 안 고른 날은 모두 들어가요)</div><button class="btn sm pri" data-act="album">앨범 만들기</button>') +
+    step(2, !!st.archive_sheet_at, '📊 기록 시트 사본', st.archive_sheet_at ? '<div class="small">' + esc(st.archive_sheet_at) + ' 만듦 · <a target="_blank" href="' + esc(st.archive_sheet_url) + '">열기 ↗</a> (파일 › 다운로드 › 엑셀)</div><button class="btn sm" data-act="ar-sheet">다시 만들기</button>'
+      : '<div class="small muted">일정·스코어·경비·정산·변경기록이 담긴 시트를 드라이브 「보관」 폴더에 통째로 복사해요.</div><button class="btn sm pri" data-act="ar-sheet">사본 만들기</button>') +
+    step(3, !!st.photo_share_url, '📷 사진 묶음 링크', st.photo_share_url ? '<div class="small">링크가 있는 사람은 사진 원본을 볼 수 있어요(보기 전용).</div><div class="row wrap-row" style="margin-top:4px"><button class="btn sm pri" data-act="ar-copy">링크 복사</button><a class="btn sm" target="_blank" href="' + esc(st.photo_share_url) + '">열기 ↗</a><button class="btn sm ghost" data-act="ar-unshare">공유 끄기</button></div>'
+      : '<div class="small muted">드라이브 「사진」 폴더를 <b>링크가 있는 사람 보기</b>로 공유해요. 단톡방에 링크를 올리면 회원이 원본을 한꺼번에 받을 수 있어요.</div><button class="btn sm pri" data-act="ar-share">링크 만들기</button>') +
+    step(4, !!S.D.readOnly, '🔒 읽기 전용', S.D.readOnly ? '<div class="small">지금 <b>읽기 전용</b>이에요. 회원은 보기만 할 수 있어요.</div><button class="btn sm" data-act="ar-ro0">다시 고칠 수 있게 열기</button>'
+      : '<div class="small muted">회원은 일정·사진·스코어를 계속 볼 수 있지만 바꿀 수는 없어요.' + (st.archive_sheet_at ? '' : ' <b>② 시트 사본을 먼저 만들어야 켤 수 있어요.</b>') + '</div><button class="btn sm' + (st.archive_sheet_at ? ' pri' : '') + '" data-act="ar-ro1"' + (st.archive_sheet_at ? '' : ' disabled') + '>읽기 전용 켜기</button>') +
+    '</div>';
+}
+function archiveAct(act, b) {
+  var setS = function (k, v) { S.D.settings = S.D.settings || {}; S.D.settings[k] = v; saveCache(); };
+  if (act === 'album') return albumOpen();
+  if (act === 'ar-sheet') {
+    b.disabled = true; b.textContent = '복사하는 중…';
+    return call('archiveSheet', {}).then(function (r) { setS('archive_sheet_url', r.url); setS('archive_sheet_at', r.at); toast('보관 폴더에 시트 사본을 만들었어요.'); renderMain(); })
+      .catch(function (e) { toast(e.message); renderMain(); });
+  }
+  if (act === 'ar-share' || act === 'ar-unshare') {
+    var on = act === 'ar-share';
+    return confirmBox(on ? '드라이브 「사진」 폴더를 "링크가 있는 사람은 누구나 보기"로 공유할까요? 링크를 받은 사람은 사진 원본을 볼 수 있어요.' : '사진 폴더 공유를 끌까요? 이미 보낸 링크로는 더 이상 볼 수 없어요.', on ? '공유하기' : '공유 끄기').then(function (y) {
+      if (!y) return;
+      call('sharePhotos', { on: on }).then(function (r) { setS('photo_share_url', r.url); toast(on ? '사진 링크를 만들었어요. [링크 복사]로 단톡방에 올리세요.' : '공유를 껐어요.'); renderMain(); }).catch(function (e) { toast(e.message); });
+    });
+  }
+  if (act === 'ar-copy') {
+    var u = (S.D.settings || {}).photo_share_url; if (!u) return;
+    return (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(function () { toast('링크를 복사했어요. 단톡방에 붙여 넣으세요.'); }, function () { prompt('이 링크를 길게 눌러 복사하세요', u); });
+  }
+  if (act === 'ar-ro1' || act === 'ar-ro0') {
+    var on2 = act === 'ar-ro1';
+    return confirmBox(on2 ? '읽기 전용으로 바꿀까요? 회원은 보기만 할 수 있고 스코어·사진·댓글을 바꿀 수 없어요. (관리자는 그대로, 언제든 다시 열 수 있어요)' : '다시 고칠 수 있게 열까요?', on2 ? '읽기 전용 켜기' : '열기').then(function (y) {
+      if (!y) return;
+      call('setReadOnly', { on: on2 }).then(function (r) { S.D.readOnly = r.readOnly; saveCache(); toast(on2 ? '읽기 전용으로 바꿨어요.' : '다시 열었어요.'); renderMain(); }).catch(function (e) { toast(e.message); });
+    });
+  }
+}
+/* 📖 사진 앨범: 미리 보기 창 → [PDF로 저장] (인쇄 창에서 'PDF로 저장') */
+function albumPhotos(d) {
+  var ps = photosOf(d), st = ps.filter(starred);
+  return st.length ? st : ps;
+}
+function albumHtml() {
+  var s = S.D.settings, st = wrapStandings(), names = memberNames(), lead = st.allDone && st.rows[0] && st.rows[0].cnt ? st.rows[0] : null;
+  var cover = (S.D.photos || []).filter(starred)[0] || (S.D.photos || [])[0];
+  var h = '<section class="al-page al-cover"><div class="al-ct">' + esc(s.trip_title) + '</div><div class="al-cs">' + esc(s.start_date.replace(/-/g, '.')) + ' ~ ' + esc(s.end_date.replace(/-/g, '.')) + '</div>' +
+    (cover ? '<div class="al-cimg"><img data-alimg="' + esc(cover.id) + '" alt=""></div>' : '') +
+    '<div class="al-cm">' + names.map(esc).join(' · ') + '</div>' + (lead ? '<div class="al-cw">🏆 우승 ' + esc(lead.n) + '</div>' : '') + '</section>';
+  dates().forEach(function (d) {
+    var ps = albumPhotos(d); if (!ps.length) return;
+    h += '<section class="al-page"><h2>' + md(d) + ' (' + wd(d) + ') · ' + esc(dayLabel(d)) + '</h2><div class="al-grid">' + ps.map(function (p) {
+      return '<figure><img data-alimg="' + esc(p.id) + '" alt="">' + (p.caption ? '<figcaption>' + esc(p.caption) + '</figcaption>' : '') + '</figure>';
+    }).join('') + '</div></section>';
+  });
+  // 스코어
+  h += '<section class="al-page"><h2>⛳ 골프 스코어</h2><table class="al-tbl"><tr><th>순위</th><th>이름</th>' + st.rs.map(function (r) { return '<th>' + md(r.date) + '<br><small>' + esc(r.course) + '</small></th>'; }).join('') + '<th>합계</th><th>평균</th></tr>' +
+    st.rows.map(function (x, i) { return '<tr><td>' + (x.cnt ? i + 1 : '-') + '</td><td>' + esc(x.n) + '</td>' + x.per.map(function (p) { return '<td>' + (p === null ? '-' : p) + '</td>'; }).join('') + '<td><b>' + (x.cnt ? x.sum : '-') + '</b></td><td>' + (x.avg === null ? '-' : x.avg.toFixed(1)) + '</td></tr>'; }).join('') + '</table>' +
+    '<div class="al-rw">' + st.roundWin.map(function (w) { return '<div>' + md(w.r.date) + ' ' + esc(w.r.course) + ' — ' + (w.best ? '👑 ' + w.ties.map(esc).join(', ') + ' ' + w.best.t + '타' : '기록 없음') + '</div>'; }).join('') + '</div>';
+  var aw = (S.D.awards || []).slice().sort(function (a, b) { return a.round_id < b.round_id ? -1 : 1; });
+  if (aw.length) h += '<h3>🏆 내기</h3><div class="al-rw">' + aw.map(function (a) { var r = S.D.rounds.filter(function (x) { return x.round_id === a.round_id; })[0]; return '<div>' + (r ? md(r.date) + ' ' : '') + AW[a.kind][0] + ' ' + AW[a.kind][1] + ' ' + Number(a.hole) + '번 홀 — ' + esc(a.member) + '</div>'; }).join('') + '</div>';
+  h += '</section>';
+  // 지원 감사
+  var sups = S.D.wrapSupports || [], by = {}; sups.forEach(function (e) { (by[e.payer] = by[e.payer] || []).push(e); });
+  h += '<section class="al-page al-end">' + (Object.keys(by).length ? '<h2>🙏 지원 감사</h2>' + Object.keys(by).map(function (p) { return '<div class="al-thx"><b>' + esc(p) + '</b> 님 — ' + by[p].map(function (e) { return md(e.date) + ' ' + esc(e.title) + ' ' + baht(e.thb); }).join(' · ') + '</div>'; }).join('') : '') +
+    '<div class="al-bye">덕분에 즐겁게 잘 다녀왔습니다 🙏<br><b>' + esc(s.trip_title) + '</b></div></section>';
+  return h;
+}
+function albumOpen() {
+  var n = 0; dates().forEach(function (d) { n += albumPhotos(d).length; });
+  var sh = sheet('<h3>📖 사진 앨범 미리 보기</h3><p class="small muted">사진 ' + n + '장 · ⭐ 고른 사진이 있는 날은 그 사진만, 없는 날은 모두 들어가요. [PDF로 저장]을 누르면 인쇄 창이 열려요 → 프린터에서 <b>PDF로 저장</b>을 고르세요.</p>' +
+    '<p class="small" id="al-msg" style="min-height:18px"></p>' +
+    '<div class="row between"><button class="btn pri" id="al-print">🖨️ PDF로 저장</button><button class="btn" id="al-x">닫기</button></div>' +
+    '<div class="al-preview" id="al-prev">' + albumHtml() + '</div>');
+  var loadAll = function (root, size) {
+    var ims = els('img[data-alimg]', root);
+    return Promise.all(ims.map(function (im) { return loadPhoto(im.dataset.alimg, size).then(function (u) { im.src = u; }, function () { im.alt = '(사진을 불러오지 못했어요)'; }); }));
+  };
+  loadAll(el('#al-prev', sh), 'thumb');
+  el('#al-x', sh).onclick = closeSheet;
+  el('#al-print', sh).onclick = function () {
+    var btn = this, msg = el('#al-msg', sh); btn.disabled = true; msg.textContent = '큰 사진을 불러오는 중… (사진이 많으면 조금 걸려요)';
+    var d = el('#printAlbum');
+    if (!d) { d = document.createElement('div'); d.id = 'printAlbum'; document.body.appendChild(d); }
+    d.innerHTML = albumHtml();
+    loadAll(d, 'full').then(function () {
+      return Promise.all(els('img', d).map(function (im) { return im.complete ? 0 : new Promise(function (ok) { im.onload = im.onerror = ok; }); }));
+    }).then(function () {
+      msg.textContent = '인쇄 창에서 "PDF로 저장"을 고르세요.'; btn.disabled = false;
+      document.body.classList.add('printing-album');
+      var done = function () { document.body.classList.remove('printing-album'); window.removeEventListener('afterprint', done); };
+      window.addEventListener('afterprint', done);
+      setTimeout(function () { window.print(); setTimeout(done, 1500); }, 80);
+    });
+  };
+}
+
 function adminHtml() {
   var reqs = S.D.requests.slice().reverse();
-  return '<div class="card"><b>✋ 수정 요청 (' + reqs.filter(function (r) { return r.status === '대기'; }).length + '건 대기)</b>' +
+  return archiveCard() + '<div class="card"><b>✋ 수정 요청 (' + reqs.filter(function (r) { return r.status === '대기'; }).length + '건 대기)</b>' +
     (reqs.length ? reqs.map(function (r) {
       return '<div style="border-top:1px solid var(--line);padding:8px 0;margin-top:6px"><div class="small muted">' + esc(r.member) + ' · ' + esc(r.at.slice(5)) + (r.item_id ? ' · ' + esc(itemLabel(r.item_id)) : '') + '</div><div>' + esc(r.text) + '</div>' +
         (r.status === '대기' ? '<div class="row" style="margin-top:6px">' + (r.item_id ? '<button class="btn sm" data-ropen="' + esc(r.item_id) + '">일정 열기</button>' : '') + '<button class="btn sm pri" data-res="' + esc(r.id) + '" data-st="반영">반영함</button><button class="btn sm" data-res="' + esc(r.id) + '" data-st="반려">반려</button></div>' : '<span class="chip">' + esc(r.status) + '</span>') + '</div>';
@@ -4089,6 +4234,7 @@ function bindMain() {
   els('[data-act]', m).forEach(function (b) {
     b.onclick = function () {
       var a = b.dataset.act;
+      if (a === 'album' || a.indexOf('ar-') === 0) { archiveAct(a, b); return; }   // 여행 보관 · 종료
       if (a === 'edit-on') { S.editMode = true; renderMain(); }
       else if (a === 'edit-off') { S.editMode = false; renderMain(); }
       else if (a === 'add') editItem(null);
