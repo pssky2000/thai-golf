@@ -519,6 +519,11 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .seg-tie{display:inline-block;font-size:calc(12px*var(--fs));background:var(--warn-soft);color:var(--warn);border-radius:999px;padding:1px 8px;margin-left:2px;white-space:nowrap}
 .seg-detail{margin-top:2px}
 .grp-brk{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:6px 0}
+.rounds .tab-all{justify-content:center}
+.rounds .tab-all .d{font-size:calc(16px*var(--fs))}
+.sc-alllink{display:block;width:100%;margin:-2px 0 12px;text-align:center}
+.aw-tot th:nth-child(2),.aw-tot td:nth-child(2){width:auto}
+.aw-tot th:first-child,.aw-tot td:first-child{width:4.6em;text-align:left}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
 .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
@@ -675,7 +680,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-11';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-12';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -2379,7 +2384,11 @@ function viewScore() {
   var rs = rounds();
   if (!rs.length) return '<p class="muted">라운드가 없습니다.</p>';
   if (!S.scoreRound) S.scoreRound = defaultRound();
-  var r = rs.filter(function (x) { return x.round_id === S.scoreRound; })[0] || rs[0];
+  var allTab = S.scoreRound === 'all';   // 🏅 전체: 모든 라운드를 합친 순위·내기 합계 (날짜 탭마다 반복되던 것을 따로 뺌)
+  var r = allTab ? null : rs.filter(function (x) { return x.round_id === S.scoreRound; })[0] || rs[0];
+  var tabsR = '<div class="rounds" style="grid-template-columns:repeat(' + rs.length + ',1fr) .85fr">' + rs.map(function (x) { return '<button class="tab' + (r && x.round_id === r.round_id ? ' on' : '') + '" data-round="' + x.round_id + '"><span class="d">' + md(x.date) + '</span><span class="s">' + esc(x.course) + '</span></button>'; }).join('') +
+    '<button class="tab tab-all' + (allTab ? ' on' : '') + '" data-round="all"><span class="d">🏅</span><span class="s">전체</span></button></div>';
+  if (allTab) return tabsR + overallHtml() + awardsTotalHtml();
   var who = S.scoreFor || S.me.name;
   var members = S.D.members.map(function (m) { return m.name; });
   var sc = scoreOf(r.round_id, who) || { mode: LS.get('trip_mode', 'half'), front: '', back: '', holes: '' };
@@ -2407,7 +2416,6 @@ function viewScore() {
       '<div class="row" style="white-space:nowrap;justify-content:flex-end;flex-wrap:wrap;flex:1 1 0;min-width:0">' + (tt.f !== null || tt.b !== null || tt.x !== null || filled(holes) ? '<button class="btn sm bad" data-act="score-clear">🗑️ 지우기</button>' : '') +
       (who !== S.me.name ? '<button class="btn sm" data-for="">내 스코어로 돌아가기</button>' : '') + '</div></div></div>';
 
-  var tabsR = '<div class="rounds">' + rs.map(function (x) { return '<button class="tab' + (x.round_id === r.round_id ? ' on' : '') + '" data-round="' + x.round_id + '"><span class="d">' + md(x.date) + '</span><span class="s">' + esc(x.course) + '</span></button>'; }).join('') + '</div>';
   if (isRO()) return tabsR + '<div id="sc-tables">' + scoreTables(r) + '</div>' + photoCard(r.date, md(r.date) + ' ' + r.course + ' 사진');
   return tabsR +
     '<div class="card scan"><b>📋 스코어카드 사진으로 입력</b><div class="small muted" style="margin:4px 0 8px">종이 스코어카드를 찍으면 점수를 읽어서 채워 줍니다. 각자 카드(1인 카드)는 <b>갤러리</b>에서 여러 장을 한꺼번에 골라도 돼요. 저장 전에 확인할 수 있어요.</div>' +
@@ -2536,9 +2544,9 @@ function awardsTotalHtml() {
   var ace = names.some(function (n) { return t[n].a; });
   if (!any) return '';
   var rows = names.slice().sort(function (a, b) { var A = t[a], B = t[b]; return (B.near + B.long + B.b + B.e * 2 + B.a * 3) - (A.near + A.long + A.b + A.e * 2 + A.a * 3); });
-  return '<div class="card"><b>🏆 내기 합계 (전체 라운드)</b><div style="overflow-x:auto"><table class="tbl" style="margin-top:6px"><tr><th>이름</th><th>🎯 니어</th><th>🏌️ 롱기</th><th>🐦 버디</th><th>🦅 이글</th>' + (ace ? '<th>🎉 홀인원</th>' : '') + '<th>🍺 쉼터</th></tr>' +
+  return '<div class="card"><b>🏆 내기 합계 (전체 라운드)</b><table class="tbl wp-tbl aw-tot"><tr><th>이름</th><th>🎯</th><th>🏌️</th><th>🐦</th><th>🦅</th>' + (ace ? '<th>🎉</th>' : '') + '<th>🍺</th></tr>' +
     rows.map(function (n) { var x = t[n]; return '<tr><td>' + esc(n) + '</td><td>' + (x.near || '-') + '</td><td>' + (x.long || '-') + '</td><td>' + (x.b || '-') + '</td><td>' + (x.e || '-') + '</td>' + (ace ? '<td>' + (x.a || '-') + '</td>' : '') + '<td>' + (x.pay || '-') + '</td></tr>'; }).join('') +
-    '</table></div></div>';
+    '</table><p class="small muted" style="margin:6px 0 0">🎯 니어핀 · 🏌️ 롱기스트 · 🐦 버디 · 🦅 이글' + (ace ? ' · 🎉 홀인원' : '') + ' · 🍺 쉼터 계산</p></div>';
 }
 function awardForm(r, kind, preset) {
   var pars = roundPars(r), NH = hasExtra(r) ? 27 : 18, names = memberNames();
@@ -2569,6 +2577,7 @@ function awardForm(r, kind, preset) {
   };
 }
 function bindAwards(root) {
+  els('.sc-alllink', root).forEach(function (b) { b.onclick = function () { S.scoreRound = 'all'; renderMain(); window.scrollTo(0, 0); }; });
   els('[data-brk]', root).forEach(function (b) { b.onclick = function () { breaksForm(S.scoreRound); }; });
   els('[data-aw]', root).forEach(function (b) { b.onclick = function () { var r = S.D.rounds.filter(function (x) { return x.round_id === S.scoreRound; })[0]; if (r) awardForm(r, b.dataset.aw); }; });
   els('[data-awdel]', root).forEach(function (b) {
@@ -2597,7 +2606,7 @@ function scoreTables(r) {
       return '<tr' + (crown ? ' class="first"' : '') + '><td>' + esc(x.n) + crown + '</td><td>' + (t && t.f !== null ? t.f : '-') + '</td><td>' + (t && t.b !== null ? t.b : '-') + '</td>' + (xcol ? '<td>' + (t && t.x !== null ? t.x : '-') + '</td>' : '') + '<td><b>' + (t && (t.f !== null || t.b !== null || t.x !== null) ? t.t : '-') + '</b>' + (t && t.holes !== null && t.holes > 0 && t.holes < 18 ? '<div class="small muted">' + t.holes + '홀</div>' : '') + '</td>' +
         '<td>' + (isRO() ? '' : x.n !== S.me.name ? '<button class="btn sm ghost" data-for="' + esc(x.n) + '">대신 입력</button>' : '<button class="btn sm ghost" data-editme>수정</button>') + '</td></tr>';
     }).join('') + '</table></div></div>';
-  return table + awardsHtml(r) + overallHtml() + awardsTotalHtml();
+  return table + awardsHtml(r) + '<button class="btn sm ghost sc-alllink" data-round="all">🏅 전체 순위 · 내기 합계 보기 ›</button>';
 }
 function refreshTables() {
   var box = el('#sc-tables'); if (!box) return;
@@ -2623,11 +2632,16 @@ function overallHtml() {
   var allDone = maxCnt === rs.length && rows.every(function (x) { return x.cnt === rs.length; });
   var winner = allDone && rows.length ? rows[0] : null;
   return (winner ? '<div class="winner" style="margin:12px 0"><div>🏆 최종 우승</div><div class="nm">' + esc(winner.n) + '</div><div>' + rs.length + '라운드 합계 ' + winner.sum + '타 · 평균 ' + winner.avg.toFixed(1) + '</div></div>' : '') +
-    '<div class="card"><b>🏅 전체 순위</b><div style="overflow-x:auto"><table class="tbl" style="margin-top:6px"><tr><th>순위</th><th>이름</th>' + rs.map(function (r) { return '<th>' + md(r.date) + '</th>'; }).join('') + '<th>합계</th><th>평균</th><th>베스트</th></tr>' +
+    '<div class="card"><b>🏅 전체 순위</b><table class="tbl wp-tbl"><tr><th></th><th>이름</th>' + rs.map(function (r) { return '<th>' + Number(r.date.slice(8)) + '일</th>'; }).join('') + '<th>합계</th><th>평균</th></tr>' +
     rows.map(function (x, i) {
       return '<tr' + (i === 0 && x.cnt ? ' class="first"' : '') + '><td>' + (x.cnt ? (i + 1) : '-') + '</td><td>' + esc(x.n) + '</td>' + x.per.map(function (p) { return '<td>' + (p === null ? '-' : p) + '</td>'; }).join('') +
-        '<td><b>' + (x.cnt ? x.sum : '-') + '</b></td><td>' + (x.avg === null ? '-' : x.avg.toFixed(1)) + '</td><td>' + (x.best === null ? '-' : x.best) + '</td></tr>';
-    }).join('') + '</table></div><p class="small muted">끝난 라운드 수가 많은 사람 → 합계가 적은 사람 순. 라운드가 덜 끝난 사람은 아래쪽에 표시됩니다.' +
+        '<td><b>' + (x.cnt ? x.sum : '-') + '</b></td><td>' + (x.avg === null ? '-' : x.avg.toFixed(1)) + '</td></tr>';
+    }).join('') + '</table>' +
+    '<div class="small" style="margin-top:6px">' + rs.map(function (r) {   // 라운드별 1등
+      var best = null; members.forEach(function (n) { var t = totalOf(scoreOf(r.round_id, n)); if (t && t.done && (!best || t.t < best.t)) best = { n: n, t: t.t }; });
+      var ties = best ? members.filter(function (n) { var t = totalOf(scoreOf(r.round_id, n)); return t && t.done && t.t === best.t; }) : [];
+      return '<div>⛳ ' + md(r.date) + ' ' + esc(r.course) + ' — ' + (best ? '👑 <b>' + ties.map(esc).join(', ') + '</b> ' + best.t + '타' : '<span class="muted">기록 없음</span>') + '</div>';
+    }).join('') + '</div><p class="small muted">끝난 라운드 수가 많은 사람 → 합계가 적은 사람 순. 라운드가 덜 끝난 사람은 아래쪽에 표시됩니다.' +
       (rs.some(function (r) { return hasExtra(r) || S.D.scores.some(function (x) { var t = x.round_id === r.round_id && totalOf(x); return t && t.x !== null; }); }) ? ' <b>추가 9홀을 친 날은 그 점수도 합계에 들어갑니다</b>(안 친 사람은 그만큼 적게 나와요).' : '') + '</p></div>';
 }
 
