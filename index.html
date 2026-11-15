@@ -179,7 +179,7 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .mapsw{display:grid;grid-template-columns:1fr 1fr;flex:none;border:1px solid var(--line);border-radius:999px;overflow:hidden}
 .mapsw button{border:0;background:transparent;color:var(--muted);font:inherit;font-size:calc(13px*var(--fs));padding:5px 12px;min-width:calc(48px*var(--fs));text-align:center;cursor:pointer;white-space:nowrap}
 .mapsw button.on{background:var(--pri);color:#fff;font-weight:700}
-.edit-btn{width:100%;margin:4px 0 8px;border-style:dashed;border-color:var(--pri);color:var(--pri);font-weight:700}
+.edit-btn{width:100%;margin:4px 0 8px;border-style:dashed;border-width:1.5px;border-color:var(--pri);color:var(--pri);font-weight:700}
 .edit-on{border:2px solid var(--pri)}
 .tl{list-style:none;margin:0;padding:0}
 .it{display:flex;gap:10px;align-items:stretch;background:var(--card);border:1px solid var(--line);border-radius:14px;margin:8px 0;padding:10px 12px;box-shadow:var(--shadow);touch-action:pan-y}
@@ -541,7 +541,7 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 #printRep tr.tot td{font-weight:700;background:#f6f6f6}
 #printRep .note{color:#555;font-size:10px;margin:2px 0}
 #printRep .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.add-item{width:100%;margin-top:6px;border-style:dashed;color:var(--pri);border-color:var(--pri)}
+.add-item{width:100%;margin-top:6px;border-style:dashed;border-width:1.5px;color:var(--pri);border-color:var(--pri)}
 </style>
 </head>
 <body>
@@ -566,7 +566,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.15-19';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.15-20';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
