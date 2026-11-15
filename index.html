@@ -131,9 +131,19 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .tab.drop{outline:3px dashed var(--warn)}
 
 /* 다음 일정 */
-.next{display:flex;gap:12px;align-items:center;border-radius:var(--r);padding:14px 16px;background:var(--pri-soft);border:1px solid var(--pri)}
-.next.soon{background:var(--warn-soft);border-color:var(--warn)}
-.next .big{font-size:calc(18px*var(--fs));font-weight:800}
+.next{display:flex;gap:10px;align-items:center;border-radius:var(--r);padding:12px 12px 12px 14px;background:linear-gradient(135deg,#c2410c,#e8590c);color:#fff;box-shadow:0 4px 14px rgba(232,89,12,.35)}
+.next.soon{background:linear-gradient(135deg,#b71c1c,#d32f2f);box-shadow:0 4px 14px rgba(211,47,47,.45);animation:nxpulse 1.6s ease-in-out infinite}
+@keyframes nxpulse{50%{box-shadow:0 0 0 6px rgba(211,47,47,.25)}}
+@media (prefers-reduced-motion:reduce){.next.soon{animation:none}}
+.next .nx-i{font-size:calc(26px*var(--fs));line-height:1}
+.next .nx-b{flex:1;min-width:0}
+.next .nx-l{font-size:calc(12px*var(--fs));font-weight:700;opacity:.9}
+.next .big{font-size:calc(18px*var(--fs));font-weight:800;line-height:1.25}
+.next .nx-p{font-size:calc(13px*var(--fs));opacity:.92;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.next .nx-left{flex:none;background:#fff;color:#c2410c;border-radius:12px;padding:6px 10px;text-align:center;font-weight:800;line-height:1.15;min-width:calc(60px*var(--fs))}
+.next.soon .nx-left{color:#c62828}
+.next .nx-left b{display:block;font-size:calc(17px*var(--fs));white-space:nowrap}
+.next .nx-left span{font-size:calc(12px*var(--fs))}
 .golf-day{display:flex;gap:12px;align-items:center;width:100%;margin:10px 0 12px;border-radius:var(--r);padding:12px 16px;background:var(--card);border:2px solid var(--pri);color:var(--ink);font:inherit;text-align:left;cursor:pointer}
 .golf-day .gi{font-size:calc(28px*var(--fs))}
 .golf-day .gt{flex:1;min-width:0;display:flex;flex-direction:column}
@@ -546,7 +556,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.15-8';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.15-9';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1048,8 +1058,11 @@ function nextCard(date) {
   var its = itemsOf(date).filter(function (i) { return i.time && minsUntil(i) > 0; });
   if (!its.length) return '';
   var nx = its[0], left = minsUntil(nx);
-  return '<div class="next' + (left <= 30 ? ' soon' : '') + '"><div style="font-size:28px">' + icon(nx.type) + '</div><div><div class="small muted">다음 일정</div>' +
-    '<div class="big">' + esc(nx.time) + ' ' + esc(nx.title) + '</div><div class="small">' + (nameOf(nx) ? esc(nameOf(nx)) + ' · ' : '') + '<b>' + durText(left) + ' 남음</b></div></div></div>';
+  // 남은 시간은 오른쪽 흰 칸에 크게 ('1시간 20분'은 두 줄)
+  var lt = durText(left).split(' ').map(function (t) { return '<b>' + t + '</b>'; }).join('');
+  return '<div class="next' + (left <= 30 ? ' soon' : '') + '"><div class="nx-i">' + icon(nx.type) + '</div><div class="nx-b"><div class="nx-l">⏰ 다음 일정</div>' +
+    '<div class="big">' + esc(nx.time) + ' ' + esc(nx.title) + '</div>' + (nameOf(nx) ? '<div class="nx-p">' + esc(nameOf(nx)) + '</div>' : '') + '</div>' +
+    '<div class="nx-left">' + lt + '<span>남음</span></div></div>';
 }
 
 /* 골프 치는 날: 그날 골프장을 크게 (누르면 그 일정 열기) */
@@ -1322,7 +1335,7 @@ function editItem(it, preset) {
       box.insertAdjacentHTML('beforeend', '<div id="e-map"></div>');
       els('[data-er]', box).forEach(function (b) { b.onclick = function () {
         var x = r.results[Number(b.dataset.er)];
-        setLoc(x, x.here ? (el('#e-place', sh).value.trim() || x.address.split(',')[0]) : (reco || !q) ? x.name : el('#e-place', sh).value.trim() || (x.name === q ? q : x.name));
+        setLoc(x, x.here ? (el('#e-place', sh).value.trim() || x.address.split(',')[0]) : x.name);   // 고른 줄 이름으로 원래 이름(장소)을 바꿈
         if (reco) { el('#e-display', sh).value = ''; if (!el('#e-title', sh).value.trim()) el('#e-title', sh).value = defaultTitle(reco); }
         else drawReco();   // 추천 기준 장소가 바뀜
         els('[data-er]', box).forEach(function (o) { o.style.background = o === b ? 'var(--pri-soft)' : ''; });
