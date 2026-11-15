@@ -295,6 +295,16 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .pth img{width:100%;height:100%;object-fit:cover;display:block}
 .pth .cap{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(transparent,rgba(0,0,0,.7));color:#fff;font-size:calc(11px*var(--fs));padding:10px 5px 3px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pth .ld{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:12px}
+.pgrid:empty{display:none}
+.pth,.pth img{-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
+.pth img{pointer-events:none}
+.pth .up{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);color:#fff;font-size:calc(12px*var(--fs));font-weight:700}
+.pth .ck{position:absolute;top:5px;right:5px;width:26px;height:26px;border-radius:50%;border:2px solid #fff;background:rgba(0,0,0,.35);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800}
+.pth.sel{outline:3px solid var(--pri);outline-offset:-3px}
+.pth.sel .ck{background:var(--pri);border-color:var(--pri)}
+.pth.dim{opacity:.35}
+.psbar{display:flex;align-items:center;gap:8px;margin-top:8px;padding:8px 10px;border-radius:12px;background:rgba(76,175,80,.15)}
+.psbar b{flex:1}
 .sheet.pview{background:#0b0d0c;color:#eee;padding:10px 10px 14px;max-width:760px}
 .pview .pv-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
 .pview .pv-img{position:relative;display:flex;align-items:center;justify-content:center;min-height:240px;max-height:70vh;background:#000;border-radius:10px;overflow:hidden}
@@ -712,7 +722,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-27';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-28';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1985,7 +1995,7 @@ function editItem(it, preset) {
       (hasLL(it) ? ' <button class="btn sm ghost" id="e-clear">위치 지우기</button>' : '') + '</div></div>' +
     '<div class="fbox reco" id="e-recobox" style="display:none"><div class="fbt">⭐ 근처 추천</div><div id="e-reco"></div></div>' +
     '<label class="lb">메모</label><textarea class="inp" id="e-memo" rows="2">' + esc(it.memo) + '</textarea>' +
-    '<label class="row" style="margin-top:10px"><input type="checkbox" id="e-fixed"' + (it.fixed ? ' checked' : '') + '> 🔒 고정 일정 (예약된 시각, 자동으로 밀지 않음)</label>' +
+    '<label class="row" style="margin-top:10px"><input type="checkbox" id="e-fixed"' + (it.fixed ? ' checked' : '') + '> <span>🔒 고정 일정<br><span class="small muted">예약된 시각, 자동으로 밀지 않음</span></span></label>' +
     '<p class="small" id="e-msg" style="color:var(--bad);min-height:18px"></p>' +
     '<div class="row between" style="margin-top:6px">' + (isNew ? '<span></span>' : '<button class="btn bad" id="e-del">🗑️ 삭제</button>') +
     '<div class="row"><button class="btn" id="e-x">취소</button><button class="btn pri" id="e-ok">저장</button></div></div>';
@@ -3900,9 +3910,50 @@ function photoCard(date, title) {
     '<div class="scan-btns" style="margin-top:8px"><label class="btn pri">사진 찍기<input type="file" accept="image/*" capture="environment" data-pup="' + date + '" hidden></label>' +
     '<label class="btn">갤러리<input type="file" accept="image/*" multiple data-pup="' + date + '" hidden></label></div>') +
     '<div class="small" data-pst style="margin-top:6px;color:var(--pri)"></div>' +
-    (ps.length ? '<div class="pgrid">' + ps.map(function (p) {
-      return '<button class="pth" data-pho="' + esc(p.id) + '"><span class="ld">…</span><img data-pimg="' + esc(p.id) + '" alt="">' + (p.caption ? '<span class="cap">' + esc(p.caption) + '</span>' : '') + '</button>';
-    }).join('') + '</div>' : '') + '</div>';
+    '<div data-psbar>' + psbarHtml(date) + '</div><div class="pgrid" data-pg>' + pgridHtml(date) + '</div>' +
+    (ps.length && !isRO() ? '<div class="small muted" data-phint style="margin-top:6px' + (pSel && pSel.date === date ? ';display:none' : '') + '">사진을 꾹 누르면 여러 장 골라 지울 수 있어요.</div>' : '') + '</div>';
+}
+/* 올리는 중인 사진(찍자마자 칸에 먼저 보임)과 꾹 눌러 골라 지우기 */
+var pendPh = {}, pSel = null, pSeq = 0;
+function canDelPhoto(p) { return !isRO() && (p.by === S.me.name || S.me.isAdmin); }
+function pgridHtml(date) {
+  var sel = pSel && pSel.date === date ? pSel : null;
+  return photosOf(date).map(function (p) {
+    var on = sel && sel.ids[p.id], dim = sel && !canDelPhoto(p);
+    return '<button class="pth' + (on ? ' sel' : '') + (dim ? ' dim' : '') + '" data-pho="' + esc(p.id) + '"><span class="ld">…</span><img data-pimg="' + esc(p.id) + '" alt="">' + (p.caption ? '<span class="cap">' + esc(p.caption) + '</span>' : '') + (sel && !dim ? '<span class="ck">' + (on ? '✓' : '') + '</span>' : '') + '</button>';
+  }).join('') + (pendPh[date] || []).map(function (q) {
+    return '<button class="pth" data-pend="' + q.k + '"><img src="' + q.small + '" alt=""><span class="up">올리는 중…</span></button>';
+  }).join('');
+}
+function psbarHtml(date) {
+  if (!pSel || pSel.date !== date) return '';
+  var n = Object.keys(pSel.ids).length;
+  return '<div class="psbar"><b>' + (n ? n + '장 골랐어요' : '지울 사진을 누르세요') + '</b><button class="btn sm bad" data-psdel' + (n ? '' : ' disabled') + '>🗑️ 지우기</button><button class="btn sm" data-psx>취소</button></div>';
+}
+function refreshPhotoGrid(date) {
+  els('[data-pdate="' + date + '"]').forEach(function (card) {
+    var g = el('[data-pg]', card); if (!g) return;
+    g.innerHTML = pgridHtml(date);
+    var b = el('[data-psbar]', card); if (b) b.innerHTML = psbarHtml(date);
+    var h = el('[data-phint]', card); if (h) h.style.display = pSel && pSel.date === date ? 'none' : '';
+    bindPhotos(card);
+  });
+}
+function delSelected(date) {
+  var ids = Object.keys(pSel.ids); if (!ids.length) return;
+  confirmBox('고른 사진 ' + ids.length + '장을 지울까요? 지우면 되돌릴 수 없어요.', ids.length + '장 지우기').then(function (y) {
+    if (!y) return;
+    var gone = pSel.ids;
+    S.D.photos = (S.D.photos || []).filter(function (x) { return !gone[x.id]; });
+    pSel = null; saveCache(); renderMain();
+    var fail = 0;
+    ids.reduce(function (pr, id) {
+      return pr.then(function () { return call('deletePhoto', { id: id }).then(function (r) { S.D.photos = r.photos; }, function () { fail++; }); });
+    }, Promise.resolve()).then(function () {
+      saveCache();
+      if (fail) { renderMain(); toast(fail + '장은 지우지 못했습니다. 다시 해 주세요.'); } else toast(ids.length + '장 지웠습니다.');
+    });
+  });
 }
 function bindPhotos(root) {
   els('img[data-pimg]', root).forEach(function (im) {
@@ -3911,24 +3962,62 @@ function bindPhotos(root) {
   els('[data-pup]', root).forEach(function (inp) {
     inp.onchange = function () { var fs = Array.prototype.slice.call(inp.files || []).slice(0, 20); var d = inp.dataset.pup; inp.value = ''; if (fs.length) uploadPhotos(d, fs); };
   });
-  els('[data-pho]', root).forEach(function (b) { b.onclick = function () { var d = b.closest('[data-pdate]').dataset.pdate; openPhoto(d, b.dataset.pho); }; });
+  els('[data-pho]', root).forEach(function (b) {
+    var d = b.closest('[data-pdate]').dataset.pdate, id = b.dataset.pho, t = null, long = false, x0 = 0, y0 = 0;
+    var p = (S.D.photos || []).filter(function (x) { return x.id === id; })[0];
+    b.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    b.addEventListener('pointerdown', function (e) {
+      long = false; x0 = e.clientX; y0 = e.clientY; clearTimeout(t);
+      if (isRO() || (pSel && pSel.date === d)) return;
+      t = setTimeout(function () {
+        long = true;
+        if (!p || !canDelPhoto(p)) { toast('내가 올린 사진만 지울 수 있어요.'); return; }
+        if (navigator.vibrate) try { navigator.vibrate(30); } catch (er) {}
+        if (pSel && pSel.date !== d) { var od = pSel.date; pSel = null; refreshPhotoGrid(od); }
+        pSel = { date: d, ids: {} }; pSel.ids[id] = 1; refreshPhotoGrid(d);
+      }, 550);
+    });
+    b.addEventListener('pointermove', function (e) { if (Math.abs(e.clientX - x0) > 10 || Math.abs(e.clientY - y0) > 10) clearTimeout(t); });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) { b.addEventListener(ev, function () { clearTimeout(t); }); });
+    b.onclick = function () {
+      if (long) { long = false; return; }
+      if (pSel && pSel.date === d) {
+        if (!p || !canDelPhoto(p)) { toast('내가 올린 사진만 고를 수 있어요.'); return; }
+        if (pSel.ids[id]) delete pSel.ids[id]; else pSel.ids[id] = 1;
+        refreshPhotoGrid(d); return;
+      }
+      openPhoto(d, id);
+    };
+  });
+  els('[data-psx]', root).forEach(function (b) { b.onclick = function () { var d = b.closest('[data-pdate]').dataset.pdate; pSel = null; refreshPhotoGrid(d); }; });
+  els('[data-psdel]', root).forEach(function (b) { b.onclick = function () { delSelected(b.closest('[data-pdate]').dataset.pdate); }; });
 }
 function uploadPhotos(date, files) {
   var n = files.length, done = 0, fail = 0;
   var st = function (t) { els('[data-pdate="' + date + '"] [data-pst]').forEach(function (e) { e.textContent = t; }); };
   st('📤 사진 올리는 중… 0/' + n);
+  var list = pendPh[date] = (pendPh[date] || []), mine = [];
+  var drop = function (q) { var k = list.indexOf(q); if (k >= 0) list.splice(k, 1); };
+  // 먼저 작은 사진만 만들어 칸에 바로 보여 주고, 큰 사진은 한 장씩 뒤에서 올림
   files.reduce(function (pr, f) {
     return pr.then(function () {
-      return shrinkImage(f, 1600, 0.82).then(function (big) {
-        return shrinkImage(f, 360, 0.7).then(function (small) {
-          return call('addPhoto', { date: date, dataUrl: big, thumbUrl: small }).then(function (r) {
-            S.D.photos = r.photos; photoMem[r.photo.id + ':thumb'] = small; photoMem[r.photo.id + ':full'] = big; pput(r.photo.id + ':thumb', small);
-          });
-        });
-      }).then(function () { done++; st('📤 사진 올리는 중… ' + done + '/' + n); }, function () { fail++; });
+      return shrinkImage(f, 360, 0.7).then(function (small) {
+        var q = { k: 'q' + (++pSeq), small: small, f: f }; list.push(q); mine.push(q); refreshPhotoGrid(date);
+      }, function () { fail++; });
     });
   }, Promise.resolve()).then(function () {
-    saveCache(); renderMain();
+    return mine.reduce(function (pr, q) {
+      return pr.then(function () {
+        return shrinkImage(q.f, 1600, 0.82).then(function (big) {
+          return call('addPhoto', { date: date, dataUrl: big, thumbUrl: q.small }).then(function (r) {
+            S.D.photos = r.photos; photoMem[r.photo.id + ':thumb'] = q.small; photoMem[r.photo.id + ':full'] = big; pput(r.photo.id + ':thumb', q.small);
+          });
+        }).then(function () { done++; drop(q); st('📤 사진 올리는 중… ' + done + '/' + n); refreshPhotoGrid(date); },
+                function () { fail++; drop(q); refreshPhotoGrid(date); });
+      });
+    }, Promise.resolve());
+  }).then(function () {
+    saveCache(); st(''); renderMain();
     toast(done + '장 올렸습니다.' + (fail ? ' (' + fail + '장은 실패 — 다시 올려 주세요)' : ''));
   });
 }
