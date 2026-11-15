@@ -524,7 +524,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.15-1';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.15-2';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1350,10 +1350,14 @@ function endDrag() {
     var tm = it.time, pos = ids.length, tl = itemsOf(target);
     for (var i = 0; i < tl.length; i++) if (tl[i].time && tm && tl[i].time > tm) { pos = i; break; }
     ids.splice(pos, 0, it.id);
+    // 서버 답을 기다리지 않고 화면에서 먼저 옮김 (서버는 1~3초 걸림)
+    var snap1 = moveLocal(ids, it.id, target, tm);
+    S.tab = target; LS.set('trip_tab', target); render();
+    toast('옮기는 중…', null, 8000);
     call('reorder', { date: target, ids: ids, moved: { id: it.id, date: target, time: tm } }).then(function (r) {
-      S.tab = target; LS.set('trip_tab', target); r.items && (S.D.items = r.items); render();
+      if (r.items) { S.D.items = r.items; renderMain(); }
       movedToast(r, it.id, md(target) + '(' + wd(target) + ') 일정으로 옮겼어요');
-    }).catch(function (e) { toast(e.message); });
+    }).catch(function (e) { S.D.items = snap1; render(); toast('못 옮겼어요: ' + e.message); });
     return;
   }
   var order = [];
@@ -1366,12 +1370,26 @@ function endDrag() {
   var next = itemsOf(date).filter(function (x) { return x.id === order[idx + 1]; })[0];
   renderMain();
   // 묻지 않고 바로 옮김: 시각이 앞뒤 사이에 맞으면 그대로, 아니면 앞뒤 가운데로 (고정 일정은 그대로)
-  var tm = it.fixed ? it.time : autoTime(it, prev, next);
+  var tm = it.fixed ? it.time : autoTime(it, prev, next), tm0 = it.time;
+  // 서버 답을 기다리지 않고 화면에서 먼저 옮김 (서버는 1~3초 걸림)
+  var snap = moveLocal(order, it.id, date, tm);
+  renderMain();
+  toast('옮기는 중…', null, 8000);
   call('reorder', { date: date, ids: order, moved: { id: it.id, date: date, time: tm } })
     .then(function (r) {
       S.D.items = r.items; renderMain();
-      movedToast(r, it.id, it.fixed ? '🔒 순서만 옮겼어요' : tm && tm !== it.time ? timeRo(tm) + ' 옮겼어요' : '옮겼어요');
-    }).catch(function (e) { toast(e.message); });
+      movedToast(r, it.id, it.fixed ? '🔒 순서만 옮겼어요' : tm && tm !== tm0 ? timeRo(tm) + ' 옮겼어요' : '옮겼어요');
+    }).catch(function (e) { S.D.items = snap; renderMain(); toast('못 옮겼어요: ' + e.message); });
+}
+/* 화면에서 먼저 옮기기: 순서(ord)·날짜·시각을 바꾸고, 실패하면 되돌릴 수 있게 옛 목록을 돌려줌 */
+function moveLocal(ids, id, date, time) {
+  var snap = S.D.items.map(function (x) { return Object.assign({}, x); });
+  S.D.items.forEach(function (x) {
+    var k = ids.indexOf(x.id);
+    if (x.id === id) { x.date = date; x.time = time || x.time; }
+    if (k >= 0) x.ord = (k + 1) * 10;
+  });
+  return snap;
 }
 /* 옮긴 자리의 시각: 지금 시각이 앞뒤 사이에 맞으면 그대로, 아니면 앞뒤 가운데(5분 단위), 한쪽만 있으면 ±1시간 */
 /* '13:15로' · '13:30으로' (끝 숫자 0·3·6은 '으로') */
