@@ -194,7 +194,7 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .it .letter{width:24px;height:24px;border-radius:50%;background:#d93025;color:#fff;font-size:calc(13px*var(--fs));font-weight:800;display:flex;align-items:center;justify-content:center}
 .it .handle{font-size:calc(22px*var(--fs));padding:4px 6px;color:var(--sub);touch-action:none;cursor:grab;user-select:none}
 .it.dragging{opacity:.9;box-shadow:0 10px 30px rgba(0,0,0,.25);position:relative;z-index:30}
-.it.placeholder{border:2px dashed var(--pri);background:transparent;box-shadow:none}
+.it.placeholder{border:2px dashed var(--pri);background:transparent;box-shadow:none;outline:2px dashed var(--pri);outline-offset:4px}   /* 끄는 일정이 바로 위에 겹쳐도 바깥 점선은 네 변 다 보임 */
 .it.fixed .tm{color:var(--pri)}
 .ty-flight .bar{background:var(--flight)} .ty-golf .bar{background:var(--golf)} .ty-meal .bar{background:var(--meal)}
 .ty-hotel .bar{background:var(--hotel)} .ty-massage .bar{background:var(--massage)} .ty-shop .bar{background:var(--shop)} .ty-rest .bar{background:var(--rest)} .ty-bar .bar{background:var(--barc)}
@@ -506,6 +506,11 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
   body.printing-album .al-page:last-child{break-after:auto}
   body.printing-album .al-cover{padding-top:30mm}
 }
+.mrow-btn{width:100%;border:0;background:transparent;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.seg-row .seg-res{margin-left:auto;text-align:right}
+.seg-lose{color:var(--warn)}
+.seg-detail{margin:-4px 0 4px;text-align:right}
+.grp-brk{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:6px 0}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
 .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
@@ -662,7 +667,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-5';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-8';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1457,7 +1462,8 @@ function wrapHtml() {
     var mx = Math.max.apply(null, names.map(function (n) { return t[n][k]; })); if (!mx) return '';
     return '<div class="wp-king"><span>' + label + '</span><b>' + names.filter(function (n) { return t[n][k] === mx; }).map(esc).join(', ') + '</b><span class="muted">' + mx + '번</span></div>';
   };
-  var kings = king('a', '🎉 홀인원') + king('e', '🦅 이글') + king('b', '🐦 버디 왕') + king('near', '🎯 니어핀 왕') + king('long', '🏌️ 롱기 왕');
+  var pay2 = {}; st.rs.forEach(function (r) { segPayCount(r, pay2); }); names.forEach(function (n) { t[n].pay = pay2[n] || 0; });
+  var kings = king('a', '🎉 홀인원') + king('e', '🦅 이글') + king('b', '🐦 버디 왕') + king('near', '🎯 니어핀 왕') + king('long', '🏌️ 롱기 왕') + king('pay', '🍺 쉼터 계산 왕');
   if (kings) h += '<div class="wp-sec"><b>🏆 내기 왕</b>' + kings + '</div>';
   // 지원 감사
   var sups = S.D.wrapSupports || [], by = {};
@@ -1512,14 +1518,15 @@ function wrapOpen() {
 function viewAll() {
   // 출발 전(출발일까지)은 준비물 카드를 맨 위에, 여행 중에는 맨 아래에 (도착일 지나면 숨김)
   var nd = localNow().date, pk = nd <= S.D.settings.end_date ? packCard() : '', early = nd <= S.D.settings.start_date;
-  var html = wrapCard() + (early ? pk : '') + flightsHtml() + fxHtml();
+  var wc = wrapCard(), wTop = wrapReady();   // 마지막 라운드 날부터는 맨 위, 그 전 관리자 미리 보기는 맨 아래
+  var html = (wTop ? wc : '') + (early ? pk : '') + flightsHtml() + fxHtml();
   dates().forEach(function (d) {
     var its = itemsOf(d).filter(function (i) { return i.fixed || i.type === 'golf' || i.type === 'flight' || i.type === 'hotel'; });
     html += '<div class="card daycard" data-go="' + d + '" style="cursor:pointer"><div class="row between"><b class="dhead">' + md(d) + ' (' + wd(d) + ') · ' + esc(dayLabel(d)) + '</b><span class="muted small">자세히 ›</span></div>' +
       its.map(function (i) { return '<div class="row small" style="margin-top:6px"><b style="width:46px">' + esc(i.time) + '</b><span>' + icon(i.type) + ' ' + esc(i.title) + (nameOf(i) ? ' · ' + esc(nameOf(i)) : '') + '</span></div>'; }).join('') +
       '</div>';
   });
-  return html + (early ? '' : pk);
+  return html + (early ? '' : pk) + (wTop ? '' : wc);
 }
 
 /* ─── 날짜 화면 ─── */
@@ -2102,7 +2109,7 @@ function startDrag(handle, ev) {
   ph.className = 'it placeholder'; ph.style.height = rect.height + 'px';
   li.parentNode.insertBefore(ph, li);
   li.classList.add('dragging');
-  li.style.width = rect.width + 'px'; li.style.position = 'fixed'; li.style.left = rect.left + 'px'; li.style.top = rect.top + 'px';
+  li.style.width = rect.width + 'px'; li.style.position = 'fixed'; li.style.left = rect.left + 'px'; li.style.top = rect.top + 'px'; li.style.margin = '0';   // 여백이 남으면 8px 아래로 밀려 빈자리 점선을 덮음
   dragState = { li: li, ph: ph, tl: tl, offY: ev.clientY - rect.top, id: li.dataset.id, overTab: null, y0: ev.clientY, moved: false };
   els('.seg', tl).forEach(function (s) { s.style.visibility = 'hidden'; });
   toast('↕️ 위아래로 끌어 옮기기', null, 4000);
@@ -2413,6 +2420,79 @@ function birdiesOf(r) {
   });
   return out;
 }
+/* ═════════ 🍺 쉼터 내기: 구간(쉼터까지) 타수 꼴찌가 쉼터에서 계산 ═════════
+   구간 끝 홀(breaks)은 라운드마다 서버에 저장 → 누구나 라운드 중 '여기서 쉼터'로 정하고 고칠 수 있음.
+   동점 꼴찌는 '공동 꼴찌(나눠 냄)'. 18홀만 셈(추가 9홀 제외). 홀별로 적은 사람만 셈 */
+function breaksOf(r) {
+  var b = String((r && r.breaks) || '').split(',').map(Number).filter(function (x) { return x >= 1 && x <= 17; });
+  return b.filter(function (x, i) { return b.indexOf(x) === i; }).sort(function (x, y) { return x - y; });
+}
+function segsOf(r) {
+  var b = breaksOf(r); if (!b.length) return [];
+  var out = [], a = 1;
+  b.concat([18]).forEach(function (e) { if (e >= a) { out.push([a, e]); a = e + 1; } });
+  return out;
+}
+function segResults(r) {
+  var names = memberNames();
+  var players = names.filter(function (n) { var x = scoreOf(r.round_id, n); return !(x && x.mode !== 'holes' && (x.front !== '' || x.back !== '')); });   // 전·후반 합계만 적은 사람은 뺌
+  return segsOf(r).map(function (sg, i) {
+    var rows = players.map(function (n) {
+      var h = parseHoles(scoreOf(r.round_id, n) || {}), sum = 0, cnt = 0;
+      for (var k = sg[0] - 1; k < sg[1]; k++) { var v = Number(h[k]); if (v) { sum += v; cnt++; } }
+      return { n: n, sum: sum, cnt: cnt, done: cnt === sg[1] - sg[0] + 1 };
+    });
+    var started = rows.some(function (x) { return x.cnt; }), allDone = rows.length > 1 && rows.every(function (x) { return x.done; });
+    var mx = allDone ? Math.max.apply(null, rows.map(function (x) { return x.sum; })) : null;
+    return { i: i + 1, a: sg[0], b: sg[1], rows: rows, started: started, done: allDone, losers: allDone ? rows.filter(function (x) { return x.sum === mx; }).map(function (x) { return x.n; }) : [], max: mx };
+  });
+}
+function segPayCount(r, t) {   // 회원별 쉼터 계산 횟수 (공동 꼴찌는 각각 1번)
+  segResults(r).forEach(function (s) { s.losers.forEach(function (n) { t[n] = (t[n] || 0) + 1; }); });
+  return t;
+}
+function restSegHtml(r) {   // (이름 주의: segHtml은 일정 사이 이동 줄)
+  var segs = segResults(r), b = breaksOf(r);
+  var h = '<div class="aw-sub">🍺 쉼터 내기 <span class="small muted">(구간 타수 꼴찌가 쉼터 계산)</span></div>';
+  if (!b.length) h += '<p class="small muted" style="margin:4px 0">구간을 아직 안 정했어요. 쉼터에 도착하면 <b>함께 입력</b>에서 [🍺 여기서 쉼터]를 누르거나 아래에서 정하세요.</p>';
+  else h += segs.map(function (s) {
+    var res = s.done ? '<b class="seg-lose">🍺 ' + s.losers.map(esc).join('·') + '</b> <span class="muted">' + s.max + '타' + (s.losers.length > 1 ? ' · 공동 꼴찌(나눠 냄)' : '') + '</span>'
+      : s.started ? '<span class="muted">진행 중 · ' + s.rows.filter(function (x) { return x.done; }).length + '/' + s.rows.length + '명 다 침</span>' : '<span class="muted">아직</span>';
+    return '<div class="aw-row seg-row"><span>' + s.i + '구간 <span class="muted">' + s.a + '~' + s.b + '번</span></span><span class="seg-res">' + res + '</span></div>' +
+      (s.done ? '<div class="seg-detail small muted">' + s.rows.slice().sort(function (x, y) { return x.sum - y.sum; }).map(function (x) { return esc(x.n) + ' ' + x.sum; }).join(' · ') + '</div>' : '');
+  }).join('');
+  if (!isRO()) h += '<button class="btn sm" data-brk style="margin-top:6px">✂️ 구간 ' + (b.length ? '고치기' : '정하기') + '</button>';
+  return h;
+}
+function saveBreaks(rid, b, cb) {
+  var r = S.D.rounds.filter(function (x) { return x.round_id === rid; })[0], old = r ? r.breaks : '';
+  if (r) r.breaks = b.join(',');   // 화면 먼저
+  call('saveBreaks', { round_id: rid, breaks: b }).then(function (res) { S.D.rounds = res.rounds; saveCache(); if (cb) cb(); })
+    .catch(function (e) { if (r) r.breaks = old; toast(e.message); if (cb) cb(); });
+}
+function breaksForm(rid, after) {
+  var r = S.D.rounds.filter(function (x) { return x.round_id === rid; })[0]; if (!r) return;
+  var sel = breaksOf(r).slice();
+  var draw = function () {
+    var segs = [], a = 1; sel.slice().sort(function (x, y) { return x - y; }).concat([18]).forEach(function (e) { if (e >= a) { segs.push(a + '~' + e); a = e + 1; } });
+    return '<h3>✂️ 쉼터 구간 정하기</h3><p class="small muted">' + md(r.date) + ' ' + esc(r.course) + ' · 쉼터 <b>바로 앞 홀</b>을 누르세요(최대 3곳). 18번은 자동으로 마지막 구간 끝이에요.</p>' +
+      '<div class="aw-holes">' + Array.apply(null, Array(17)).map(function (_, i) { return '<button type="button" class="pick' + (sel.indexOf(i + 1) >= 0 ? ' on' : '') + '" data-bh="' + (i + 1) + '">' + (i + 1) + '<small>' + (sel.indexOf(i + 1) >= 0 ? '🍺' : '&nbsp;') + '</small></button>'; }).join('') + '</div>' +
+      '<p class="small" style="margin:8px 0 0">구간: <b>' + (sel.length ? segs.join(' · ') : '(안 정함)') + '</b></p>' +
+      '<div class="row wrap-row" style="margin-top:6px"><button class="btn sm" data-bq="6,12">6홀씩 (6·12)</button><button class="btn sm" data-bq="9">전·후반 (9)</button><button class="btn sm ghost" data-bq="">지우기</button></div>' +
+      '<p class="small" id="bk-msg" style="color:var(--bad);min-height:18px"></p>' +
+      '<div class="row" style="justify-content:flex-end"><button class="btn" id="bk-x">취소</button><button class="btn pri" id="bk-ok">저장</button></div>';
+  };
+  var sh = sheet(draw());
+  var bind = function () {
+    els('[data-bh]', sh).forEach(function (b) { b.onclick = function () { var v = Number(b.dataset.bh), i = sel.indexOf(v); if (i >= 0) sel.splice(i, 1); else if (sel.length >= 3) { el('#bk-msg', sh).textContent = '쉼터는 3곳까지예요. 하나를 먼저 빼 주세요.'; return; } else sel.push(v); redraw(); }; });
+    els('[data-bq]', sh).forEach(function (b) { b.onclick = function () { sel = b.dataset.bq ? b.dataset.bq.split(',').map(Number) : []; redraw(); }; });
+    el('#bk-x', sh).onclick = function () { closeSheet(); if (after) after(); };
+    el('#bk-ok', sh).onclick = function () { closeSheet(); saveBreaks(rid, sel.slice().sort(function (x, y) { return x - y; }), function () { if (after) after(); else refreshTables(); }); toast('🍺 쉼터 구간을 저장했어요.'); };
+  };
+  var redraw = function () { sh.innerHTML = draw(); bind(); };
+  bind();
+}
+
 function awardsHtml(r) {
   var list = awardsOf(r.round_id), bd = birdiesOf(r), names = memberNames();
   var anyHoles = names.some(function (n) { return bd[n].holes > 0; });
@@ -2429,7 +2509,7 @@ function awardsHtml(r) {
     (isRO() ? '' : '<div class="grid2" style="margin-top:8px"><button class="btn" data-aw="near">🎯 니어핀 적기</button><button class="btn" data-aw="long">🏌️ 롱기스트 적기</button></div>') +
     '<div class="aw-sub">🐦 버디 · 이글 <span class="small muted">(홀별 스코어에서 저절로)</span></div>' +
     (birdieRows || '<p class="small muted" style="margin:4px 0 0">' + (anyHoles ? '아직 버디가 없어요.' : '홀별로 적으면 버디·이글을 저절로 세어 드려요.') + '</p>') +
-    '</div>';
+    restSegHtml(r) + '</div>';
 }
 // 전체 라운드 내기 합계 (전체 순위 아래)
 function awardsTotalHtml() {
@@ -2437,12 +2517,14 @@ function awardsTotalHtml() {
   names.forEach(function (n) { t[n] = { near: 0, long: 0, b: 0, e: 0, a: 0 }; });
   (S.D.awards || []).forEach(function (a) { if (t[a.member]) t[a.member][a.kind]++; });
   rs.forEach(function (r) { var bd = birdiesOf(r); names.forEach(function (n) { t[n].b += bd[n].b.length; t[n].e += bd[n].e.length; t[n].a += bd[n].a.length; }); });
-  var any = names.some(function (n) { var x = t[n]; return x.near || x.long || x.b || x.e || x.a; });
+  var pay = {}; rs.forEach(function (r) { segPayCount(r, pay); });
+  names.forEach(function (n) { t[n].pay = pay[n] || 0; });
+  var any = names.some(function (n) { var x = t[n]; return x.near || x.long || x.b || x.e || x.a || x.pay; });
   var ace = names.some(function (n) { return t[n].a; });
   if (!any) return '';
   var rows = names.slice().sort(function (a, b) { var A = t[a], B = t[b]; return (B.near + B.long + B.b + B.e * 2 + B.a * 3) - (A.near + A.long + A.b + A.e * 2 + A.a * 3); });
-  return '<div class="card"><b>🏆 내기 합계 (전체 라운드)</b><div style="overflow-x:auto"><table class="tbl" style="margin-top:6px"><tr><th>이름</th><th>🎯 니어</th><th>🏌️ 롱기</th><th>🐦 버디</th><th>🦅 이글</th>' + (ace ? '<th>🎉 홀인원</th>' : '') + '</tr>' +
-    rows.map(function (n) { var x = t[n]; return '<tr><td>' + esc(n) + '</td><td>' + (x.near || '-') + '</td><td>' + (x.long || '-') + '</td><td>' + (x.b || '-') + '</td><td>' + (x.e || '-') + '</td>' + (ace ? '<td>' + (x.a || '-') + '</td>' : '') + '</tr>'; }).join('') +
+  return '<div class="card"><b>🏆 내기 합계 (전체 라운드)</b><div style="overflow-x:auto"><table class="tbl" style="margin-top:6px"><tr><th>이름</th><th>🎯 니어</th><th>🏌️ 롱기</th><th>🐦 버디</th><th>🦅 이글</th>' + (ace ? '<th>🎉 홀인원</th>' : '') + '<th>🍺 쉼터</th></tr>' +
+    rows.map(function (n) { var x = t[n]; return '<tr><td>' + esc(n) + '</td><td>' + (x.near || '-') + '</td><td>' + (x.long || '-') + '</td><td>' + (x.b || '-') + '</td><td>' + (x.e || '-') + '</td>' + (ace ? '<td>' + (x.a || '-') + '</td>' : '') + '<td>' + (x.pay || '-') + '</td></tr>'; }).join('') +
     '</table></div></div>';
 }
 function awardForm(r, kind, preset) {
@@ -2474,6 +2556,7 @@ function awardForm(r, kind, preset) {
   };
 }
 function bindAwards(root) {
+  els('[data-brk]', root).forEach(function (b) { b.onclick = function () { breaksForm(S.scoreRound); }; });
   els('[data-aw]', root).forEach(function (b) { b.onclick = function () { var r = S.D.rounds.filter(function (x) { return x.round_id === S.scoreRound; })[0]; if (r) awardForm(r, b.dataset.aw); }; });
   els('[data-awdel]', root).forEach(function (b) {
     b.onclick = function () {
@@ -2878,12 +2961,21 @@ function groupEntry(rid) {
       '<div class="grp-chips">' + [0, 1, 2, 3, 4, 5, 6, 7, 8].map(chip).join('') + '</div><div class="grp-chips" style="margin-top:-6px">' + [9, 10, 11, 12, 13, 14, 15, 16, 17].map(chip).join('') + '</div>' +
       (X ? '<div class="grp-chips" style="margin-top:-6px">' + [18, 19, 20, 21, 22, 23, 24, 25, 26].map(chip).join('') + '</div>' : '') +
       ninesPick(r) + extraBar(r) + noteSwitch(pars) +
+      (k < 17 && !isRO() ? '<div class="grp-brk"><button class="btn sm' + (breaksOf(r).indexOf(k + 1) >= 0 ? ' pri' : '') + '" data-gbrk="' + (k + 1) + '">' + (breaksOf(r).indexOf(k + 1) >= 0 ? '🍺 ' + (k + 1) + '번 홀 뒤 쉼터 ✓ (누르면 빼기)' : '🍺 여기서 쉼터 (' + (k + 1) + '번 홀까지 한 구간)') + '</button>' +
+        (breaksOf(r).length ? '<span class="small muted">구간 ' + segsOf(r).map(function (sg) { return sg[0] + '~' + sg[1]; }).join(' · ') + '</span>' : '') + '</div>' : '') +
       '<div class="small muted" style="margin:6px 0 2px">칸을 누르고 ' + (noteRel() && par ? '±를' : '타수를') + ' 고르면 다음 사람 → 다음 홀로 넘어가요. 적는 대로 바로 저장됩니다.</div>' +
       rows + sum + '<p class="small muted" id="grp-st" style="margin:6px 0 0">' + esc(S.saveState || '') + '</p>';
     els('[data-close]', sh).forEach(function (b) { b.onclick = function () { closeSheet(); renderMain(); }; });
     els('[data-gstep]', sh).forEach(function (b) { b.onclick = function () { S.grp.hole = Math.max(0, Math.min(NH() - 1, k + Number(b.dataset.gstep))); draw(); }; });
     els('[data-gk]', sh).forEach(function (b) { b.onclick = function () { S.grp.hole = Number(b.dataset.gk); draw(); }; });
     bindNotes(sh, rid, function () { draw(); });
+    els('[data-gbrk]', sh).forEach(function (b) { b.onclick = function () {
+      var hole = Number(b.dataset.gbrk), cur = breaksOf(r), i = cur.indexOf(hole);
+      if (i >= 0) cur.splice(i, 1); else { if (cur.length >= 3) { toast('쉼터는 3곳까지예요. ✂️ 구간 고치기에서 하나를 빼 주세요.'); return; } cur.push(hole); }
+      cur.sort(function (x, y) { return x - y; });
+      saveBreaks(rid, cur, function () { draw(); refreshTables(); });
+      draw(); toast(i >= 0 ? hole + '번 홀 뒤 쉼터를 뺐어요.' : '🍺 ' + hole + '번 홀까지 한 구간으로 정했어요. 구간 꼴찌는 내기 칸에 나와요.');
+    }; });
     els('[data-act="extra-add"]', sh).forEach(function (b) { b.onclick = function () { extraForm(rid, function () { groupEntry(rid); }); }; });
     els('[data-act="extra-del"]', sh).forEach(function (b) { b.onclick = function () {
       if (S.grp.hole > 17) S.grp.hole = 17;
@@ -3284,7 +3376,7 @@ function viewFee() {
     html += '<div class="card"><b>📤 회비 사용 내역</b>' +
       '<div style="margin-top:6px"><div class="kv"><span>사용 합계</span><b>' + won(useTotal) + '</b></div></div>' +
       (uses.length ? uses.map(function (u) {
-        return '<div class="mrow"><div><b>' + esc(u.title) + '</b><div class="small muted">' + esc(u.date) + ' · ' + esc(u.by) + (u.memo ? ' · ' + esc(u.memo) : '') + (S.me.isAdmin && !u.ex ? ' <a href="#" data-feedel="use:' + esc(u.id) + '">✕</a>' : '') + '</div></div><div class="bal">' + won(u.amount) + '</div></div>';
+        return '<button type="button" class="mrow mrow-btn" data-feeuse="' + esc(u.ex ? 'ex' : u.id) + '"><div><b>' + esc(u.title) + '</b><div class="small muted">' + esc(u.date) + ' · ' + esc(u.by) + (u.memo ? ' · ' + esc(u.memo) : '') + '</div></div><div class="bal">' + won(u.amount) + ' <span class="muted">›</span></div></button>';
       }).join('') : '<p class="muted small">아직 사용 기록이 없습니다.</p>') +
       (S.me.isAdmin ? '<button class="btn sm" data-act="fee-use" style="margin-top:8px">＋ 사용 기록 (관리자)</button>' : '') + '</div>';
   } else {
@@ -3771,21 +3863,30 @@ function feeBankForm() {
     }).catch(function (e) { el('#fb-msg', sh).textContent = e.message; });
   };
 }
-function feeForm(kind) {
-  var names = memberNames();
-  var html = '<h3>' + (kind === 'use' ? '＋ 회비 사용 기록' : '＋ 회비 입금 기록') + '</h3>' +
-    (kind === 'use' ? '<label class="lb">어디에</label><input class="inp" id="f-title" placeholder="예) 공항버스">' +
-        '<label class="lb">누가 처리</label><input class="inp" id="f-by" value="' + esc(S.me.name) + '">'
+function feeForm(kind, u) {
+  var names = memberNames(), ed = !!u;   // u = 고칠 사용 기록
+  u = u || {};
+  var html = '<h3>' + (kind === 'use' ? (ed ? '✏️ 회비 사용 고치기' : '＋ 회비 사용 기록') : '＋ 회비 입금 기록') + '</h3>' +
+    (kind === 'use' ? '<label class="lb">어디에</label><input class="inp" id="f-title" placeholder="예) 공항버스" value="' + esc(u.title || '') + '">' +
+        '<label class="lb">누가 처리</label><input class="inp" id="f-by" value="' + esc(u.by || S.me.name) + '">'
       : '<label class="lb">누가</label><select class="inp" id="f-member">' + names.map(function (n) { return '<option>' + esc(n) + '</option>'; }).join('') + '</select>') +
-    '<label class="lb">금액 (원)</label><input class="inp money" id="f-amt" inputmode="numeric">' +
-    '<label class="lb">날짜</label><input class="inp" id="f-date" placeholder="예) 2026-11-12" value="' + localNow().date + '">' +
-    '<label class="lb">메모</label><input class="inp" id="f-memo">' +
+    '<label class="lb">금액 (원)</label><input class="inp money" id="f-amt" inputmode="numeric" value="' + (u.amount ? num(Number(String(u.amount).replace(/,/g, ''))) : '') + '">' +
+    '<label class="lb">날짜</label><input class="inp" id="f-date" placeholder="예) 2026-11-12" value="' + esc(u.date || localNow().date) + '">' +
+    '<label class="lb">메모</label><input class="inp" id="f-memo" value="' + esc(u.memo || '') + '">' +
     '<p class="small" id="f-msg" style="color:var(--bad);min-height:18px"></p>' +
-    '<div class="row" style="justify-content:flex-end"><button class="btn" id="f-x">취소</button><button class="btn pri" id="f-ok">저장</button></div>';
+    '<div class="row between">' + (ed ? '<button class="btn bad" id="f-del">삭제</button>' : '<span></span>') + '<div class="row"><button class="btn" id="f-x">취소</button><button class="btn pri" id="f-ok">저장</button></div></div>';
   var sh = sheet(html);
   el('#f-x', sh).onclick = closeSheet;
+  var amtIn = el('#f-amt', sh); amtIn.oninput = function () { commaLive(amtIn, false); };
+  if (ed) el('#f-del', sh).onclick = function () {
+    confirmBox('"' + (u.title || '') + ' ' + won(Number(String(u.amount).replace(/,/g, ''))) + '" 사용 기록을 지울까요?', '삭제').then(function (y) {
+      if (!y) return;
+      call('deleteFee', { kind: 'use', id: u.id }).then(function (r) { S.D.fees = r.fees; S.D.feeUses = r.feeUses; saveCache(); renderMain(); toast('지웠습니다.'); }).catch(function (e) { toast(e.message); });
+    });
+  };
   el('#f-ok', sh).onclick = function () {
     var p = { kind: kind, amount: el('#f-amt', sh).value.replace(/[^\d]/g, ''), date: el('#f-date', sh).value, memo: el('#f-memo', sh).value };
+    if (ed) p.id = u.id;
     if (kind === 'use') { p.title = el('#f-title', sh).value; p.by = el('#f-by', sh).value; } else p.member = el('#f-member', sh).value;
     call('saveFee', p).then(function (r) { S.D.fees = r.fees; S.D.feeUses = r.feeUses; saveCache(); closeSheet(); renderMain(); toast('저장했습니다.'); }).catch(function (e) { el('#f-msg', sh).textContent = e.message; });
   };
@@ -4053,8 +4154,8 @@ function myRequests() {
 }
 function itemLabel(id) { var it = S.D.items.filter(function (x) { return x.id === id; })[0]; return it ? md(it.date) + ' ' + it.time + ' ' + (it.display || it.title) : ''; }
 /* ═════════ 📦 여행 보관 · 종료 (관리자) ═════════
-   ① 사진 앨범 PDF(⭐ 고른 사진 → 인쇄 · PDF로 저장)  ② 기록 시트 사본(드라이브 '보관' 폴더)  ③ 사진 묶음 링크(보기 전용)
-   ④ 읽기 전용 (②를 끝내야 켜짐) — 회원은 보기만, 데이터는 지우지 않음 */
+   ① 사진 앨범 PDF(⭐ 고른 사진 → 인쇄 · PDF로 저장)  ② 사진 묶음 링크(보기 전용)  ③ 기록 시트 사본(드라이브 '보관' 폴더, 잠그기 직전 마지막 기록)
+   ④ 읽기 전용 (③을 끝내야 켜짐) — 회원은 보기만, 데이터는 지우지 않음 */
 function isRO() { return !!(S.D && S.D.readOnly && !(S.me && S.me.isAdmin)); }
 function starred(p) { return p.star === 'Y' || p.star === true || String(p.star).toUpperCase() === 'TRUE'; }
 function archiveCard() {
@@ -4062,12 +4163,12 @@ function archiveCard() {
   var step = function (n, done, title, body) { return '<div class="ar-step' + (done ? ' done' : '') + '"><div class="ar-n">' + (done ? '✓' : n) + '</div><div class="ar-b"><b>' + title + '</b>' + body + '</div></div>'; };
   return '<div class="card"><b>📦 여행 보관 · 종료</b><p class="small muted">여행이 끝나면 위에서부터 차례로 하세요. 데이터는 지우지 않아요.</p>' +
     step(1, false, '📖 사진 앨범 PDF', '<div class="small muted">표지 · 날짜별 사진 · 스코어 · 지원 감사. 사진 ' + nPh + '장 중 ⭐ ' + nStar + '장 고름 (사진을 크게 열어 ⭐ 누르기, 안 고른 날은 모두 들어가요)</div><button class="btn sm pri" data-act="album">앨범 만들기</button>') +
-    step(2, !!st.archive_sheet_at, '📊 기록 시트 사본', st.archive_sheet_at ? '<div class="small">' + esc(st.archive_sheet_at) + ' 만듦 · <a target="_blank" href="' + esc(st.archive_sheet_url) + '">열기 ↗</a> (파일 › 다운로드 › 엑셀)</div><button class="btn sm" data-act="ar-sheet">다시 만들기</button>'
-      : '<div class="small muted">일정·스코어·경비·정산·변경기록이 담긴 시트를 드라이브 「보관」 폴더에 통째로 복사해요.</div><button class="btn sm pri" data-act="ar-sheet">사본 만들기</button>') +
-    step(3, !!st.photo_share_url, '📷 사진 묶음 링크', st.photo_share_url ? '<div class="small">링크가 있는 사람은 사진 원본을 볼 수 있어요(보기 전용).</div><div class="row wrap-row" style="margin-top:4px"><button class="btn sm pri" data-act="ar-copy">링크 복사</button><a class="btn sm" target="_blank" href="' + esc(st.photo_share_url) + '">열기 ↗</a><button class="btn sm ghost" data-act="ar-unshare">공유 끄기</button></div>'
+    step(2, !!st.photo_share_url, '📷 사진 묶음 링크', st.photo_share_url ? '<div class="small">링크가 있는 사람은 사진 원본을 볼 수 있어요(보기 전용).</div><div class="row wrap-row" style="margin-top:4px"><button class="btn sm pri" data-act="ar-copy">링크 복사</button><a class="btn sm" target="_blank" href="' + esc(st.photo_share_url) + '">열기 ↗</a><button class="btn sm ghost" data-act="ar-unshare">공유 끄기</button></div>'
       : '<div class="small muted">드라이브 「사진」 폴더를 <b>링크가 있는 사람 보기</b>로 공유해요. 단톡방에 링크를 올리면 회원이 원본을 한꺼번에 받을 수 있어요.</div><button class="btn sm pri" data-act="ar-share">링크 만들기</button>') +
+    step(3, !!st.archive_sheet_at, '📊 기록 시트 사본', st.archive_sheet_at ? '<div class="small">' + esc(st.archive_sheet_at) + ' 만듦 · <a target="_blank" href="' + esc(st.archive_sheet_url) + '">열기 ↗</a> (파일 › 다운로드 › 엑셀)</div><button class="btn sm" data-act="ar-sheet">다시 만들기</button>'
+      : '<div class="small muted">일정·스코어·경비·정산·변경기록이 담긴 시트를 드라이브 「보관」 폴더에 통째로 복사해요.</div><button class="btn sm pri" data-act="ar-sheet">사본 만들기</button>') +
     step(4, !!S.D.readOnly, '🔒 읽기 전용', S.D.readOnly ? '<div class="small">지금 <b>읽기 전용</b>이에요. 회원은 보기만 할 수 있어요.</div><button class="btn sm" data-act="ar-ro0">다시 고칠 수 있게 열기</button>'
-      : '<div class="small muted">회원은 일정·사진·스코어를 계속 볼 수 있지만 바꿀 수는 없어요.' + (st.archive_sheet_at ? '' : ' <b>② 시트 사본을 먼저 만들어야 켤 수 있어요.</b>') + '</div><button class="btn sm' + (st.archive_sheet_at ? ' pri' : '') + '" data-act="ar-ro1"' + (st.archive_sheet_at ? '' : ' disabled') + '>읽기 전용 켜기</button>') +
+      : '<div class="small muted">회원은 일정·사진·스코어를 계속 볼 수 있지만 바꿀 수는 없어요.' + (st.archive_sheet_at ? '' : ' <b>③ 시트 사본을 먼저 만들어야 켤 수 있어요.</b>') + '</div><button class="btn sm' + (st.archive_sheet_at ? ' pri' : '') + '" data-act="ar-ro1"' + (st.archive_sheet_at ? '' : ' disabled') + '>읽기 전용 켜기</button>') +
     '</div>';
 }
 function archiveAct(act, b) {
@@ -4348,6 +4449,18 @@ function bindMain() {
         if (!y) return;
         call('deleteCashMove', { id: a.dataset.mvdel }).then(function (r) { S.D.cashMoves = r.cashMoves; saveCache(); renderMain(); }).catch(function (e) { toast(e.message); });
       });
+    };
+  });
+  els('[data-feeuse]', m).forEach(function (b) {
+    b.onclick = function () {
+      var id = b.dataset.feeuse;
+      if (id === 'ex') { toast('현지 환전 기록이에요. 경비 › 공금 카드의 💱 추가 환전에서 고칠 수 있어요.', null, 5000); return; }
+      var u = (S.D.feeUses || []).filter(function (x) { return x.id === id; })[0]; if (!u) return;
+      if (S.me.isAdmin) { feeForm('use', u); return; }
+      var sh = sheet('<h3>📤 회비 사용</h3><div class="kv"><span>어디에</span><b>' + esc(u.title) + '</b></div><div class="kv"><span>금액</span><b>' + won(Number(String(u.amount).replace(/,/g, ''))) + '</b></div>' +
+        '<div class="kv"><span>날짜</span><b>' + esc(u.date) + '</b></div><div class="kv"><span>처리</span><b>' + esc(u.by) + '</b></div>' + (u.memo ? '<div class="kv"><span>메모</span><b>' + esc(u.memo) + '</b></div>' : '') +
+        '<p class="small muted">고칠 곳이 있으면 관리자에게 알려 주세요.</p><div class="row" style="justify-content:flex-end"><button class="btn" data-close>닫기</button></div>');
+      els('[data-close]', sh).forEach(function (x) { x.onclick = closeSheet; });
     };
   });
   els('[data-feedel]', m).forEach(function (a) {
