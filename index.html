@@ -537,6 +537,7 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .aw-tot th:first-child,.aw-tot td:first-child{width:4.6em;text-align:left}
 .repay{border:2px solid var(--pri)}
 .undo-rp{border:1px dashed var(--warn)}
+.dv-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line)}
 .rp-src{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;white-space:nowrap}
 .rp-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
 .rp-amt{display:flex;flex-direction:column;align-items:flex-end;white-space:nowrap}
@@ -701,7 +702,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-20';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-21';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -913,7 +914,7 @@ function renderLogin(selName) {
       if (pin.length === b.pin_len) {
         if (!name) { el('#lmsg').textContent = '이름을 먼저 골라 주세요.'; pin = ''; paint(); return; }
         el('#lmsg').textContent = '확인 중…';
-        call('login', { name: name, pin: pin }).then(function (r) {
+        call('login', { name: name, pin: pin, device: isPhone() ? 'phone' : 'pc' }).then(function (r) {
           S.token = r.token; LS.set('trip_token', r.token); LS.set('trip_last_name', name);
           if (r.mustChange) return renderPinChange(pin, true);
           return loadAll();
@@ -4379,12 +4380,24 @@ function albumOpen() {
 }
 
 /* 📱 기기 풀기 (관리자): 회원은 기기 하나만 입장 가능 → 폰을 바꾸거나 잃어버리면 여기서 풀어 줌 */
+/* 폰인지 (회원은 폰에서만 입장, PC는 관리자 허락). 미리보기(폰 틀)는 폰으로 봄 — ?pc=1이면 PC로 시험 */
+function isPhone() {
+  if (window.__previewPhone !== undefined) return window.__previewPhone;
+  var ua = navigator.userAgent || '';
+  // 갤럭시 Chrome '데스크톱 사이트' 모드는 PC처럼 보이므로, 손가락 터치가 되는 기기(윈도우 제외)는 폰으로 봄
+  return /Android|iPhone|iPad|iPod|Mobile|Windows Phone/i.test(ua) || (navigator.maxTouchPoints > 0 && !/Windows/i.test(ua));
+}
+function setPcOk(name, on) {
+  call('setPcOk', { name: name, on: on }).then(function (r) { S.D.members = r.members; S.D.requests = r.requests; saveCache(); renderMain(); toast(name + ' 님 PC 입장을 ' + (on ? '허락했어요.' : '막았어요.')); }).catch(function (e) { toast(e.message); });
+}
 function deviceCard() {
   var dv = S.D.devices || {};
-  return '<div class="card"><b>📱 기기 풀기</b><p class="small muted">회원은 한 기기(폰 또는 PC)에서만 입장할 수 있어요. 폰을 바꾸거나 앱을 지웠다가 다시 깔아서 못 들어오면 [기기 풀기]를 눌러 주세요. (PIN 초기화를 해도 풀려요)</p>' +
+  return '<div class="card"><b>📱 기기 · 💻 PC 허락</b><p class="small muted">회원은 <b>폰에서만</b>, 그리고 <b>한 기기에서만</b> 입장해요. PC로 쓰고 싶은 회원은 [PC 허락]을 눌러 주세요(PC에서 막히면 요청이 위 수정 요청에 와요). 폰을 바꾸거나 앱을 지워 못 들어오면 [기기 풀기] (PIN 초기화를 해도 풀려요).</p>' +
     S.D.members.filter(function (m) { return m.role !== 'admin'; }).map(function (m) {
       var n = dv[m.name] || 0;
-      return '<div class="kv"><span>' + esc(m.name) + ' <span class="muted">' + (n ? '· 입장 중 ' + n + '곳' : '· 입장 안 함') + '</span></span>' + (n ? '<button class="btn sm" data-act="unlock" data-nm="' + esc(m.name) + '">기기 풀기</button>' : '<span></span>') + '</div>';
+      return '<div class="dv-row"><div><b>' + esc(m.name) + '</b> <span class="small muted">' + (n ? '입장 중 ' + n + '곳' : '입장 안 함') + (m.pc_ok ? ' · 💻 PC 허락됨' : '') + '</span></div>' +
+        '<div class="row" style="gap:6px;flex-wrap:nowrap">' + (n ? '<button class="btn sm" data-act="unlock" data-nm="' + esc(m.name) + '">기기 풀기</button>' : '') +
+        '<button class="btn sm' + (m.pc_ok ? '' : ' ghost') + '" data-act="pcok" data-nm="' + esc(m.name) + '" data-on="' + (m.pc_ok ? '' : '1') + '">' + (m.pc_ok ? 'PC 막기' : '💻 PC 허락') + '</button></div></div>';
     }).join('') + '</div>';
 }
 function unlockDevice(name) {
@@ -4398,7 +4411,7 @@ function adminHtml() {
   return archiveCard() + '<div class="card"><b>✋ 수정 요청 (' + reqs.filter(function (r) { return r.status === '대기'; }).length + '건 대기)</b>' +
     (reqs.length ? reqs.map(function (r) {
       return '<div style="border-top:1px solid var(--line);padding:8px 0;margin-top:6px"><div class="small muted">' + esc(r.member) + ' · ' + esc(r.at.slice(5)) + (r.item_id ? ' · ' + esc(itemLabel(r.item_id)) : '') + '</div><div>' + esc(r.text) + '</div>' +
-        (r.status === '대기' ? '<div class="row" style="margin-top:6px">' + (r.item_id ? '<button class="btn sm" data-ropen="' + esc(r.item_id) + '">일정 열기</button>' : '') + '<button class="btn sm pri" data-res="' + esc(r.id) + '" data-st="반영">반영함</button><button class="btn sm" data-res="' + esc(r.id) + '" data-st="반려">반려</button></div>' : '<span class="chip">' + esc(r.status) + '</span>') + '</div>';
+        (r.status === '대기' ? '<div class="row" style="margin-top:6px">' + (/PC에서 입장/.test(r.text) ? '<button class="btn sm pri" data-act="pcok" data-nm="' + esc(r.member) + '" data-on="1">💻 PC 허락</button>' : '') + (r.item_id ? '<button class="btn sm" data-ropen="' + esc(r.item_id) + '">일정 열기</button>' : '') + '<button class="btn sm pri" data-res="' + esc(r.id) + '" data-st="반영">반영함</button><button class="btn sm" data-res="' + esc(r.id) + '" data-st="반려">반려</button></div>' : '<span class="chip">' + esc(r.status) + '</span>') + '</div>';
     }).join('') : '<p class="small muted">요청이 없습니다.</p>') + '</div>' +
     '<div class="card"><b>🔍 사진 인식 점검</b><p class="small muted">영수증·스코어카드 자동 인식이 안 될 때 눌러서 결과를 캡처해 주세요.</p><button class="btn sm" data-act="ai-check">점검하기</button></div>' +
     '<div class="card"><b>📜 변경 기록</b><div id="logbox"><button class="btn sm" data-act="log">불러오기</button></div></div>' +
@@ -4475,7 +4488,8 @@ function bindMain() {
       if (a === 'album' || a.indexOf('ar-') === 0) { archiveAct(a, b); return; }   // 여행 보관 · 종료
       if (a === 'repay') { repayForm(b.dataset.src); return; }
       if (a === 'undo-repay') { undoRepay(); return; }
-      if (a === 'unlock') { unlockDevice(b.dataset.nm); return; }   // 남은 공금으로 먼저 갚기
+      if (a === 'unlock') { unlockDevice(b.dataset.nm); return; }
+      if (a === 'pcok') { setPcOk(b.dataset.nm, !!b.dataset.on); return; }   // 남은 공금으로 먼저 갚기
       if (a === 'edit-on') { S.editMode = true; renderMain(); }
       else if (a === 'edit-off') { S.editMode = false; renderMain(); }
       else if (a === 'add') editItem(null);
