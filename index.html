@@ -425,6 +425,18 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .pick{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:8px 12px;min-height:42px;font-weight:600}
 .pick.on{background:var(--pri);color:var(--pri-ink);border-color:var(--pri)}
 .pick:disabled{opacity:.35}
+.aw-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line)}
+.aw-row:last-of-type{border-bottom:0}
+.aw-row .aw-who{margin-left:auto;font-weight:800}
+.aw-row>span:first-child{white-space:nowrap}
+.aw-del{border:0;background:transparent;color:var(--sub);font-size:calc(16px*var(--fs));padding:2px 6px;cursor:pointer}
+.aw-sub{margin-top:12px;padding-top:8px;border-top:1px dashed var(--line);font-weight:700}
+.aw-holes{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+.aw-holes .pick{padding:6px 0;border-radius:12px;display:flex;flex-direction:column;align-items:center;line-height:1.15;min-height:46px}
+.aw-holes .pick small{font-size:calc(11px*var(--fs));color:var(--sub);font-weight:600}
+.aw-holes .pick.dim{opacity:.45}
+.aw-holes .pick.on{opacity:1}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
 .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 .grid4 .pick,.grid3 .pick{width:100%;padding:8px 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:14px}
@@ -580,7 +592,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-1';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-2';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -936,6 +948,11 @@ var V_REL = [['알바트로스', -3], ['이글', -2], ['버디', -1], ['트리�
 var V_CAT = [['식사', /저녁|점심|아침|식사|밥|식당|국밥|해산물|조식/], ['술·음료', /맥주|술|음료|커피|소주|와인|펍/], ['마사지', /마사지/], ['교통', /택시|그랩|교통|차비|버스|툭툭|기사/], ['팁', /팁/], ['골프', /골프|캐디|그린피|카트/], ['쇼핑', /쇼핑|마트|선물|시장|빅씨|빅C/]];
 function vLocal(raw) {
   var t = vNorm(raw), me = S.me.name, who = vMember(t) || me, m;
+  // 니어핀·롱기스트 ('니어핀 상민이 3번 홀', '롱기 기정이 9번')
+  if (/니어|롱기|롱게|롱기스트/.test(t)) {
+    m = t.match(/(\d{1,2})\s*번/) || t.match(/(\d{1,2})\s*홀/);
+    return { intent: 'award', kind: /니어/.test(t) ? 'near' : 'long', member: vMember(t) || (/내가|제가|나\b/.test(t) ? me : ''), hole: m ? Number(m[1]) : 0 };
+  }
   // 홀 타수
   m = t.match(/(\d{1,2})\s*번\s*(?:째)?\s*홀?\s*(?:에서|은|는|이|가)?\s*(\d{1,2})\s*타/) || t.match(/(\d{1,2})\s*홀\s*(?:에서|은|는)?\s*(\d{1,2})\s*타/);
   if (m) return { intent: 'hole', member: who, hole: Number(m[1]), strokes: Number(m[2]) };
@@ -1039,6 +1056,18 @@ function vShow(o, said, out, sh) {
     }
     return;
   }
+  if (o.intent === 'award') {
+    var ra = vRoundFor(); if (!ra) { card('라운드가 없어요.'); return; }
+    var ak = o.kind === 'near' ? 'near' : 'long';
+    if (!o.member || !o.hole) { closeSheet(); setTimeout(function () { S.scoreRound = ra.round_id; awardForm(ra, ak, { hole: o.hole || 0, member: o.member || '' }); }, 250); return; }
+    card(AW[ak][0] + ' ' + md(ra.date) + ' ' + esc(ra.course) + '<div class="vc-big">' + o.hole + '번 홀 ' + AW[ak][1] + ' <b>' + esc(o.member) + '</b></div><button class="btn pri" id="vc-save" style="width:100%">✓ 저장</button>');
+    el('#vc-save', sh).onclick = function () {
+      this.disabled = true;
+      call('saveAward', { round_id: ra.round_id, kind: ak, hole: o.hole, member: o.member }).then(function (res) { S.D.awards = res.awards; saveCache(); closeSheet(); toast(AW[ak][0] + ' ' + o.hole + '번 홀 ' + AW[ak][1] + ' · ' + o.member); if (S.tab === 'score') renderMain(); })
+        .catch(function (e) { card(esc(e.message)); });
+    };
+    return;
+  }
   if (o.intent === 'expense') {
     if (!canMoney()) { card('경비는 관리자만 적을 수 있어요.'); return; }
     var rate = liveRate(), thb = o.thb || (o.krw ? Math.round(o.krw / rate * 100) / 100 : '');
@@ -1072,7 +1101,7 @@ function vRun(said, out, sh) {
   call('voiceParse', { text: said }).then(function (r) { vShow(r, said, out, sh); }).catch(function () { vShow(null, said, out, sh); });
 }
 function voiceOpen() {
-  var ex = ['3번 홀 5타', '7번 홀 보기', '상민이 5번 홀 6타', '전반 45 후반 48', '다음 일정', '오늘 날씨', '환율', '지금 순위', '내일 일정', '사진'];
+  var ex = ['3번 홀 5타', '7번 홀 보기', '상민이 5번 홀 6타', '전반 45 후반 48', '니어핀 기정이 3번 홀', '다음 일정', '오늘 날씨', '환율', '지금 순위', '내일 일정', '사진'];
   if (canMoney()) ex.splice(4, 0, '저녁 3000바트 공금', '마사지 2000바트 상민이가 쏨');
   var sh = sheet('<h3>🎤 말로 하기</h3>' +
     '<button type="button" class="vc-mic" id="vc-mic" aria-label="듣기">🎤</button>' +
@@ -2132,6 +2161,92 @@ function viewScore() {
     editor + '<div id="sc-tables">' + scoreTables(r) + '</div>' + photoCard(r.date, md(r.date) + ' ' + r.course + ' 사진');
 }
 
+/* ═════════ ⛳ 골프 내기: 니어핀·롱기스트(누구나 적음) + 버디·이글 자동 집계 ═════════ */
+var AW = { near: ['🎯', '니어핀'], long: ['🏌️', '롱기스트'] };
+function awardsOf(rid) { return (S.D.awards || []).filter(function (a) { return a.round_id === rid; }).sort(function (a, b) { return (a.kind === b.kind ? 0 : a.kind === 'near' ? -1 : 1) || Number(a.hole) - Number(b.hole); }); }
+// 한 라운드 회원별 버디·이글 (홀별로 적은 사람만 셀 수 있음)
+function birdiesOf(r) {
+  var pars = roundPars(r), out = {};
+  memberNames().forEach(function (n) {
+    var h = parseHoles(scoreOf(r.round_id, n) || {}), b = [], e = [], a = [];
+    h.forEach(function (v, i) { v = Number(v); var p = pars[i]; if (!v) return; if (v === 1) { a.push(i + 1); return; } if (!p) return; if (v <= p - 2) e.push(i + 1); else if (v === p - 1) b.push(i + 1); });
+    out[n] = { b: b, e: e, a: a, holes: h.filter(function (v) { return v !== '' && v !== null && v !== undefined; }).length };
+  });
+  return out;
+}
+function awardsHtml(r) {
+  var list = awardsOf(r.round_id), bd = birdiesOf(r), names = memberNames();
+  var anyHoles = names.some(function (n) { return bd[n].holes > 0; });
+  var birdieRows = names.filter(function (n) { return bd[n].b.length || bd[n].e.length || bd[n].a.length; }).map(function (n) {
+    var x = bd[n];
+    return '<div class="aw-row"><span class="aw-who">' + esc(n) + '</span><span>' + (x.a.length ? '🎉 홀인원 <b>' + x.a.length + '</b> <span class="muted">(' + x.a.join('·') + '번)</span> ' : '') + (x.e.length ? '🦅 이글 <b>' + x.e.length + '</b> <span class="muted">(' + x.e.join('·') + '번)</span> ' : '') + (x.b.length ? '🐦 버디 <b>' + x.b.length + '</b> <span class="muted">(' + x.b.join('·') + '번)</span>' : '') + '</span></div>';
+  }).join('');
+  return '<div class="card aw"><b>🏆 ' + md(r.date) + ' 내기</b>' +
+    (list.length ? list.map(function (a) {
+      var mine = a.by === S.me.name || S.me.isAdmin;
+      return '<div class="aw-row"><span>' + AW[a.kind][0] + ' ' + AW[a.kind][1] + ' <span class="muted">' + Number(a.hole) + '번 홀</span></span><b class="aw-who">' + esc(a.member) + '</b>' +
+        (mine ? '<button class="aw-del" data-awdel="' + esc(a.id) + '" aria-label="지우기">✕</button>' : '') + '</div>';
+    }).join('') : '<p class="small muted" style="margin:6px 0">니어핀·롱기스트 수상자를 누구나 적을 수 있어요.</p>') +
+    '<div class="grid2" style="margin-top:8px"><button class="btn" data-aw="near">🎯 니어핀 적기</button><button class="btn" data-aw="long">🏌️ 롱기스트 적기</button></div>' +
+    '<div class="aw-sub">🐦 버디 · 이글 <span class="small muted">(홀별 스코어에서 저절로)</span></div>' +
+    (birdieRows || '<p class="small muted" style="margin:4px 0 0">' + (anyHoles ? '아직 버디가 없어요.' : '홀별로 적으면 버디·이글을 저절로 세어 드려요.') + '</p>') +
+    '</div>';
+}
+// 전체 라운드 내기 합계 (전체 순위 아래)
+function awardsTotalHtml() {
+  var rs = rounds(), names = memberNames(), t = {};
+  names.forEach(function (n) { t[n] = { near: 0, long: 0, b: 0, e: 0, a: 0 }; });
+  (S.D.awards || []).forEach(function (a) { if (t[a.member]) t[a.member][a.kind]++; });
+  rs.forEach(function (r) { var bd = birdiesOf(r); names.forEach(function (n) { t[n].b += bd[n].b.length; t[n].e += bd[n].e.length; t[n].a += bd[n].a.length; }); });
+  var any = names.some(function (n) { var x = t[n]; return x.near || x.long || x.b || x.e || x.a; });
+  var ace = names.some(function (n) { return t[n].a; });
+  if (!any) return '';
+  var rows = names.slice().sort(function (a, b) { var A = t[a], B = t[b]; return (B.near + B.long + B.b + B.e * 2 + B.a * 3) - (A.near + A.long + A.b + A.e * 2 + A.a * 3); });
+  return '<div class="card"><b>🏆 내기 합계 (전체 라운드)</b><div style="overflow-x:auto"><table class="tbl" style="margin-top:6px"><tr><th>이름</th><th>🎯 니어</th><th>🏌️ 롱기</th><th>🐦 버디</th><th>🦅 이글</th>' + (ace ? '<th>🎉 홀인원</th>' : '') + '</tr>' +
+    rows.map(function (n) { var x = t[n]; return '<tr><td>' + esc(n) + '</td><td>' + (x.near || '-') + '</td><td>' + (x.long || '-') + '</td><td>' + (x.b || '-') + '</td><td>' + (x.e || '-') + '</td>' + (ace ? '<td>' + (x.a || '-') + '</td>' : '') + '</tr>'; }).join('') +
+    '</table></div></div>';
+}
+function awardForm(r, kind, preset) {
+  var pars = roundPars(r), NH = hasExtra(r) ? 27 : 18, names = memberNames();
+  var good = function (p) { return kind === 'near' ? p === 3 : p >= 4; };   // 니어핀은 파3, 롱기스트는 파4·5 홀을 진하게
+  var st = { hole: preset && preset.hole || 0, member: preset && preset.member || '' };
+  var sh = sheet('<h3>' + AW[kind][0] + ' ' + AW[kind][1] + ' 적기</h3><p class="small muted">' + md(r.date) + ' ' + esc(r.course) + (pars.length ? ' · ' + (kind === 'near' ? '파3' : '파4·5') + ' 홀이 진하게 보여요' : '') + '</p>' +
+    '<label class="lb">몇 번 홀?</label><div class="aw-holes">' + Array.apply(null, Array(NH)).map(function (_, i) {
+      var p = pars[i]; return '<button type="button" class="pick' + (p && !good(p) ? ' dim' : '') + (st.hole === i + 1 ? ' on' : '') + '" data-ah="' + (i + 1) + '">' + (i + 1) + (p ? '<small>P' + p + '</small>' : '') + '</button>';
+    }).join('') + '</div>' +
+    '<label class="lb">누가?</label><div class="grid4">' + names.map(function (n) { return '<button type="button" class="pick' + (st.member === n ? ' on' : '') + '" data-am="' + esc(n) + '">' + esc(n) + '</button>'; }).join('') + '</div>' +
+    '<p class="small" id="aw-msg" style="color:var(--bad);min-height:18px"></p>' +
+    '<div class="row" style="justify-content:flex-end"><button class="btn" id="aw-x">취소</button><button class="btn pri" id="aw-ok">저장</button></div>');
+  els('[data-ah]', sh).forEach(function (b) { b.onclick = function () { st.hole = Number(b.dataset.ah); els('[data-ah]', sh).forEach(function (x) { x.classList.toggle('on', x === b); }); }; });
+  els('[data-am]', sh).forEach(function (b) { b.onclick = function () { st.member = b.dataset.am; els('[data-am]', sh).forEach(function (x) { x.classList.toggle('on', x === b); }); }; });
+  el('#aw-x', sh).onclick = closeSheet;
+  el('#aw-ok', sh).onclick = function () {
+    if (!st.hole) { el('#aw-msg', sh).textContent = '홀을 골라 주세요.'; return; }
+    if (!st.member) { el('#aw-msg', sh).textContent = '누가 받았는지 골라 주세요.'; return; }
+    var old = awardsOf(r.round_id).filter(function (a) { return a.kind === kind && Number(a.hole) === st.hole; })[0];
+    var go2 = function () {
+      el('#aw-msg', sh).textContent = '저장 중…'; this.disabled = true;
+      call('saveAward', { round_id: r.round_id, kind: kind, hole: st.hole, member: st.member }).then(function (res) {
+        S.D.awards = res.awards; saveCache(); closeSheet(); refreshTables(); toast(AW[kind][0] + ' ' + st.hole + '번 홀 ' + AW[kind][1] + ' · ' + st.member);
+      }).catch(function (e) { el('#aw-msg', sh).textContent = e.message; el('#aw-ok', sh).disabled = false; });
+    }.bind(this);
+    if (old && old.member !== st.member) confirmBox(st.hole + '번 홀 ' + AW[kind][1] + '은 ' + old.member + ' 님으로 적혀 있어요. ' + st.member + ' 님으로 바꿀까요?', '바꾸기').then(function (y) { if (y) go2(); });
+    else go2();
+  };
+}
+function bindAwards(root) {
+  els('[data-aw]', root).forEach(function (b) { b.onclick = function () { var r = S.D.rounds.filter(function (x) { return x.round_id === S.scoreRound; })[0]; if (r) awardForm(r, b.dataset.aw); }; });
+  els('[data-awdel]', root).forEach(function (b) {
+    b.onclick = function () {
+      var a = (S.D.awards || []).filter(function (x) { return x.id === b.dataset.awdel; })[0]; if (!a) return;
+      confirmBox(Number(a.hole) + '번 홀 ' + AW[a.kind][1] + ' (' + a.member + ') 기록을 지울까요?', '지우기').then(function (y) {
+        if (!y) return;
+        call('deleteAward', { id: a.id }).then(function (res) { S.D.awards = res.awards; saveCache(); refreshTables(); toast('지웠어요'); }).catch(function (e) { toast(e.message); });
+      });
+    };
+  });
+}
+
 function scoreTables(r) {
   var members = S.D.members.map(function (m) { return m.name; });
   // 라운드 순위
@@ -2147,13 +2262,13 @@ function scoreTables(r) {
       return '<tr' + (crown ? ' class="first"' : '') + '><td>' + esc(x.n) + crown + '</td><td>' + (t && t.f !== null ? t.f : '-') + '</td><td>' + (t && t.b !== null ? t.b : '-') + '</td>' + (xcol ? '<td>' + (t && t.x !== null ? t.x : '-') + '</td>' : '') + '<td><b>' + (t && (t.f !== null || t.b !== null || t.x !== null) ? t.t : '-') + '</b>' + (t && t.holes !== null && t.holes > 0 && t.holes < 18 ? '<div class="small muted">' + t.holes + '홀</div>' : '') + '</td>' +
         '<td>' + (x.n !== S.me.name ? '<button class="btn sm ghost" data-for="' + esc(x.n) + '">대신 입력</button>' : '<button class="btn sm ghost" data-editme>수정</button>') + '</td></tr>';
     }).join('') + '</table></div></div>';
-  return table + overallHtml();
+  return table + awardsHtml(r) + overallHtml() + awardsTotalHtml();
 }
 function refreshTables() {
   var box = el('#sc-tables'); if (!box) return;
   var r = S.D.rounds.filter(function (x) { return x.round_id === S.scoreRound; })[0]; if (!r) return;
   box.innerHTML = scoreTables(r);
-  bindFor(box);
+  bindFor(box); bindAwards(box);
 }
 
 function stepper(key, v) {
@@ -3903,7 +4018,7 @@ function bindMain() {
   }
   // 스코어
   els('[data-round]', m).forEach(function (b) { b.onclick = function () { S.scoreRound = b.dataset.round; renderMain(); }; });
-  bindFor(m);
+  bindFor(m); bindAwards(m);
   els('[data-mode]', m).forEach(function (b) {
     b.onclick = function () {
       var sc = currentScore();
