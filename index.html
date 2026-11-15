@@ -303,8 +303,8 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .pth.sel{outline:3px solid var(--pri);outline-offset:-3px}
 .pth.sel .ck{background:var(--pri);border-color:var(--pri)}
 .pth.dim{opacity:.35}
-.psbar{display:flex;align-items:center;gap:8px;margin-top:8px;padding:8px 10px;border-radius:12px;background:rgba(76,175,80,.15)}
-.psbar b{flex:1}
+.psbar{display:flex;flex-direction:column;align-items:stretch;gap:8px;margin-top:8px;padding:8px 10px;border-radius:12px;background:rgba(76,175,80,.15)}
+.psbar b{flex:1;min-width:0}
 .sheet.pview{background:#0b0d0c;color:#eee;padding:10px 10px 14px;max-width:760px}
 .pview .pv-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
 .pview .pv-img{position:relative;display:flex;align-items:center;justify-content:center;min-height:240px;max-height:70vh;background:#000;border-radius:10px;overflow:hidden}
@@ -723,7 +723,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-30';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-31';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -3903,6 +3903,32 @@ function pumpPhotos() {
     })(j);
   }
 }
+/* 원본: 폰 파일을 그대로(JPEG·PNG·WebP), 다른 형식(HEIC 등)은 같은 크기 JPEG로 바꿔 올림 */
+function fileDataUrl(f) {
+  return new Promise(function (res, rej) { var fr = new FileReader(); fr.onload = function () { res(fr.result); }; fr.onerror = function () { rej(new Error('사진을 읽지 못했습니다.')); }; fr.readAsDataURL(f); });
+}
+function origDataUrl(f) {
+  if (/^image\/(jpeg|png|webp)$/.test(f.type) && f.size < 18 * 1024 * 1024) return fileDataUrl(f);
+  return shrinkImage(f, 6000, 0.92);
+}
+var origQ = [], origRun = false;
+function queueOrig(date, id, f) { origQ.push({ date: date, id: id, f: f }); pumpOrig(); }
+function pumpOrig() {
+  if (origRun) return;
+  var j = origQ.shift();
+  var st = function (t) { els('[data-pst]').forEach(function (e) { if (!/올리는 중/.test(e.textContent) || /원본/.test(e.textContent)) e.textContent = t; }); };
+  if (!j) { st(''); return; }
+  origRun = true;
+  st('💾 원본 저장 중… 남은 ' + (origQ.length + 1) + '장 (기다리지 않아도 돼요)');
+  origDataUrl(j.f).then(function (u) { return call('addPhotoOrig', { id: j.id, dataUrl: u }); })
+    .then(function (r) { S.D.photos = r.photos; saveCache(); }, function () {})
+    .then(function () { origRun = false; pumpOrig(); });
+}
+/* 폰에 저장할 사진: 원본이 있으면 원본, 없으면 줄인 사진. 원본은 커서 폰에 담아 두지 않음 */
+function loadForSave(p) {
+  if (p.orig_id) return call('getPhoto', { id: p.id, size: 'orig' }).then(function (r) { return r.dataUrl; });
+  return loadPhoto(p.id, 'full');
+}
 function photosOf(date) { return (S.D.photos || []).filter(function (p) { return p.date === date; }).sort(function (a, b) { return String(a.at).localeCompare(String(b.at)); }); }
 function photoCard(date, title) {
   var ps = photosOf(date);
@@ -3912,13 +3938,14 @@ function photoCard(date, title) {
     '<label class="btn">갤러리<input type="file" accept="image/*" multiple data-pup="' + date + '" hidden></label></div>') +
     '<div class="small" data-pst style="margin-top:6px;color:var(--pri)"></div>' +
     '<div data-psbar>' + psbarHtml(date) + '</div><div class="pgrid" data-pg>' + pgridHtml(date) + '</div>' +
-    (ps.length && !isRO() ? '<div class="small muted" data-phint style="margin-top:6px' + (pSel && pSel.date === date ? ';display:none' : '') + '">사진을 꾹 누르면 여러 장 골라 지울 수 있어요.</div>' : '') + '</div>';
+    (ps.length ? '<div class="small muted" data-phint style="margin-top:6px' + (pSel && pSel.date === date ? ';display:none' : '') + '">사진을 꾹 누르면 여러 장 골라 폰에 저장하거나 지울 수 있어요.</div>' : '') + '</div>';
 }
 /* 폰에 저장: 파일로 내려받음 → 갤러리 'Download' 앨범에 들어감 (src = File/Blob 또는 data: 주소) */
 function saveToPhone(src, date) {
   try {
     var t = new Date(), pad = function (n) { return ('0' + n).slice(-2); };
-    var name = '태국골프_' + String(date || '').replace(/-/g, '').slice(4) + '_' + pad(t.getHours()) + pad(t.getMinutes()) + pad(t.getSeconds()) + '_' + Math.random().toString(36).slice(2, 5) + '.jpg';
+    var ext = (typeof src === 'string' ? (/^data:image\/png/.test(src) ? 'png' : /^data:image\/webp/.test(src) ? 'webp' : 'jpg') : (/png/.test(src.type) ? 'png' : /webp/.test(src.type) ? 'webp' : /heic|heif/.test(src.type) ? 'heic' : 'jpg'));
+    var name = '태국골프_' + String(date || '').replace(/-/g, '').slice(4) + '_' + pad(t.getHours()) + pad(t.getMinutes()) + pad(t.getSeconds()) + '_' + Math.random().toString(36).slice(2, 5) + '.' + ext;
     var blob = src;
     if (typeof src === 'string') {
       var m = src.split(','), bin = atob(m[1]), arr = new Uint8Array(bin.length);
@@ -3932,12 +3959,12 @@ function saveToPhone(src, date) {
   } catch (e) { return false; }
 }
 /* 올리는 중인 사진(찍자마자 칸에 먼저 보임)과 꾹 눌러 골라 지우기 */
-var pendPh = {}, pSel = null, pSeq = 0;
+var pendPh = {}, pSel = null, pSeq = 0, pLongAt = 0;
 function canDelPhoto(p) { return !isRO() && (p.by === S.me.name || S.me.isAdmin); }
 function pgridHtml(date) {
   var sel = pSel && pSel.date === date ? pSel : null;
   return photosOf(date).map(function (p) {
-    var on = sel && sel.ids[p.id], dim = sel && !canDelPhoto(p);
+    var on = sel && sel.ids[p.id], dim = false;
     return '<button class="pth' + (on ? ' sel' : '') + (dim ? ' dim' : '') + '" data-pho="' + esc(p.id) + '"><span class="ld">…</span><img data-pimg="' + esc(p.id) + '" alt="">' + (p.caption ? '<span class="cap">' + esc(p.caption) + '</span>' : '') + (sel && !dim ? '<span class="ck">' + (on ? '✓' : '') + '</span>' : '') + '</button>';
   }).join('') + (pendPh[date] || []).map(function (q) {
     return '<button class="pth" data-pend="' + q.k + '"><img src="' + q.small + '" alt=""><span class="up">올리는 중…</span></button>';
@@ -3945,8 +3972,10 @@ function pgridHtml(date) {
 }
 function psbarHtml(date) {
   if (!pSel || pSel.date !== date) return '';
-  var n = Object.keys(pSel.ids).length;
-  return '<div class="psbar"><b>' + (n ? n + '장 골랐어요' : '지울 사진을 누르세요') + '</b><button class="btn sm bad" data-psdel' + (n ? '' : ' disabled') + '>🗑️ 지우기</button><button class="btn sm" data-psx>취소</button></div>';
+  var ids = Object.keys(pSel.ids), n = ids.length, nd = ids.filter(function (id) { var p = (S.D.photos || []).filter(function (x) { return x.id === id; })[0]; return p && canDelPhoto(p); }).length;
+  return '<div class="psbar"><div class="row between" style="width:100%"><b>' + (n ? n + '장 골랐어요' : '사진을 눌러 고르세요') + '</b><button class="btn sm" data-psx>취소</button></div>' +
+    '<div class="row" style="width:100%;gap:8px"><button class="btn sm pri" data-pssave style="flex:1"' + (n ? '' : ' disabled') + '>📥 폰에 저장</button>' +
+    (isRO() ? '' : '<button class="btn sm bad" data-psdel style="flex:1"' + (nd ? '' : ' disabled') + '>🗑️ 지우기' + (nd && nd < n ? ' (' + nd + ')' : '') + '</button>') + '</div></div>';
 }
 function refreshPhotoGrid(date) {
   els('[data-pdate="' + date + '"]').forEach(function (card) {
@@ -3958,10 +3987,11 @@ function refreshPhotoGrid(date) {
   });
 }
 function delSelected(date) {
-  var ids = Object.keys(pSel.ids); if (!ids.length) return;
-  confirmBox('고른 사진 ' + ids.length + '장을 지울까요? 지우면 되돌릴 수 없어요.', ids.length + '장 지우기').then(function (y) {
+  var all = Object.keys(pSel.ids), ids = all.filter(function (id) { var p = (S.D.photos || []).filter(function (x) { return x.id === id; })[0]; return p && canDelPhoto(p); });
+  if (!ids.length) return;
+  confirmBox((ids.length < all.length ? '내가 올린 사진 ' : '고른 사진 ') + ids.length + '장을 지울까요? 지우면 되돌릴 수 없어요.' + (ids.length < all.length ? ' (다른 사람 사진은 그대로)' : ''), ids.length + '장 지우기').then(function (y) {
     if (!y) return;
-    var gone = pSel.ids;
+    var gone = {}; ids.forEach(function (id) { gone[id] = 1; });
     S.D.photos = (S.D.photos || []).filter(function (x) { return !gone[x.id]; });
     pSel = null; saveCache(); renderMain();
     var fail = 0;
@@ -3973,6 +4003,24 @@ function delSelected(date) {
     });
   });
 }
+/* 고른 사진 폰에 저장: 한 장씩 차례로 (원본이 있으면 원본) */
+function saveSelected(date) {
+  var ids = Object.keys(pSel.ids); if (!ids.length) return;
+  var ps = photosOf(date).filter(function (p) { return pSel.ids[p.id]; });
+  pSel = null; refreshPhotoGrid(date);
+  var done = 0, fail = 0;
+  var st = function (t) { els('[data-pdate="' + date + '"] [data-pst]').forEach(function (e) { e.textContent = t; }); };
+  st('📥 폰에 저장하는 중… 0/' + ps.length);
+  ps.reduce(function (pr, p) {
+    return pr.then(function () {
+      return loadForSave(p).then(function (u) { if (saveToPhone(u, date)) done++; else fail++; }, function () { fail++; })
+        .then(function () { st('📥 폰에 저장하는 중… ' + (done + fail) + '/' + ps.length); return new Promise(function (r) { setTimeout(r, 700); }); });
+    });
+  }, Promise.resolve()).then(function () {
+    st('');
+    toast(done + '장 폰에 저장했어요. 갤러리 › Download 앨범에 있어요.' + (fail ? ' (' + fail + '장은 실패)' : ''), null, 5000);
+  });
+}
 function bindPhotos(root) {
   els('img[data-pimg]', root).forEach(function (im) {
     loadPhoto(im.dataset.pimg, 'thumb').then(function (u) { im.src = u; var l = im.parentNode.querySelector('.ld'); if (l) l.remove(); }, function () { var l = im.parentNode.querySelector('.ld'); if (l) l.textContent = '⚠️'; });
@@ -3981,15 +4029,13 @@ function bindPhotos(root) {
     inp.onchange = function () { var fs = Array.prototype.slice.call(inp.files || []).slice(0, 20); var d = inp.dataset.pup; inp.value = ''; if (!fs.length) return; if (inp.hasAttribute('capture')) fs.forEach(function (f) { saveToPhone(f, d); }); uploadPhotos(d, fs); };
   });
   els('[data-pho]', root).forEach(function (b) {
-    var d = b.closest('[data-pdate]').dataset.pdate, id = b.dataset.pho, t = null, long = false, x0 = 0, y0 = 0;
-    var p = (S.D.photos || []).filter(function (x) { return x.id === id; })[0];
+    var d = b.closest('[data-pdate]').dataset.pdate, id = b.dataset.pho, t = null, x0 = 0, y0 = 0;
     b.addEventListener('contextmenu', function (e) { e.preventDefault(); });
     b.addEventListener('pointerdown', function (e) {
-      long = false; x0 = e.clientX; y0 = e.clientY; clearTimeout(t);
-      if (isRO() || (pSel && pSel.date === d)) return;
+      x0 = e.clientX; y0 = e.clientY; clearTimeout(t);
+      if (pSel && pSel.date === d) return;
       t = setTimeout(function () {
-        long = true;
-        if (!p || !canDelPhoto(p)) { toast('내가 올린 사진만 지울 수 있어요.'); return; }
+        pLongAt = Date.now();   // 꾹 누른 뒤 손을 떼며 생기는 '누름'은 무시 (칸을 새로 그려 단추가 바뀌므로 전역으로)
         if (navigator.vibrate) try { navigator.vibrate(30); } catch (er) {}
         if (pSel && pSel.date !== d) { var od = pSel.date; pSel = null; refreshPhotoGrid(od); }
         pSel = { date: d, ids: {} }; pSel.ids[id] = 1; refreshPhotoGrid(d);
@@ -3998,15 +4044,15 @@ function bindPhotos(root) {
     b.addEventListener('pointermove', function (e) { if (Math.abs(e.clientX - x0) > 10 || Math.abs(e.clientY - y0) > 10) clearTimeout(t); });
     ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) { b.addEventListener(ev, function () { clearTimeout(t); }); });
     b.onclick = function () {
-      if (long) { long = false; return; }
+      if (Date.now() - pLongAt < 700) return;
       if (pSel && pSel.date === d) {
-        if (!p || !canDelPhoto(p)) { toast('내가 올린 사진만 고를 수 있어요.'); return; }
         if (pSel.ids[id]) delete pSel.ids[id]; else pSel.ids[id] = 1;
         refreshPhotoGrid(d); return;
       }
       openPhoto(d, id);
     };
   });
+  els('[data-pssave]', root).forEach(function (b) { b.onclick = function () { saveSelected(b.closest('[data-pdate]').dataset.pdate); }; });
   els('[data-psx]', root).forEach(function (b) { b.onclick = function () { var d = b.closest('[data-pdate]').dataset.pdate; pSel = null; refreshPhotoGrid(d); }; });
   els('[data-psdel]', root).forEach(function (b) { b.onclick = function () { delSelected(b.closest('[data-pdate]').dataset.pdate); }; });
 }
@@ -4029,6 +4075,7 @@ function uploadPhotos(date, files) {
         return shrinkImage(q.f, 1600, 0.82).then(function (big) {
           return call('addPhoto', { date: date, dataUrl: big, thumbUrl: q.small }).then(function (r) {
             S.D.photos = r.photos; photoMem[r.photo.id + ':thumb'] = q.small; photoMem[r.photo.id + ':full'] = big; pput(r.photo.id + ':thumb', q.small);
+            q.pid = r.photo.id;
           });
         }).then(function () { done++; drop(q); st('📤 사진 올리는 중… ' + done + '/' + n); refreshPhotoGrid(date); },
                 function () { fail++; drop(q); refreshPhotoGrid(date); });
@@ -4037,6 +4084,7 @@ function uploadPhotos(date, files) {
   }).then(function () {
     saveCache(); st(''); renderMain();
     toast(done + '장 올렸습니다.' + (fail ? ' (' + fail + '장은 실패 — 다시 올려 주세요)' : ''));
+    mine.forEach(function (q) { if (q.pid) queueOrig(date, q.pid, q.f); });   // 원본은 뒤에서 한 장씩
   });
 }
 /* 크게 보기: 좌우로 넘기기(◀ ▶·밀기), 설명 고치기, 지우기(올린 사람·관리자) */
@@ -4066,9 +4114,9 @@ function openPhoto(date, id) {
     var svb = el('[data-pvsave]', sh);
     if (svb) svb.onclick = function () {
       svb.disabled = true; svb.textContent = '저장하는 중…';
-      loadPhoto(p.id, 'full').then(function (u) {
+      loadForSave(p).then(function (u) {
         var okk = saveToPhone(u, date); svb.disabled = false; svb.textContent = '📥 폰에 저장';
-        toast(okk ? '폰에 저장했어요. 갤러리 › Download 앨범에 있어요.' : '저장하지 못했습니다.');
+        toast(okk ? (p.orig_id ? '원본을 ' : '') + '폰에 저장했어요. 갤러리 › Download 앨범에 있어요.' : '저장하지 못했습니다.');
       }, function () { svb.disabled = false; svb.textContent = '📥 폰에 저장'; toast('사진을 불러오지 못해 저장하지 못했습니다.'); });
     };
     var sb = el('[data-pvstar]', sh);
