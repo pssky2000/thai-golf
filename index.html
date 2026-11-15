@@ -29,7 +29,7 @@
   --bg:#f4f6f3; --card:#ffffff; --ink:#18221b; --sub:#5d6b61; --line:#dfe6e0;
   --pri:#1f7a4d; --pri-ink:#ffffff; --pri-soft:#e3f1e8;
   --warn:#c26a00; --warn-soft:#fff3e0; --bad:#c62828; --bad-soft:#fdecea; --good:#2e7d32;
-  --flight:#3f51b5; --golf:#1f7a4d; --meal:#d35400; --move:#607d8b; --hotel:#6d4c9f; --massage:#ad1457; --shop:#00838f; --rest:#8d6e63;
+  --flight:#3f51b5; --golf:#1f7a4d; --meal:#d35400; --move:#607d8b; --hotel:#6d4c9f; --massage:#ad1457; --shop:#00838f; --rest:#8d6e63; --barc:#b8860b;
   --shadow:0 1px 3px rgba(0,0,0,.08),0 4px 14px rgba(0,0,0,.05);
   --r:16px; --fs:1.3;
   --nav-bg:#d6e8dc; --nav-line:#7fb394;   /* 아래 메뉴: 본문과 구분되는 색 */
@@ -176,9 +176,13 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .it.dragging{opacity:.9;box-shadow:0 10px 30px rgba(0,0,0,.25);position:relative;z-index:30}
 .it.placeholder{border:2px dashed var(--pri);background:transparent;box-shadow:none}
 .it.fixed .tm{color:var(--pri)}
-.it.changed{border-color:var(--warn)}
 .ty-flight .bar{background:var(--flight)} .ty-golf .bar{background:var(--golf)} .ty-meal .bar{background:var(--meal)}
-.ty-hotel .bar{background:var(--hotel)} .ty-massage .bar{background:var(--massage)} .ty-shop .bar{background:var(--shop)} .ty-rest .bar{background:var(--rest)}
+.ty-hotel .bar{background:var(--hotel)} .ty-massage .bar{background:var(--massage)} .ty-shop .bar{background:var(--shop)} .ty-rest .bar{background:var(--rest)} .ty-bar .bar{background:var(--barc)}
+.tygrid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.tygrid button{border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:6px 0 4px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:calc(12px*var(--fs));color:var(--ink);min-width:0}
+.tygrid button .e{font-size:calc(24px*var(--fs));line-height:1.1}
+.tygrid button.on{border:2px solid var(--pri);background:var(--pri-soft);font-weight:700}
+.it .chg{font-size:calc(12px*var(--fs));color:var(--warn);font-weight:700}
 .seg{display:flex;align-items:center;gap:8px;margin:0 0 0 calc(70px*var(--fs));font-size:calc(13px*var(--fs));color:var(--sub);flex-wrap:wrap}
 .seg .live{border:1px solid var(--line);border-radius:999px;padding:2px 8px;text-decoration:none;color:var(--ink);background:var(--card)}
 .seg.late{color:var(--bad);font-weight:700}
@@ -524,7 +528,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.15-2';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.15-3';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -603,7 +607,7 @@ function haversine(a, b) {
 function nameOf(it) { return it.display || it.place || ''; }
 var TYPES = {
   flight: ['✈️', '항공'], move: ['🚐', '이동'], golf: ['⛳', '골프'], meal: ['🍽️', '식사'],
-  hotel: ['🏨', '숙소'], massage: ['💆', '마사지'], shop: ['🛍️', '쇼핑'], rest: ['🌙', '휴식'], etc: ['⭐', '기타']
+  hotel: ['🏨', '숙소'], massage: ['💆', '마사지'], bar: ['🍺', '술집'], shop: ['🛍️', '쇼핑'], rest: ['🌙', '휴식'], etc: ['⭐', '기타']
 };
 function icon(t) { return (TYPES[t] || TYPES.etc)[0]; }
 
@@ -1068,7 +1072,7 @@ function itemHtml(it, letter) {
       '<div class="ttl">' + icon(it.type) + ' ' + esc(it.title) + '</div>' +
       (nameOf(it) ? '<div class="plc">📍 ' + esc(nameOf(it)) + '</div>' : '') +
       (it.memo ? '<div class="memo">' + esc(it.memo) + '</div>' : '') +
-      '<div class="row" style="gap:6px;margin-top:2px">' + (changed ? '<span class="chip warn">변경됨</span>' : '') + (cmts ? '<span class="chip">💬 ' + cmts + '</span>' : '') + '</div>' +
+      '<div class="row" style="gap:6px;margin-top:2px">' + (changed ? '<span class="chg">✏️ 변경됨</span>' : '') + (cmts ? '<span class="chip">💬 ' + cmts + '</span>' : '') + '</div>' +
     '</div>' +
     '<div class="side">' + (letter ? '<span class="letter">' + letter + '</span>' : '') +
       '</div>' +
@@ -1195,7 +1199,8 @@ function editItem(it, preset) {
     '<div style="flex:1"><label class="lb">시각 (눌러서 고르기)</label><input class="inp" id="e-time" readonly placeholder="🕐 고르기" style="cursor:pointer" value="' + esc(it.time) + '"></div></div>' +
     '<div id="e-tp" style="display:none;margin-top:8px"><div id="e-tpg"></div><button type="button" class="btn sm ghost" id="e-tclear" style="margin-top:6px">시각 비우기</button></div>' +
     '<label class="lb">할 일</label><input class="inp" id="e-title" value="' + esc(it.title) + '" placeholder="예) 저녁">' +
-    '<label class="lb">종류</label><select class="inp" id="e-type">' + Object.keys(TYPES).map(function (k) { return '<option value="' + k + '"' + (k === it.type ? ' selected' : '') + '>' + TYPES[k][0] + ' ' + TYPES[k][1] + '</option>'; }).join('') + '</select>' +
+    '<label class="lb">종류</label><input type="hidden" id="e-type" value="' + esc(TYPES[it.type] ? it.type : 'etc') + '"><div class="tygrid" id="e-tyg">' + Object.keys(TYPES).map(function (k) { return '<button type="button" data-ty="' + k + '"' + (k === (TYPES[it.type] ? it.type : 'etc') ? ' class="on"' : '') + '><span class="e">' + TYPES[k][0] + '</span>' + TYPES[k][1] + '</button>'; }).join('') + '</div>' +
+    '<div id="e-reco"></div>' +
     '<label class="lb">🔎 장소 찾기 (이름이나 주소)</label><div class="row"><input class="inp" id="e-q" placeholder="예) 터미널21 파타야" value="' + esc(it.place || '') + '"><button class="btn sm pri" id="e-find" style="flex:none;white-space:nowrap">찾기</button></div>' +
     '<div id="e-res"></div>' +
     '<details style="margin-top:6px"><summary class="small muted">구글지도 링크로 넣기</summary>' +
@@ -1232,11 +1237,20 @@ function editItem(it, preset) {
     var box = el('#e-res', sh); box.innerHTML = '<p class="small muted">찾는 중…</p>';
     call('searchPlace', { q: q }).then(function (r) {
       if (!r.results.length) { box.innerHTML = '<p class="small" style="color:var(--warn)">찾지 못했습니다. 이름을 조금 바꾸거나 "구글지도 링크로 넣기"를 써 주세요.</p>'; return; }
-      box.innerHTML = r.results.map(function (x, i) { return '<button class="vrow" data-er="' + i + '" style="grid-template-columns:auto 1fr"><span class="ic">📍</span><span><div class="t">' + esc(x.name) + '</div><div class="s">' + esc(x.address) + '</div></span></button>'; }).join('');
+      showRes(box, r.results, q);
+    }).catch(function (e) { box.innerHTML = '<p class="small" style="color:var(--bad)">' + esc(e.message) + '</p>'; });
+  };
+  // 찾은 목록·추천 목록 보여 주기 → 줄을 누르면 위치·이름을 넣고 지도로 확인
+  var showRes = function (box, results, q, reco) {
+    var r = { results: results };
+    box.innerHTML = r.results.map(function (x, i) { return '<button class="vrow" data-er="' + i + '" style="grid-template-columns:auto 1fr"><span class="ic">' + (reco ? icon(reco) : '📍') + '</span><span><div class="t">' + esc(x.name) + '</div><div class="s">' +
+        (x.rating ? '<b style="color:var(--warn)">★ ' + x.rating.toFixed(1) + '</b> (' + x.count.toLocaleString() + ') · ' + x.km + 'km<br>' : '') + esc(x.address) + '</div></span></button>'; }).join('');
+    {
       box.insertAdjacentHTML('beforeend', '<div id="e-map"></div>');
       els('[data-er]', box).forEach(function (b) { b.onclick = function () {
         var x = r.results[Number(b.dataset.er)];
-        setLoc(x, el('#e-place', sh).value.trim() || (x.name === q ? q : x.name));
+        setLoc(x, reco ? x.name : el('#e-place', sh).value.trim() || (x.name === q ? q : x.name));
+        if (reco) { el('#e-display', sh).value = ''; if (!el('#e-title', sh).value.trim()) el('#e-title', sh).value = TYPES[reco][1]; }
         els('[data-er]', box).forEach(function (o) { o.style.background = o === b ? 'var(--pri-soft)' : ''; });
         // 지도로 바로 확인 (핀 위치가 맞는지 보고, 아니면 다른 줄을 누르면 됨)
         el('#e-map', box).innerHTML = '<div class="small" style="color:var(--pri);margin:6px 0 4px">✓ 이 위치로 넣었어요. 지도에서 핀이 맞는지 확인하세요. 아니면 다른 줄을 누르세요.</div>' +
@@ -1244,8 +1258,40 @@ function editItem(it, preset) {
           '<a class="small" target="_blank" href="' + esc(gmapOpen(x)) + '">구글지도 앱에서 크게 보기 ↗</a>';
       }; });
       if (r.results.length === 1) els('[data-er]', box)[0].click();
-    }).catch(function (e) { box.innerHTML = '<p class="small" style="color:var(--bad)">' + esc(e.message) + '</p>'; });
+    }
   };
+  // 종류 아이콘 고르기 → 식사·마사지·술집이면 근처 추천 단추
+  var RECO_W = { meal: '맛집', massage: '마사지', bar: '술집' };
+  var recoBase = function () {
+    if (hasLL(loc)) return { lat: Number(loc.lat), lng: Number(loc.lng), name: el('#e-display', sh).value.trim() || el('#e-place', sh).value.trim() || '이 장소' };
+    var d = el('#e-date', sh).value, tm = el('#e-time', sh).value, prev = null;
+    itemsOf(d).forEach(function (x) { if (x.id !== it.id && hasLL(x) && (!tm || !x.time || x.time <= tm)) prev = x; });
+    if (prev) return { lat: Number(prev.lat), lng: Number(prev.lng), name: nameOf(prev) };
+    var st = S.D.settings || {};
+    return st.hotel_lat ? { lat: Number(st.hotel_lat), lng: Number(st.hotel_lng), name: '숙소' } : null;
+  };
+  var drawReco = function () {
+    var ty = el('#e-type', sh).value, box = el('#e-reco', sh), w = RECO_W[ty];
+    if (!w) { box.innerHTML = ''; return; }
+    var b = recoBase();
+    box.innerHTML = b ? '<button type="button" class="btn sm" id="e-rb" style="width:100%;margin-top:8px">⭐ ' + esc(b.name) + ' 근처 ' + w + ' 추천</button><div id="e-rl"></div>' : '';
+    if (!b) return;
+    el('#e-rb', sh).onclick = function () {
+      var rl = el('#e-rl', sh); rl.innerHTML = '<p class="small muted">찾는 중…</p>';
+      call('recommendPlaces', { kind: ty, lat: b.lat, lng: b.lng }).then(function (r) {
+        if (!r.results.length) { rl.innerHTML = '<p class="small" style="color:var(--warn)">근처에서 추천할 곳을 찾지 못했어요.</p>'; return; }
+        rl.innerHTML = '<p class="small muted" style="margin:6px 0 2px">구글 평점 4.0 이상 · 후기 많은 순 · 누르면 이 일정 장소로 넣어요</p><div id="e-rl2"></div>';
+        showRes(el('#e-rl2', sh), r.results, '', ty);
+      }).catch(function (e) { rl.innerHTML = '<p class="small" style="color:var(--bad)">' + esc(e.message) + '</p>'; });
+    };
+  };
+  els('[data-ty]', sh).forEach(function (b) { b.onclick = function () {
+    el('#e-type', sh).value = b.dataset.ty;
+    els('[data-ty]', sh).forEach(function (o) { o.classList.toggle('on', o === b); });
+    drawReco();
+  }; });
+  el('#e-date', sh).onchange = drawReco;
+  drawReco();
   el('#e-find', sh).onclick = find;
   el('#e-q', sh).onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); find(); } };
   el('#e-gmap', sh).onclick = function () { this.href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(el('#e-q', sh).value.trim() || el('#e-place', sh).value.trim()); };
