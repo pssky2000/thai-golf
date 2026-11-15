@@ -566,7 +566,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.15-20';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.15-21';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -3060,8 +3060,8 @@ function photoCard(date, title) {
   var ps = photosOf(date);
   return '<div class="card" data-pdate="' + date + '"><div class="row between"><b>📸 ' + esc(title || md(date) + ' 사진') + '</b><span class="small muted">' + (ps.length ? ps.length + '장' : '') + '</span></div>' +
     (ps.length ? '' : '<div class="small muted" style="margin-top:4px">이날 찍은 사진을 올려 두면 모두 같이 볼 수 있어요. 여러 장을 한꺼번에 골라도 돼요.</div>') +
-    '<div class="scan-btns" style="margin-top:8px"><label class="btn pri">📷 찍기<input type="file" accept="image/*" capture="environment" data-pup="' + date + '" hidden></label>' +
-    '<label class="btn">🖼️ 사진에서<input type="file" accept="image/*" multiple data-pup="' + date + '" hidden></label></div>' +
+    '<div class="scan-btns" style="margin-top:8px"><label class="btn pri">사진 찍기<input type="file" accept="image/*" capture="environment" data-pup="' + date + '" hidden></label>' +
+    '<label class="btn">갤러리<input type="file" accept="image/*" multiple data-pup="' + date + '" hidden></label></div>' +
     '<div class="small" data-pst style="margin-top:6px;color:var(--pri)"></div>' +
     (ps.length ? '<div class="pgrid">' + ps.map(function (p) {
       return '<button class="pth" data-pho="' + esc(p.id) + '"><span class="ld">…</span><img data-pimg="' + esc(p.id) + '" alt="">' + (p.caption ? '<span class="cap">' + esc(p.caption) + '</span>' : '') + '</button>';
