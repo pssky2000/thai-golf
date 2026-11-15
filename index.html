@@ -667,7 +667,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-8';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-9';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -2112,7 +2112,7 @@ function startDrag(handle, ev) {
   li.style.width = rect.width + 'px'; li.style.position = 'fixed'; li.style.left = rect.left + 'px'; li.style.top = rect.top + 'px'; li.style.margin = '0';   // 여백이 남으면 8px 아래로 밀려 빈자리 점선을 덮음
   dragState = { li: li, ph: ph, tl: tl, offY: ev.clientY - rect.top, id: li.dataset.id, overTab: null, y0: ev.clientY, moved: false };
   els('.seg', tl).forEach(function (s) { s.style.visibility = 'hidden'; });
-  toast('↕️ 위아래로 끌어 옮기기', null, 4000);
+  toast('↕️ 끌어서 옮기기 · 그대로 떼면 삭제', null, 4000);
 }
 function moveDrag(ev) {
   var d = dragState; if (!d) return;
@@ -2164,8 +2164,12 @@ function endDrag() {
   var order = [];
   els('.it', d.tl).forEach(function (n) { if (n === d.ph) order.push(d.id); else if (n !== d.li) order.push(n.dataset.id); });
   var old = itemsOf(date).map(function (x) { return x.id; });
-  // 제자리에서 떼면(손이 조금 흔들려도) 아무것도 안 함 — 수정·삭제는 한 번 눌러 여는 상세 창에서
-  if (order.join() === old.join()) { var t0 = el('.toast'); if (t0) t0.remove(); renderMain(); return; }
+  // 꾹 눌렀다 움직이지 않고 그 자리에서 떼면 삭제를 물음 (사용자 결정 2026-11-16). 끌다가 제자리로 돌아오면 아무것도 안 함
+  if (order.join() === old.join()) {
+    var t0 = el('.toast'); if (t0) t0.remove(); renderMain();
+    if (!d.moved && it) { suppressClickUntil = Date.now() + 700; deleteItemAsk(it); }   // 뒤따르는 클릭이 상세 창을 열거나 확인 창을 닫지 않게
+    return;
+  }
   var idx = order.indexOf(d.id);
   var prev = itemsOf(date).filter(function (x) { return x.id === order[idx - 1]; })[0];
   var next = itemsOf(date).filter(function (x) { return x.id === order[idx + 1]; })[0];
