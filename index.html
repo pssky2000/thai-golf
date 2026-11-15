@@ -226,7 +226,7 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .seg.late{color:var(--bad);font-weight:700}
 .map-box{border-radius:var(--r);overflow:hidden;border:1px solid var(--line);background:var(--card)}
 .map-box iframe{width:100%;height:260px;border:0;display:block;background:var(--line)}
-@media(min-width:960px){.map-box iframe{height:520px}}
+@media(min-width:600px){.map-box iframe{height:min(62vw,62vh,560px)}}
 .pts{display:flex;gap:6px;flex-wrap:wrap;padding:10px}
 .pt{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:4px 10px;font-size:calc(13px*var(--fs))}
 .pt b{color:#d93025}
@@ -723,7 +723,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-36';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-37';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1920,12 +1920,21 @@ function openItem(id) {
   var links = hasLL(it)
     ? '<div class="row wrap-row" style="margin:10px 0"><a class="btn sm" target="_blank" href="' + esc(gmapOpen(it)) + '">🗺️ 구글지도에서 열기</a>' +
       '<a class="btn sm" target="_blank" href="' + esc(gmapNearby(it)) + '">🍽️ 주변 맛집</a></div>'
-    : '<p class="small muted">아직 위치가 없습니다.' + (S.me.isAdmin ? ' 수정 → 🔎 장소 찾기로 넣어 주세요.' : '') + '</p>';
+    : '<p class="small muted">아직 위치가 없습니다.' + (S.me.isAdmin ? '' : ' 관리자에게 수정 요청을 보내 주세요.') + '</p>' +
+      (S.me.isAdmin && !isRO() ? '<div class="fbox" style="margin:6px 0 10px"><div class="fbt">🔎 장소 찾기</div>' +
+        '<div class="row"><input class="inp" id="iq" placeholder="예) 가게 이름이나 주소"><button class="btn sm pri" id="ifind" style="flex:none;white-space:nowrap">찾기</button></div>' +
+        '<button type="button" class="btn" id="ihere" style="width:100%;margin-top:6px">📡 지금 있는 곳으로 찾기</button>' +
+        ({ meal: 1, massage: 1, bar: 1 }[it.type] ? '<button type="button" class="btn" id="ireco" style="width:100%;margin-top:6px">' + icon(it.type) + ' 근처 추천 보기</button>' : '') +
+        '<div id="ires"></div></div>' : '');
+  // 이 일정에서 적은 지출 (경비를 볼 수 있는 사람만)
+  var exs = canMoney() ? (S.D.expenses || []).filter(function (e) { return e.item_id === id; }) : [];
+  var exHtml = exs.length ? '<div class="fbox" style="margin:10px 0"><div class="row between"><b>💰 이 일정 지출</b><b>' + baht(exs.reduce(function (a, e) { return a + Number(e.thb || 0); }, 0)) + '</b></div>' +
+    exs.map(function (e) { return '<button class="vrow" data-iex="' + esc(e.id) + '" style="grid-template-columns:1fr auto;margin-top:6px"><span><div class="t">' + esc(e.title || e.category || '지출') + '</div><div class="s">' + esc(e.payer || '') + (e.category ? ' · ' + esc(e.category) : '') + '</div></span><b>' + baht(e.thb) + '</b></button>'; }).join('') + '</div>' : '';
   var html =
     '<h3>' + icon(it.type) + ' ' + esc(it.time) + ' ' + esc(it.title) + (it.fixed ? ' 🔒' : '') + '</h3>' +
     '<div class="muted small">' + md(it.date) + '(' + wd(it.date) + ')</div>' +
     (nameOf(it) ? '<p style="margin:8px 0 0"><b>📍 ' + esc(nameOf(it)) + '</b>' + (it.display && it.place && it.display !== it.place ? '<br><span class="small muted">원래 이름: ' + esc(it.place) + '</span>' : '') + '</p>' : '') +
-    (it.memo ? '<p class="small">' + esc(it.memo) + '</p>' : '') + links +
+    (it.memo ? '<p class="small">' + esc(it.memo) + '</p>' : '') + links + exHtml +
     (it.updated_at ? '<p class="small muted">마지막 수정: ' + esc(it.updated_at) + ' ' + esc(it.updated_by) + '</p>' : '') +
     '<h4 style="margin:14px 0 4px">💬 메모 · 댓글</h4>' +
     (cm.length ? cm.map(function (c) {
@@ -1955,6 +1964,50 @@ function openItem(id) {
     var cat = it.type === 'meal' ? '식사' : it.type === 'massage' ? '마사지' : it.type === 'golf' ? '골프' : it.type === 'shop' ? '쇼핑' : it.type === 'move' ? '교통' : '기타';
     expenseForm(null, { date: it.date, item_id: it.id, category: cat, title: nameOf(it) || it.title });
   };
+  els('[data-iex]', sh).forEach(function (b) { b.onclick = function () { var e = (S.D.expenses || []).filter(function (x) { return x.id === b.dataset.iex; })[0]; if (e) expenseForm(e); }; });
+  // 장소 찾기 → 줄을 누르면 지도로 확인 → [이 곳으로 넣기]로 저장
+  if (el('#ifind', sh)) {
+    var ires = el('#ires', sh);
+    var putPlace = function (x) {
+      var o = {}; ['id', 'date', 'time', 'title', 'type', 'place', 'display', 'lat', 'lng', 'gurl', 'memo', 'fixed', 'round_id'].forEach(function (k) { o[k] = it[k]; });
+      o.place = x.here ? (x.address || '').split(',')[0] : x.name; o.display = ''; o.lat = x.lat; o.lng = x.lng; o.gurl = x.uri || '';
+      call('saveItem', { item: o }).then(function (r) { afterAdmin(r, '장소를 넣었어요'); openItem(id); }).catch(function (e) { toast(e.message); });
+    };
+    var showList = function (list, head) {
+      if (!list.length) { ires.innerHTML = '<p class="small" style="color:var(--warn)">찾지 못했습니다. 이름을 조금 바꿔 보세요.</p>'; return; }
+      ires.innerHTML = (head || '') + list.map(function (x, i) { return '<button class="vrow" data-ir="' + i + '" style="grid-template-columns:auto 1fr;margin-top:6px"><span class="ic">📍</span><span><div class="t">' + esc(x.name) + '</div><div class="s">' + esc(x.address || '') + '</div></span></button>'; }).join('') + '<div id="imap"></div>';
+      els('[data-ir]', ires).forEach(function (b) { b.onclick = function () {
+        var x = list[Number(b.dataset.ir)];
+        els('[data-ir]', ires).forEach(function (o) { o.style.background = o === b ? 'var(--pri-soft)' : ''; });
+        el('#imap', ires).innerHTML = '<iframe referrerpolicy="no-referrer-when-downgrade" src="' + esc(embedPlace(x, 16)) + '" style="width:100%;height:220px;border:0;border-radius:10px;display:block;margin-top:8px"></iframe>' +
+          '<button class="btn pri" id="iput" style="width:100%;margin-top:8px">✓ 이 곳으로 넣기</button>';
+        el('#iput', ires).onclick = function () { this.disabled = true; this.textContent = '저장 중…'; putPlace(x); };
+      }; });
+    };
+    var ifind = function () {
+      var q = el('#iq', sh).value.trim(); if (!q) return;
+      ires.innerHTML = '<p class="small muted">찾는 중…</p>';
+      call('searchPlace', { q: q }).then(function (r) { showList(r.results); }).catch(function (e) { ires.innerHTML = '<p class="small" style="color:var(--bad)">' + esc(e.message) + '</p>'; });
+    };
+    el('#ifind', sh).onclick = ifind;
+    el('#iq', sh).onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); ifind(); } };
+    el('#ihere', sh).onclick = function () {
+      if (!navigator.geolocation) { ires.innerHTML = '<p class="small" style="color:var(--bad)">이 폰에서는 위치를 쓸 수 없어요.</p>'; return; }
+      ires.innerHTML = '<p class="small muted">지금 위치를 찾는 중… (위치 허용을 물으면 [허용]을 눌러 주세요)</p>';
+      navigator.geolocation.getCurrentPosition(function (pos) {
+        call('placesHere', { lat: pos.coords.latitude, lng: pos.coords.longitude }).then(function (r) {
+          r.results.forEach(function (x) { if (!x.here && x.km !== undefined) x.address = Math.round(x.km * 1000) + 'm · ' + x.address; });
+          showList(r.results, '<p class="small muted" style="margin:6px 0 2px">맨 위는 지금 서 있는 곳, 아래는 바로 옆 가게예요.</p>');
+        }).catch(function (e) { ires.innerHTML = '<p class="small" style="color:var(--bad)">' + esc(e.message) + '</p>'; });
+      }, function (err) {
+        ires.innerHTML = '<p class="small" style="color:var(--bad)">' + (err.code === 1 ? '위치 사용이 꺼져 있어요. Chrome 주소창 옆 설정에서 위치를 [허용]으로 바꿔 주세요.' : '위치를 찾지 못했어요. 잠시 뒤 다시 눌러 주세요.') + '</p>';
+      }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 });
+    };
+    if (el('#ireco', sh)) el('#ireco', sh).onclick = function () {
+      editItem(it);
+      setTimeout(function () { var b = document.getElementById('e-rb'); if (b) { b.scrollIntoView({ block: 'center' }); b.click(); } }, 350);
+    };
+  }
   if (S.me.isAdmin) el('#iedit', sh).onclick = function () { editItem(it); };
   if (S.me.isAdmin) el('#idel', sh).onclick = function () { deleteItemAsk(it); };
   else el('#ireq', sh).onclick = function () { requestEdit(it); };
