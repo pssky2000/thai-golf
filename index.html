@@ -536,6 +536,7 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .aw-tot th:nth-child(2),.aw-tot td:nth-child(2){width:auto}
 .aw-tot th:first-child,.aw-tot td:first-child{width:4.6em;text-align:left}
 .repay{border:2px solid var(--pri)}
+.undo-rp{border:1px dashed var(--warn)}
 .rp-src{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;white-space:nowrap}
 .rp-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
 .rp-amt{display:flex;flex-direction:column;align-items:flex-end;white-space:nowrap}
@@ -700,7 +701,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-18';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-20';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -3926,9 +3927,21 @@ function repayList() {
   var total = Object.keys(by).reduce(function (a, k) { return a + by[k].amt; }, 0);
   return { by: by, ids: ids, total: Math.round(total * 100) / 100 };
 }
+function undoRepay() {
+  var lr = S.D.lastRepay;
+  confirmBox('마지막 "먼저 갚기"를 되돌릴까요? 바꾼 지출이 원래 낸 사람으로 돌아가고' + (lr && lr.source === 'bank' ? ', 자동으로 적힌 회비 사용 기록도 지워져요.' : '요. (건넨 현금은 다시 받아 지갑에 넣어 주세요)'), '되돌리기').then(function (y) {
+    if (!y) return;
+    call('undoRepay', {}).then(function (r) { S.D.expenses = r.expenses; S.D.feeUses = r.feeUses; S.D.lastRepay = null; saveCache(); renderMain(); toast('원래대로 되돌렸어요.'); }).catch(function (e) { toast(e.message); });
+  });
+}
+function undoRepayCard() {   // 마지막 먼저 갚기를 언제든 되돌리는 칸 (관리자)
+  var lr = S.me.isAdmin && S.D.lastRepay; if (!lr) return '';
+  return '<div class="card undo-rp"><div class="row between" style="flex-wrap:nowrap;gap:8px"><div class="small"><b>↩️ 마지막 먼저 갚기</b><br>' + esc(String(lr.at).slice(5)) + ' · ' + (lr.source === 'bank' ? '🏦 회비 통장' : '💵 바트 현금' + (lr.holder ? '(' + esc(lr.holder) + ')' : '')) + ' · ' + esc(String(lr.summary || '').split(', ').map(function (x) { return x.split(' ')[0]; }).filter(function (x, i, arr) { return arr.indexOf(x) === i; }).join('·')) + ' 님 ' + (lr.n || '') + '건</div>' +
+    '<button class="btn sm" data-act="undo-repay" style="flex:none">되돌리기</button></div></div>';
+}
 function repayCard(c) {
   if (!S.me.isAdmin) return '';
-  var L = repayList(); if (!L.total) return '';
+  var L = repayList(); if (!L.total) return undoRepayCard();
   var enough = c.cashLeft >= L.total, krw = Math.round(L.total * c.rate), bankBal = feeStats().balance, bankOk = bankBal >= krw;
   return '<div class="card repay"><b>💡 남은 공금으로 먼저 갚기</b>' +
     '<p class="small muted" style="margin:4px 0 6px">회원이 카드·현금으로 낸 공동경비를 <b>남은 바트 현금</b>이나 <b>회비 통장</b>에서 돌려주면, 회원끼리 원화로 보낼 돈이 없어져요.</p>' +
@@ -3937,7 +3950,7 @@ function repayCard(c) {
       '<button class="btn' + (enough ? ' pri' : '') + ' rp-src" data-act="repay" data-src="cash"' + (enough ? '' : ' disabled') + '><span>💵 바트 현금</span><small>남는 돈 ' + baht(c.cashLeft - L.total) + '</small></button>' +
       '<button class="btn' + (bankOk ? ' pri' : '') + ' rp-src" data-act="repay" data-src="bank"' + (bankOk ? '' : ' disabled') + '><span>🏦 회비 통장</span><small>남는 돈 ' + wonShort(bankBal - krw) + '</small></button></div>' +
     (!enough ? '<p class="small" style="color:var(--warn);margin:6px 0 0">바트 현금이 ' + baht(L.total - c.cashLeft) + ' 모자라요.</p>' : '') +
-    (!bankOk ? '<p class="small" style="color:var(--warn);margin:6px 0 0">회비 통장이 ' + won(krw - bankBal) + ' 모자라요.</p>' : '') + '</div>';
+    (!bankOk ? '<p class="small" style="color:var(--warn);margin:6px 0 0">회비 통장이 ' + won(krw - bankBal) + ' 모자라요.</p>' : '') + '</div>' + undoRepayCard();
 }
 function repayForm(src) {
   if (src === 'bank') return repayBankForm();
@@ -3953,7 +3966,7 @@ function repayForm(src) {
   el('#rp-x', sh).onclick = closeSheet;
   el('#rp-ok', sh).onclick = function () {
     var btn = this; btn.disabled = true; el('#rp-msg', sh).textContent = '바꾸는 중…';
-    call('repayFromCash', { source: 'cash', holder: st.holder, ids: L.ids }).then(function (r) { S.D.expenses = r.expenses; saveCache(); closeSheet(); renderMain(); toast('공금에서 돌려줬어요. 이제 회원끼리 보낼 돈이 없어요.'); })
+    call('repayFromCash', { source: 'cash', holder: st.holder, ids: L.ids }).then(function (r) { S.D.expenses = r.expenses; S.D.lastRepay = r.lastRepay; saveCache(); closeSheet(); renderMain(); toast('공금에서 돌려줬어요.', { label: '되돌리기', fn: undoRepay }, 8000); })
       .catch(function (e) { el('#rp-msg', sh).textContent = e.message; btn.disabled = false; });
   };
 }
@@ -3967,7 +3980,7 @@ function repayBankForm() {
   el('#rp-x', sh).onclick = closeSheet;
   el('#rp-ok', sh).onclick = function () {
     var btn = this; btn.disabled = true; el('#rp-msg', sh).textContent = '바꾸는 중…';
-    call('repayFromCash', { source: 'bank', ids: L.ids }).then(function (r) { S.D.expenses = r.expenses; if (r.feeUses) S.D.feeUses = r.feeUses; saveCache(); closeSheet(); renderMain(); toast('회비 통장에서 돌려준 것으로 바꿨어요. 회비 사용 내역에도 적었어요.'); })
+    call('repayFromCash', { source: 'bank', ids: L.ids }).then(function (r) { S.D.expenses = r.expenses; if (r.feeUses) S.D.feeUses = r.feeUses; S.D.lastRepay = r.lastRepay; saveCache(); closeSheet(); renderMain(); toast('회비 통장에서 돌려줬어요.', { label: '되돌리기', fn: undoRepay }, 8000); })
       .catch(function (e) { el('#rp-msg', sh).textContent = e.message; btn.disabled = false; });
   };
 }
@@ -4365,6 +4378,21 @@ function albumOpen() {
   };
 }
 
+/* 📱 기기 풀기 (관리자): 회원은 기기 하나만 입장 가능 → 폰을 바꾸거나 잃어버리면 여기서 풀어 줌 */
+function deviceCard() {
+  var dv = S.D.devices || {};
+  return '<div class="card"><b>📱 기기 풀기</b><p class="small muted">회원은 한 기기(폰 또는 PC)에서만 입장할 수 있어요. 폰을 바꾸거나 앱을 지웠다가 다시 깔아서 못 들어오면 [기기 풀기]를 눌러 주세요. (PIN 초기화를 해도 풀려요)</p>' +
+    S.D.members.filter(function (m) { return m.role !== 'admin'; }).map(function (m) {
+      var n = dv[m.name] || 0;
+      return '<div class="kv"><span>' + esc(m.name) + ' <span class="muted">' + (n ? '· 입장 중 ' + n + '곳' : '· 입장 안 함') + '</span></span>' + (n ? '<button class="btn sm" data-act="unlock" data-nm="' + esc(m.name) + '">기기 풀기</button>' : '<span></span>') + '</div>';
+    }).join('') + '</div>';
+}
+function unlockDevice(name) {
+  confirmBox(name + ' 님의 입장을 풀까요? 지금 입장해 있는 기기는 나가지고, 새 기기에서 다시 입장할 수 있어요.', '기기 풀기').then(function (y) {
+    if (!y) return;
+    call('unlockDevice', { name: name }).then(function (r) { S.D.devices = S.D.devices || {}; S.D.devices[name] = 0; saveCache(); renderMain(); toast(name + ' 님 기기를 풀었어요.'); }).catch(function (e) { toast(e.message); });
+  });
+}
 function adminHtml() {
   var reqs = S.D.requests.slice().reverse();
   return archiveCard() + '<div class="card"><b>✋ 수정 요청 (' + reqs.filter(function (r) { return r.status === '대기'; }).length + '건 대기)</b>' +
@@ -4381,6 +4409,7 @@ function adminHtml() {
       '<div class="row" style="margin-top:6px"><select class="inp" id="rn-from" style="flex:1">' + S.D.members.map(function (m) { return '<option>' + esc(m.name) + '</option>'; }).join('') + '</select>' +
       '<span>→</span><input class="inp" id="rn-to" placeholder="새 이름" style="flex:1;min-width:0"></div>' +
       '<button class="btn sm pri" data-act="rename" style="margin-top:8px">이름 바꾸기</button></div>' +
+    deviceCard() +
     '<div class="card"><b>🔑 PIN 초기화</b><p class="small muted">PIN을 잊은 회원의 PIN을 임시 번호로 바꿉니다. 회원은 다음 입장 때 새 PIN을 정합니다.</p><div style="display:grid;grid-template-columns:repeat(' + Math.min(S.D.members.length, 4) + ',1fr);gap:6px">' +
       S.D.members.map(function (m) { return '<button class="btn sm" style="padding-left:0;padding-right:0" data-reset="' + esc(m.name) + '">' + esc(m.name) + '</button>'; }).join('') + '</div></div>';
 }
@@ -4444,13 +4473,15 @@ function bindMain() {
     b.onclick = function () {
       var a = b.dataset.act;
       if (a === 'album' || a.indexOf('ar-') === 0) { archiveAct(a, b); return; }   // 여행 보관 · 종료
-      if (a === 'repay') { repayForm(b.dataset.src); return; }   // 남은 공금으로 먼저 갚기
+      if (a === 'repay') { repayForm(b.dataset.src); return; }
+      if (a === 'undo-repay') { undoRepay(); return; }
+      if (a === 'unlock') { unlockDevice(b.dataset.nm); return; }   // 남은 공금으로 먼저 갚기
       if (a === 'edit-on') { S.editMode = true; renderMain(); }
       else if (a === 'edit-off') { S.editMode = false; renderMain(); }
       else if (a === 'add') editItem(null);
       else if (a === 'pin') renderPinChange(null, false);
       else if (a === 'req') requestEdit(null);
-      else if (a === 'logout') confirmBox('이 폰에서 나갈까요? 다시 들어올 때 PIN이 필요합니다.', '나가기').then(function (y) { if (!y) return; call('logout').catch(function () {}); logoutLocal(); renderLogin(); });
+      else if (a === 'logout') confirmBox('이 기기에서 나갈까요? 다시 들어올 때 PIN이 필요합니다.' + (S.me.isAdmin ? '' : ' 다른 기기(PC 등)에서 입장하려면 먼저 여기서 나가야 해요.'), '나가기').then(function (y) { if (!y) return; call('logout').catch(function () {}); logoutLocal(); renderLogin(); });
       else if (a === 'log') loadLog();
       else if (a === 'rename') {
         var from = el('#rn-from').value, to = el('#rn-to').value.trim();
