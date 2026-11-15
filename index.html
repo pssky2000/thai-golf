@@ -183,6 +183,14 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .tygrid button .e{font-size:calc(24px*var(--fs));line-height:1.1}
 .tygrid button.on{border:2px solid var(--pri);background:var(--pri-soft);font-weight:700}
 .it .chg{font-size:calc(12px*var(--fs));color:var(--warn);font-weight:700}
+.fbox{border:1px solid var(--line);border-radius:14px;padding:10px 12px 12px;margin-top:14px;background:var(--bg)}
+.fbox .fbt{font-weight:800;margin-bottom:6px}
+.fbox.reco{border-color:var(--warn)}
+.rmap{height:260px;border-radius:10px;overflow:hidden;margin-top:8px;background:#ddd}
+.rpin{width:28px;height:28px;border-radius:50%;background:#d93025;color:#fff;font:800 14px/24px system-ui,sans-serif;text-align:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);box-sizing:border-box;transition:transform .15s}
+.rpin.on{background:#1f7a4d;transform:scale(1.3)}
+.rpin.base{background:#1a73e8}
+.rcard{border:1px solid var(--line);border-radius:12px;padding:8px;margin-top:8px;background:var(--card)}
 .seg{display:flex;align-items:center;gap:8px;margin:0 0 0 calc(70px*var(--fs));font-size:calc(13px*var(--fs));color:var(--sub);flex-wrap:wrap}
 .seg .live{border:1px solid var(--line);border-radius:999px;padding:2px 8px;text-decoration:none;color:var(--ink);background:var(--card)}
 .seg.late{color:var(--bad);font-weight:700}
@@ -528,7 +536,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.15-3';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.15-4';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -610,6 +618,20 @@ var TYPES = {
   hotel: ['🏨', '숙소'], massage: ['💆', '마사지'], bar: ['🍺', '술집'], shop: ['🛍️', '쇼핑'], rest: ['🌙', '휴식'], etc: ['⭐', '기타']
 };
 function icon(t) { return (TYPES[t] || TYPES.etc)[0]; }
+/* 여러 핀 지도(추천용): Leaflet을 처음 쓸 때만 불러옴 */
+var leafletP = null;
+function loadLeaflet() {
+  if (window.L && window.L.map) return Promise.resolve(window.L);
+  if (leafletP) return leafletP;
+  leafletP = new Promise(function (res, rej) {
+    var c = document.createElement('link'); c.rel = 'stylesheet'; c.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'; document.head.appendChild(c);
+    var sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+    sc.onload = function () { res(window.L); };
+    sc.onerror = function () { leafletP = null; rej(new Error('지도를 불러오지 못했어요. 인터넷을 확인해 주세요.')); };
+    document.head.appendChild(sc);
+  });
+  return leafletP;
+}
 
 /* 현지 시각 (미리보기에서는 ?now=2026-12-16T09:30 으로 바꿔 볼 수 있음) */
 function localNow() {
@@ -1200,8 +1222,8 @@ function editItem(it, preset) {
     '<div id="e-tp" style="display:none;margin-top:8px"><div id="e-tpg"></div><button type="button" class="btn sm ghost" id="e-tclear" style="margin-top:6px">시각 비우기</button></div>' +
     '<label class="lb">할 일</label><input class="inp" id="e-title" value="' + esc(it.title) + '" placeholder="예) 저녁">' +
     '<label class="lb">종류</label><input type="hidden" id="e-type" value="' + esc(TYPES[it.type] ? it.type : 'etc') + '"><div class="tygrid" id="e-tyg">' + Object.keys(TYPES).map(function (k) { return '<button type="button" data-ty="' + k + '"' + (k === (TYPES[it.type] ? it.type : 'etc') ? ' class="on"' : '') + '><span class="e">' + TYPES[k][0] + '</span>' + TYPES[k][1] + '</button>'; }).join('') + '</div>' +
-    '<div id="e-reco"></div>' +
-    '<label class="lb">🔎 장소 찾기 (이름이나 주소)</label><div class="row"><input class="inp" id="e-q" placeholder="예) 터미널21 파타야" value="' + esc(it.place || '') + '"><button class="btn sm pri" id="e-find" style="flex:none;white-space:nowrap">찾기</button></div>' +
+    '<div class="fbox"><div class="fbt">📍 장소</div>' +
+    '<label class="lb" style="margin-top:0">🔎 장소 찾기 (이름이나 주소)</label><div class="row"><input class="inp" id="e-q" placeholder="예) 터미널21 파타야" value="' + esc(it.place || '') + '"><button class="btn sm pri" id="e-find" style="flex:none;white-space:nowrap">찾기</button></div>' +
     '<div id="e-res"></div>' +
     '<details style="margin-top:6px"><summary class="small muted">구글지도 링크로 넣기</summary>' +
       '<div class="row" style="margin-top:6px"><input class="inp" id="e-link" placeholder="구글지도 → 공유 → 링크 복사"><button class="btn sm" id="e-resolve" style="flex:none;white-space:nowrap">가져오기</button></div>' +
@@ -1209,7 +1231,8 @@ function editItem(it, preset) {
     '<label class="lb">원래 이름 (장소)</label><input class="inp" id="e-place" value="' + esc(it.place) + '">' +
     '<label class="lb">표시 이름 (화면에 보일 짧은 이름, 비우면 원래 이름)</label><input class="inp" id="e-display" value="' + esc(it.display) + '" placeholder="예) 신오복">' +
     '<div class="row small muted" style="margin-top:6px"><span id="e-ll">' + (hasLL(it) ? '위치 ' + Number(it.lat).toFixed(5) + ', ' + Number(it.lng).toFixed(5) : '위치 없음') + '</span>' +
-      (hasLL(it) ? ' <button class="btn sm ghost" id="e-clear">위치 지우기</button>' : '') + '</div>' +
+      (hasLL(it) ? ' <button class="btn sm ghost" id="e-clear">위치 지우기</button>' : '') + '</div></div>' +
+    '<div class="fbox reco" id="e-recobox" style="display:none"><div class="fbt">⭐ 근처 추천</div><div id="e-reco"></div></div>' +
     '<label class="lb">메모</label><textarea class="inp" id="e-memo" rows="2">' + esc(it.memo) + '</textarea>' +
     '<label class="row" style="margin-top:10px"><input type="checkbox" id="e-fixed"' + (it.fixed ? ' checked' : '') + '> 🔒 고정 일정 (예약된 시각, 자동으로 밀지 않음)</label>' +
     '<p class="small" id="e-msg" style="color:var(--bad);min-height:18px"></p>' +
@@ -1251,6 +1274,7 @@ function editItem(it, preset) {
         var x = r.results[Number(b.dataset.er)];
         setLoc(x, reco ? x.name : el('#e-place', sh).value.trim() || (x.name === q ? q : x.name));
         if (reco) { el('#e-display', sh).value = ''; if (!el('#e-title', sh).value.trim()) el('#e-title', sh).value = TYPES[reco][1]; }
+        else drawReco();   // 추천 기준 장소가 바뀜
         els('[data-er]', box).forEach(function (o) { o.style.background = o === b ? 'var(--pri-soft)' : ''; });
         // 지도로 바로 확인 (핀 위치가 맞는지 보고, 아니면 다른 줄을 누르면 됨)
         el('#e-map', box).innerHTML = '<div class="small" style="color:var(--pri);margin:6px 0 4px">✓ 이 위치로 넣었어요. 지도에서 핀이 맞는지 확인하세요. 아니면 다른 줄을 누르세요.</div>' +
@@ -1272,18 +1296,60 @@ function editItem(it, preset) {
   };
   var drawReco = function () {
     var ty = el('#e-type', sh).value, box = el('#e-reco', sh), w = RECO_W[ty];
+    el('#e-recobox', sh).style.display = w ? '' : 'none';
     if (!w) { box.innerHTML = ''; return; }
     var b = recoBase();
-    box.innerHTML = b ? '<button type="button" class="btn sm" id="e-rb" style="width:100%;margin-top:8px">⭐ ' + esc(b.name) + ' 근처 ' + w + ' 추천</button><div id="e-rl"></div>' : '';
-    if (!b) return;
+    if (!b) { box.innerHTML = '<p class="small muted">위 📍 장소에서 기준이 될 곳을 먼저 찾아 주세요.</p>'; return; }
+    box.innerHTML = '<p class="small muted" style="margin:0 0 6px">기준: <b style="color:var(--ink)">' + esc(b.name) + '</b> 근처<br>다른 곳 근처를 보려면 위 📍 장소에서 먼저 찾아 넣으세요.</p>' +
+      '<button type="button" class="btn sm pri" id="e-rb" style="width:100%">' + icon(ty) + ' 근처 ' + w + ' 찾기</button><div id="e-rl"></div>';
     el('#e-rb', sh).onclick = function () {
       var rl = el('#e-rl', sh); rl.innerHTML = '<p class="small muted">찾는 중…</p>';
       call('recommendPlaces', { kind: ty, lat: b.lat, lng: b.lng }).then(function (r) {
         if (!r.results.length) { rl.innerHTML = '<p class="small" style="color:var(--warn)">근처에서 추천할 곳을 찾지 못했어요.</p>'; return; }
-        rl.innerHTML = '<p class="small muted" style="margin:6px 0 2px">구글 평점 4.0 이상 · 후기 많은 순 · 누르면 이 일정 장소로 넣어요</p><div id="e-rl2"></div>';
-        showRes(el('#e-rl2', sh), r.results, '', ty);
+        recoMap(rl, b, r.results, ty);
       }).catch(function (e) { rl.innerHTML = '<p class="small" style="color:var(--bad)">' + esc(e.message) + '</p>'; });
     };
+  };
+  // 추천을 지도에 번호 핀으로 → 핀(또는 ‹ ›)을 누르면 아래에 자세히 + '이 곳으로 넣기'
+  var recoMap = function (rl, b, list, ty) {
+    rl.innerHTML = '<div class="rmap" id="e-rmap"></div><div id="e-rcard"></div>' +
+      '<p class="small muted" style="margin:4px 0 0">구글 평점 4.0 이상 · 후기 많은 순 · 번호 핀을 누르면 자세히</p>';
+    var cur = -1, marks = [], lmap = null;
+    var pick = function (i, pan) {
+      cur = (i + list.length) % list.length; var x = list[cur];
+      marks.forEach(function (m, k) {
+        var d = m.getElement && m.getElement(); if (d && d.firstChild) d.firstChild.classList.toggle('on', k === cur);
+        m.setZIndexOffset(k === cur ? 1000 : 0);
+      });
+      if (pan && lmap && marks[cur]) lmap.panTo(marks[cur].getLatLng());
+      el('#e-rcard', sh).innerHTML = '<div class="rcard"><div class="row between" style="gap:6px;align-items:center"><button type="button" class="btn sm ghost" id="e-rp">‹</button>' +
+        '<div style="flex:1;min-width:0"><div style="font-weight:800">' + (cur + 1) + '. ' + esc(x.name) + '</div>' +
+        '<div class="small"><b style="color:var(--warn)">★ ' + x.rating.toFixed(1) + '</b> (' + x.count.toLocaleString() + '명) · ' + x.km + 'km</div>' +
+        '<div class="small muted">' + esc(x.address) + '</div></div><button type="button" class="btn sm ghost" id="e-rn">›</button></div>' +
+        '<div class="row" style="margin-top:8px;gap:8px"><button type="button" class="btn sm pri" id="e-rput" style="flex:1">✓ 이 곳으로 넣기</button>' +
+        '<a class="btn sm" target="_blank" href="' + esc(gmapOpen(x)) + '" style="flex:none">구글지도 ↗</a></div></div>';
+      el('#e-rp', sh).onclick = function () { pick(cur - 1, true); };
+      el('#e-rn', sh).onclick = function () { pick(cur + 1, true); };
+      el('#e-rput', sh).onclick = function () {
+        setLoc(x, x.name); el('#e-q', sh).value = x.name; el('#e-display', sh).value = '';
+        if (!el('#e-title', sh).value.trim()) el('#e-title', sh).value = TYPES[ty][1];
+        this.textContent = '✓ 일정 장소로 넣었어요'; this.disabled = true;
+      };
+    };
+    loadLeaflet().then(function (L) {
+      lmap = L.map(el('#e-rmap', sh), { zoomControl: true, attributionControl: true });
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(lmap);
+      var pts = [[b.lat, b.lng]];
+      L.marker([b.lat, b.lng], { icon: L.divIcon({ className: '', html: '<div class="rpin base">★</div>', iconSize: [28, 28], iconAnchor: [14, 14] }), title: b.name }).addTo(lmap);
+      list.forEach(function (x, i) {
+        pts.push([x.lat, x.lng]);
+        var m = L.marker([x.lat, x.lng], { icon: L.divIcon({ className: '', html: '<div class="rpin">' + (i + 1) + '</div>', iconSize: [28, 28], iconAnchor: [14, 14] }) }).addTo(lmap);
+        m.on('click', function () { pick(i); });
+        marks.push(m);
+      });
+      lmap.fitBounds(pts, { padding: [36, 36] });
+      pick(0);
+    }).catch(function (e) { pick(0); var mp = el('#e-rmap', sh); if (mp) mp.outerHTML = '<p class="small" style="color:var(--bad)">' + esc(e.message) + '</p>'; });
   };
   els('[data-ty]', sh).forEach(function (b) { b.onclick = function () {
     el('#e-type', sh).value = b.dataset.ty;
