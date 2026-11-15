@@ -362,8 +362,9 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .bnav{position:fixed;left:0;right:0;bottom:0;z-index:40;display:grid;grid-template-columns:repeat(5,1fr);background:var(--nav-bg);border-top:3px solid var(--nav-line);padding:4px 4px calc(4px + env(safe-area-inset-bottom));box-shadow:0 -4px 16px rgba(0,0,0,.18)}
 .bnav button{border:0;background:transparent;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;border-radius:12px;font-size:calc(13px*var(--fs));font-weight:700;color:var(--sub)}
 .bnav button .i{font-size:calc(22px*var(--fs));line-height:1}
-.mic-fab{position:fixed;right:14px;bottom:90px;z-index:41;width:58px;height:58px;border-radius:50%;border:3px solid #fff;background:var(--pri);color:#fff;font-size:26px;line-height:1;box-shadow:0 4px 14px rgba(0,0,0,.35);cursor:pointer}
-.cam-fab{display:flex;align-items:center;justify-content:center;background:#1e88e5}
+.mic-fab{position:fixed;right:14px;bottom:90px;z-index:41;width:58px;height:58px;border-radius:50%;border:3px solid #fff;background:#37474f;color:#fff;padding:0;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.35);cursor:pointer}   /* 앱 초록과 겹치지 않게 진한 남회색 */
+.mic-fab svg{display:block;pointer-events:none}
+.cam-fab{background:#37474f}
 .mic-fab{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .mic-fab.fab-drag{transform:scale(1.15);box-shadow:0 10px 26px rgba(0,0,0,.45);opacity:.92}
 .fab-set{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px}
@@ -711,7 +712,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-23';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-25';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1047,7 +1048,7 @@ function bindFab(e, key, onTap) {
     st.timer = setTimeout(function () {
       if (!st) return; st.drag = true; e.classList.add('fab-drag');
       if (navigator.vibrate) { try { navigator.vibrate(25); } catch (er) {} }
-      toast('끌어서 원하는 자리에 놓으세요', null, 2500);
+      toast('끌어서 놓으세요', null, 1200);
     }, 500);
   };
   var move = function (x, y, ev) {
@@ -1066,7 +1067,7 @@ function bindFab(e, key, onTap) {
     if (was.drag) {
       if (ev && ev.cancelable) ev.preventDefault();
       e.dataset.noTap = '1'; setTimeout(function () { delete e.dataset.noTap; }, 400);
-      if (was.moved) { var pos = fabPos(); pos[key] = { r: parseFloat(e.style.right), b: parseFloat(e.style.bottom) }; LS.set('trip_fab', pos); toast('자리를 옮겼어요. (정보 › 내 정보에서 처음 자리로)', null, 2500); }
+      if (was.moved) { snapFab(e, key); var pos = fabPos(); pos[key] = { r: parseFloat(e.style.right), b: parseFloat(e.style.bottom) }; LS.set('trip_fab', pos); toast('자리를 옮겼어요', null, 1200); }
     }
   };
   e.addEventListener('touchstart', function (ev) { var t = ev.touches[0]; down(t.clientX, t.clientY); }, { passive: true });
@@ -1078,6 +1079,22 @@ function bindFab(e, key, onTap) {
   e.addEventListener('contextmenu', function (ev) { ev.preventDefault(); });
   // 끌고 난 뒤 따라오는 클릭은 무시 (카메라·말로 하기가 열리지 않게)
   e.addEventListener('click', function (ev) { if (e.dataset.noTap) { ev.preventDefault(); ev.stopPropagation(); return; } if (onTap) onTap(ev); }, true);
+}
+/* 놓으면 가지런히: 왼쪽·오른쪽 가장자리 중 가까운 쪽, 높이는 단추 칸(처음 자리와 같은 간격)에 맞춤, 다른 단추와 겹치면 한 칸 위로 */
+function snapFab(e, key) {
+  var size = e.offsetWidth || 58, gap = 12, W = window.innerWidth, H = window.innerHeight, nh = (el('.bnav') || { offsetHeight: 70 }).offsetHeight;
+  var r = parseFloat(e.style.right) || 14, b = parseFloat(e.style.bottom) || nh + gap;
+  r = (W - r - size / 2) < W / 2 ? W - size - 14 : 14;
+  var base = nh + gap, step = size + gap, maxSlot = Math.floor((H - size - 4 - base) / step);
+  var slot = Math.max(0, Math.min(maxSlot, Math.round((b - base) / step)));
+  var o = el(key === 'mic' ? '#cam-fab' : '#mic-fab');
+  if (o) {
+    var or = parseFloat(o.style.right), ob = parseFloat(o.style.bottom);
+    if (Math.abs(or - r) < 2 && Math.abs(ob - (base + slot * step)) < step / 2) slot = slot < maxSlot ? slot + 1 : slot - 1;   // 같은 칸이면 한 칸 비켜 섬
+  }
+  e.style.transition = 'right .15s, bottom .15s';
+  e.style.right = r + 'px'; e.style.bottom = (base + slot * step) + 'px';
+  setTimeout(function () { e.style.transition = ''; }, 200);
 }
 window.addEventListener('resize', placeFabs);
 
@@ -1354,8 +1371,8 @@ function render() {
     '<nav class="bnav" style="grid-template-columns:repeat(' + SECS.length + ',1fr)">' + SECS.map(function (x) {
       return '<button class="' + (x.k === sec ? 'on' : '') + '" data-sec="' + x.k + '"><span class="i">' + x.i + '</span><span>' + x.t + '</span></button>';
     }).join('') + '</nav>' +
-    (micOn() && !isRO() ? '<button class="mic-fab" id="mic-fab" aria-label="말로 하기">🎤</button>' : '') +
-    (camOn() && !isRO() ? '<label class="mic-fab cam-fab" id="cam-fab" aria-label="사진 찍기">📷<input type="file" accept="image/*" capture="environment" id="cam-in" hidden></label>' : '');
+    (micOn() && !isRO() ? '<button class="mic-fab" id="mic-fab" aria-label="말로 하기"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/><path d="M8.5 21h7"/></svg></button>' : '') +
+    (camOn() && !isRO() ? '<label class="mic-fab cam-fab" id="cam-fab" aria-label="사진 찍기"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l1.6-2.4A1 1 0 0 1 9.4 5h5.2a1 1 0 0 1 .8.6L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg><input type="file" accept="image/*" capture="environment" id="cam-in" hidden></label>' : '');
 
   if (el('#mic-fab')) bindFab(el('#mic-fab'), 'mic', function () { voiceOpen(); });
   if (el('#cam-fab')) {
