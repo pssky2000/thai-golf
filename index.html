@@ -397,10 +397,11 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .exp .amt{text-align:right;white-space:nowrap}
 .chip.gold{background:#fff3cd;color:#8a5a00}
 .eqn{margin:8px 0}
-.eq-total{display:flex;align-items:baseline;justify-content:center;gap:10px;background:var(--card);border:2px solid var(--pri);border-radius:12px;padding:8px}
-.eq-total .lab{font-weight:700;color:var(--ink)}
+.eq-total{display:flex;align-items:baseline;justify-content:center;gap:10px;background:var(--pri-soft);border-radius:10px;padding:8px}   /* 스코어 내기 칸 소제목 띠와 같은 모양 */
+.eq-total .lab{font-weight:800;color:var(--pri)}
+.eq-total b{color:var(--pri)}
 .eq-total b{font-size:calc(20px*var(--fs))}
-.eq-row{display:grid;grid-template-columns:auto 1fr auto 1fr auto 1fr;align-items:center;gap:3px;margin-top:6px}
+.eq-row{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:center;gap:3px;margin-top:6px}
 .eq-op{font-weight:900;font-size:calc(18px*var(--fs));color:var(--pri);text-align:center;padding:0 1px}
 .eq-part{display:flex;flex-direction:column;align-items:center;text-align:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:6px 2px;min-width:0}
 .eq-part .lab{font-size:calc(11.5px*var(--fs));color:var(--sub);line-height:1.2;min-height:2.4em;display:flex;align-items:center}
@@ -690,7 +691,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-13';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-14';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -3294,7 +3295,7 @@ function viewSettle(c) {
     '<p class="small muted" style="margin:0 2px 6px">현지에서 쓴 돈(지출 기록)만 계산합니다. 회비 통장 돈은 들어가지 않아요.</p>' +
     // 현지 총 지출 = 공금 사용 + 회원이 낸 공동경비 + 지원(쏨)  — 세 칸을 더하면 늘 총 지출과 같음
     '<div class="eqn"><div class="eq-total"><span class="lab">현지 총 지출</span><b>' + baht(c.total) + '</b><span class="small muted">' + wonShort(c.total * c.rate) + '</span></div>' +
-      '<div class="eq-row"><span class="eq-op">=</span>' +
+      '<div class="eq-row">' +
         '<div class="eq-part"><span class="lab">공금 사용</span><b>' + baht(c.common) + '</b><span class="small muted">' + wonShort(c.common * c.rate) + '</span></div><span class="eq-op">+</span>' +
         '<div class="eq-part"><span class="lab">회원이 낸<br>공동경비</span><b>' + baht(c.personalShared) + '</b><span class="small muted">' + wonShort(c.personalShared * c.rate) + '</span></div><span class="eq-op">+</span>' +
         '<div class="eq-part"><span class="lab">지원<br>(쏨)</span><b>' + baht(c.supportTotal) + '</b><span class="small muted">' + wonShort(c.supportTotal * c.rate) + '</span></div></div></div>' +
@@ -3331,12 +3332,12 @@ function viewSettle(c) {
   html += '</div>';
 
   // 회원별
-  html += '<div class="card"><b>👥 회원별</b>';
+  html += '<div class="card"><b>👥 회원별</b><p class="small muted" style="margin:4px 0 0">받을·보낼 돈 = <b>내가 낸 공동경비</b> − <b>나눠 낼 몫</b>(공동경비를 함께한 사람 수로 나눈 내 몫)</p>';
   names.forEach(function (n) {
     var b = c.net[n], cls = b > 0 ? 'good' : b < 0 ? 'bad' : '';
     html += '<div class="mrow"><div><b>' + esc(n) + '</b>' + (settleOn('confirm', n, sig) ? ' <span class="chip">✓ 확인</span>' : '') +
-      '<div class="small muted">낸 공동경비 ' + baht(c.paid[n]) + ' · 내 몫 ' + baht(c.owed[n]) + '</div>' +
-      '<div class="small muted">여행에서 누린 금액 ' + baht(Math.round(c.enjoyed[n])) + ' (약 ' + wonShort(c.enjoyed[n] * c.rate) + ')</div></div>' +
+      '<div class="small muted">내가 낸 공동경비 ' + baht(c.paid[n]) + ' − 나눠 낼 몫 ' + baht(c.owed[n]) + ' = <b>' + (c.paid[n] - c.owed[n] >= 0 ? '+' : '−') + baht(Math.abs(Math.round((c.paid[n] - c.owed[n]) * 100) / 100)) + '</b></div>' +
+      '<div class="small muted">(참고) 공금·지원까지 합친 내 몫 ' + baht(Math.round(c.enjoyed[n])) + ' (약 ' + wonShort(c.enjoyed[n] * c.rate) + ')</div></div>' +
       '<div class="bal ' + cls + '">' + (!b ? '0원' : (b > 0 ? '받을 돈<br>' : '보낼 돈<br>') + won(Math.abs(b))) + '</div></div>';
   });
   html += '</div>';
@@ -3992,9 +3993,9 @@ function reportTables() {
   ], note: '정산 환율 ฿1 = ' + rate + '원 · 정산 확인 ' + names.filter(function (n) { return settleOn('confirm', n, sig); }).length + '/' + names.length + '명' });
   T.push({ id: 'tr', title: '이렇게 보내면 끝 (송금)', head: ['보내는 사람', '받는 사람', '금액(원)', '보냈어요', '받았어요'],
     rows: c.transfers.length ? c.transfers.map(function (t) { var k = t.from + '>' + t.to; return [t.from, t.to, t.krw, mark('sent:' + k, t.krw), mark('recv:' + k, t.krw)]; }) : [['주고받을 돈이 없습니다', '', '', '', '']] });
-  T.push({ id: 'mem', title: '회원별', head: ['이름', '낸 공동경비(바트)', '내 몫(바트)', '차액(바트)', '받을(+)/보낼(−) 돈(원)', '지원한 돈(바트)', '누린 금액(바트)', '정산 확인'],
+  T.push({ id: 'mem', title: '회원별', head: ['이름', '낸 공동경비(바트)', '나눠 낼 몫(바트)', '차액(바트)', '받을(+)/보낼(−) 돈(원)', '지원한 돈(바트)', '누린 금액(바트)', '정산 확인'],
     rows: names.map(function (n) { return [n, round2(c.paid[n]), round2(c.owed[n]), round2(c.bal[n]), c.net[n], round2(c.support[n] || 0), Math.round(c.enjoyed[n]), settleOn('confirm', n, sig) ? '✓' : '']; }),
-    note: '낸 공동경비: 내 카드·현금으로 대신 낸 공동경비(지원 빼고) · 내 몫: 그 공동경비를 함께한 사람 수로 나눈 내 몫 · 차액 = 낸 공동경비 − 내 몫 · 누린 금액: 공금 포함 모든 지출의 내 몫(참고)' });
+    note: '낸 공동경비: 내 카드·현금으로 대신 낸 공동경비(지원 빼고) · 나눠 낼 몫: 그 공동경비를 함께한 사람 수로 나눈 내 몫 · 차액 = 낸 공동경비 − 나눠 낼 몫 · 누린 금액: 공금·지원 포함 모든 지출의 내 몫(참고)' });
   var cats = Object.keys(c.byCat).sort(function (a, b) { return c.byCat[b] - c.byCat[a]; });
   T.push({ id: 'cat', title: '어디에 썼나 (항목별)', head: ['항목', '바트', '원', '비율'],
     rows: cats.map(function (k) { return [k, c.byCat[k], R(c.byCat[k]), c.total ? Math.round(c.byCat[k] / c.total * 1000) / 10 + '%' : '']; }).concat([['합계', c.total, R(c.total), '100%']]), total: true });
