@@ -496,7 +496,8 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .wsub{margin-top:10px;padding-top:8px;border-top:1px dashed var(--line);font-size:calc(13px*var(--fs));color:var(--sub)}
 .wrow{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:4px}
 .wrow b{font-size:calc(17px*var(--fs));white-space:nowrap}
-.ctotal{border:1.5px solid var(--pri)}
+.ctotal{border:0;background:var(--pri-soft)}   /* 바깥 초록 테두리와 겹치지 않게 테두리 대신 연초록 바탕 (사용자 고름 B안) */
+.ctotal .big{color:var(--pri)}
 /* 필수 태국어 */
 .thai{border:2px solid var(--pri)}
 /* 분류: 폴더 모양 탭(4칸씩) + 아래 문장 상자와 이어짐 */
@@ -566,7 +567,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.15-22';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.15-23';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
