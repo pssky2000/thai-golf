@@ -723,7 +723,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-32';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-33';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1390,7 +1390,7 @@ function render() {
     bindFab(el('#cam-fab'), 'cam', null);
     el('#cam-in').onchange = function () {   // 찍은 사진은 그날(여행 중이면 오늘) 사진 칸으로
       var fs = Array.prototype.slice.call(this.files || []); this.value = ''; if (!fs.length) return;
-      var d = camDate(); fs.forEach(function (f) { saveToPhone(f, d); }); toast('📸 ' + md(d) + '(' + wd(d) + ') 사진에 올리는 중… (폰 갤러리에도 저장)', null, 4000); uploadPhotos(d, fs);
+      var d = camDate(); fs.forEach(function (f) { saveToPhone(f, d); }); toast('📸 ' + md(d) + '(' + wd(d) + ') 사진에 올리는 중… (폰 갤러리에도 저장)', null, 4000); uploadPhotos(d, fs, { cam: true });
     };
   }
   placeFabs();
@@ -2541,7 +2541,7 @@ function viewScore() {
       '<div class="row" style="white-space:nowrap;justify-content:flex-end;flex-wrap:wrap;flex:1 1 0;min-width:0">' + (tt.f !== null || tt.b !== null || tt.x !== null || filled(holes) ? '<button class="btn sm bad" data-act="score-clear">🗑️ 지우기</button>' : '') +
       (who !== S.me.name ? '<button class="btn sm" data-for="">내 스코어로 돌아가기</button>' : '') + '</div></div></div>';
 
-  if (isRO()) return tabsR + '<div id="sc-tables">' + scoreTables(r) + '</div>' + photoCard(r.date, md(r.date) + ' ' + r.course + ' 사진');
+  if (isRO()) return tabsR + '<div id="sc-tables">' + scoreTables(r) + '</div>' + photoCard(r.date, md(r.date) + ' ' + r.course + ' 사진', r.round_id);
   return tabsR +
     '<div class="card scan"><b>📋 스코어카드 사진으로 입력</b><div class="small muted" style="margin:4px 0 8px">종이 스코어카드를 찍으면 점수를 읽어서 채워 줍니다. 각자 카드(1인 카드)는 <b>갤러리</b>에서 여러 장을 한꺼번에 골라도 돼요. 저장 전에 확인할 수 있어요.</div>' +
       '<div class="scan-btns"><label class="btn pri">카드 찍기<input type="file" accept="image/*" capture="environment" data-scan hidden></label>' +
@@ -2549,7 +2549,7 @@ function viewScore() {
       (String(r.cards || '').split(',').filter(Boolean).length ? '<div class="small muted" style="margin-top:6px">이 라운드 스코어카드 ' + String(r.cards).split(',').filter(Boolean).length + '장 · <a href="#" data-cards="' + esc(r.round_id) + '">보기</a></div>' : '') +
     '</div>' +
     '<button class="btn big-btn" data-act="grp-open" style="margin:0 0 12px">⛳ ' + members.length + '명 함께 입력 (홀마다)</button>' +
-    editor + '<div id="sc-tables">' + scoreTables(r) + '</div>' + photoCard(r.date, md(r.date) + ' ' + r.course + ' 사진');
+    editor + '<div id="sc-tables">' + scoreTables(r) + '</div>' + photoCard(r.date, md(r.date) + ' ' + r.course + ' 사진', r.round_id);
 }
 
 /* ═════════ ⛳ 골프 내기: 니어핀·롱기스트(누구나 적음) + 버디·이글 자동 집계 ═════════ */
@@ -3961,15 +3961,50 @@ function loadForSave(p) {
   if (p.orig_id) return call('getPhoto', { id: p.id, size: 'orig' }).then(function (r) { return r.dataUrl; });
   return loadPhoto(p.id, 'full');
 }
-function photosOf(date) { return (S.D.photos || []).filter(function (p) { return p.date === date; }).sort(function (a, b) { return String(a.at).localeCompare(String(b.at)); }); }
-function photoCard(date, title) {
-  var ps = photosOf(date);
-  return '<div class="card" data-pdate="' + date + '"><div class="row between"><b>📸 ' + esc(title || md(date) + ' 사진') + '</b><span class="small muted">' + (ps.length ? ps.length + '장' : '') + '</span></div>' +
-    (isRO() ? (ps.length ? '' : '<div class="small muted" style="margin-top:4px">사진이 없어요.</div>') : (ps.length ? '' : '<div class="small muted" style="margin-top:4px">이날 찍은 사진을 올려 두면 모두 같이 볼 수 있어요. 여러 장을 한꺼번에 골라도 돼요.</div>') +
+/* 사진 정렬: 찍은 시각(없으면 올린 시각) */
+function photoTime(p) { return String(p.shot || p.at || ''); }
+function photosOf(date, rid) {
+  var r = rid ? S.D.rounds.filter(function (x) { return x.round_id === rid; })[0] : null;
+  return (S.D.photos || []).filter(function (p) { return p.date === date && (!r || inRound(p, r)); }).sort(function (a, b) { return photoTime(a).localeCompare(photoTime(b)); });
+}
+/* 스코어 탭에 보일 골프장 사진: 스코어 탭에서 올렸거나, 위치가 골프장 2.5km 안이거나, (위치가 없으면) 티오프 1시간 전 ~ 6시간 반 뒤에 찍은 것 */
+function inRound(p, r) {
+  if (p.tag === 'golf') return true;
+  var g = S.D.items.filter(function (it) { return it.round_id === r.round_id && it.type === 'golf'; })[0];
+  if (!g) return true;
+  var plat = Number(p.lat), plng = Number(p.lng), glat = Number(g.lat), glng = Number(g.lng);
+  if (p.lat && p.lng && g.lat && g.lng && isFinite(plat) && isFinite(glat)) return haversine({ lat: plat, lng: plng }, { lat: glat, lng: glng }) <= 2.5;
+  var t = photoTime(p); if (t.slice(0, 10) !== r.date || !g.time) return false;
+  var m = toMin(t.slice(11, 16)), tee = toMin(g.time);
+  return m >= tee - 60 && m <= tee + 390;
+}
+/* 여행지 시각 'YYYY-MM-DD HH:mm' */
+function tzStamp(ms) {
+  var tz = (S.D && S.D.settings.timezone) || 'Asia/Bangkok';
+  var o = {}; new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(ms)).forEach(function (x) { o[x.type] = x.value; });
+  return o.year + '-' + o.month + '-' + o.day + ' ' + o.hour + ':' + o.minute;
+}
+function nowStamp() { var n = localNow(); return n.date + ' ' + ('0' + Math.floor(n.min / 60)).slice(-2) + ':' + ('0' + n.min % 60).slice(-2); }
+/* 찍을 때 위치(6초 안에 못 받으면 위치 없이) */
+function getPos() {
+  return new Promise(function (res) {
+    if (!navigator.geolocation) return res(null);
+    var done = false, t = setTimeout(function () { if (!done) { done = true; res(null); } }, 6000);
+    try {
+      navigator.geolocation.getCurrentPosition(function (ps) { if (done) return; done = true; clearTimeout(t); res({ lat: ps.coords.latitude, lng: ps.coords.longitude }); },
+        function () { if (done) return; done = true; clearTimeout(t); res(null); }, { enableHighAccuracy: true, timeout: 6000, maximumAge: 120000 });
+    } catch (e) { done = true; clearTimeout(t); res(null); }
+  });
+}
+function photoCard(date, title, rid) {
+  var ps = photosOf(date, rid);
+  return '<div class="card" data-pdate="' + date + '"' + (rid ? ' data-pround="' + esc(rid) + '"' : '') + '><div class="row between"><b>📸 ' + esc(title || md(date) + ' 사진') + '</b><span class="small muted">' + (ps.length ? ps.length + '장' : '') + '</span></div>' +
+    (isRO() ? (ps.length ? '' : '<div class="small muted" style="margin-top:4px">사진이 없어요.</div>') : (ps.length || rid ? '' : '<div class="small muted" style="margin-top:4px">이날 찍은 사진을 올려 두면 모두 같이 볼 수 있어요. 여러 장을 한꺼번에 골라도 돼요.</div>') +
     '<div class="scan-btns" style="margin-top:8px"><label class="btn pri">사진 찍기<input type="file" accept="image/*" capture="environment" data-pup="' + date + '" hidden></label>' +
     '<label class="btn">갤러리<input type="file" accept="image/*" multiple data-pup="' + date + '" hidden></label></div>') +
     '<div class="small" data-pst style="margin-top:6px;color:var(--pri)"></div>' +
-    '<div data-psbar>' + psbarHtml(date) + '</div><div class="pgrid" data-pg>' + pgridHtml(date) + '</div>' +
+    '<div data-psbar>' + psbarHtml(date) + '</div><div class="pgrid" data-pg>' + pgridHtml(date, rid) + '</div>' +
+    (rid && !isRO() ? '<div class="small muted" style="margin-top:6px">골프장에서 찍은 사진만 보여요. 그날 사진 전부는 일정 탭에 있어요.</div>' : '') +
     (ps.length ? '<div class="small muted" data-phint style="margin-top:6px' + (pSel && pSel.date === date ? ';display:none' : '') + '">사진을 꾹 누르면 여러 장 골라 폰에 저장하거나 지울 수 있어요.</div>' : '') + '</div>';
 }
 /* 폰에 저장: 파일로 내려받음 → 갤러리 'Download' 앨범에 들어감 (src = File/Blob 또는 data: 주소) */
@@ -3993,9 +4028,9 @@ function saveToPhone(src, date) {
 /* 올리는 중인 사진(찍자마자 칸에 먼저 보임)과 꾹 눌러 골라 지우기 */
 var pendPh = {}, pSel = null, pSeq = 0, pLongAt = 0;
 function canDelPhoto(p) { return !isRO() && (p.by === S.me.name || S.me.isAdmin); }
-function pgridHtml(date) {
+function pgridHtml(date, rid) {
   var sel = pSel && pSel.date === date ? pSel : null;
-  return photosOf(date).map(function (p) {
+  return photosOf(date, rid).map(function (p) {
     var on = sel && sel.ids[p.id], dim = false;
     return '<button class="pth' + (on ? ' sel' : '') + (dim ? ' dim' : '') + '" data-pho="' + esc(p.id) + '"><span class="ld">…</span><img data-pimg="' + esc(p.id) + '" alt="">' + (p.caption ? '<span class="cap">' + esc(p.caption) + '</span>' : '') + (sel && !dim ? '<span class="ck">' + (on ? '✓' : '') + '</span>' : '') + '</button>';
   }).join('') + (pendPh[date] || []).map(function (q) {
@@ -4012,7 +4047,7 @@ function psbarHtml(date) {
 function refreshPhotoGrid(date) {
   els('[data-pdate="' + date + '"]').forEach(function (card) {
     var g = el('[data-pg]', card); if (!g) return;
-    g.innerHTML = pgridHtml(date);
+    g.innerHTML = pgridHtml(date, card.dataset.pround);
     var b = el('[data-psbar]', card); if (b) b.innerHTML = psbarHtml(date);
     var h = el('[data-phint]', card); if (h) h.style.display = pSel && pSel.date === date ? 'none' : '';
     bindPhotos(card);
@@ -4058,7 +4093,11 @@ function bindPhotos(root) {
     loadPhoto(im.dataset.pimg, 'thumb').then(function (u) { im.src = u; var l = im.parentNode.querySelector('.ld'); if (l) l.remove(); }, function () { var l = im.parentNode.querySelector('.ld'); if (l) l.textContent = '⚠️'; });
   });
   els('[data-pup]', root).forEach(function (inp) {
-    inp.onchange = function () { var fs = Array.prototype.slice.call(inp.files || []).slice(0, 20); var d = inp.dataset.pup; inp.value = ''; if (!fs.length) return; if (inp.hasAttribute('capture')) fs.forEach(function (f) { saveToPhone(f, d); }); uploadPhotos(d, fs); };
+    inp.onchange = function () {
+      var fs = Array.prototype.slice.call(inp.files || []).slice(0, 20), d = inp.dataset.pup, cam = inp.hasAttribute('capture'); inp.value = ''; if (!fs.length) return;
+      if (cam) fs.forEach(function (f) { saveToPhone(f, d); });
+      uploadPhotos(d, fs, { cam: cam, tag: inp.closest('[data-pround]') ? 'golf' : '' });
+    };
   });
   els('[data-pho]', root).forEach(function (b) {
     var d = b.closest('[data-pdate]').dataset.pdate, id = b.dataset.pho, t = null, x0 = 0, y0 = 0;
@@ -4081,15 +4120,17 @@ function bindPhotos(root) {
         if (pSel.ids[id]) delete pSel.ids[id]; else pSel.ids[id] = 1;
         refreshPhotoGrid(d); return;
       }
-      openPhoto(d, id);
+      openPhoto(d, id, b.closest('[data-pdate]').dataset.pround);
     };
   });
   els('[data-pssave]', root).forEach(function (b) { b.onclick = function () { saveSelected(b.closest('[data-pdate]').dataset.pdate); }; });
   els('[data-psx]', root).forEach(function (b) { b.onclick = function () { var d = b.closest('[data-pdate]').dataset.pdate; pSel = null; refreshPhotoGrid(d); }; });
   els('[data-psdel]', root).forEach(function (b) { b.onclick = function () { delSelected(b.closest('[data-pdate]').dataset.pdate); }; });
 }
-function uploadPhotos(date, files) {
+function uploadPhotos(date, files, opt) {
+  opt = opt || {};
   var n = files.length, done = 0, fail = 0;
+  var pos = opt.cam ? getPos() : Promise.resolve(null), stamp = opt.cam ? nowStamp() : '';   // 앱으로 찍은 사진: 지금 시각·위치. 갤러리: 파일 시각
   var st = function (t) { els('[data-pdate="' + date + '"] [data-pst]').forEach(function (e) { e.textContent = t; }); };
   st('📤 사진 올리는 중… 0/' + n);
   var list = pendPh[date] = (pendPh[date] || []), mine = []; origHold++;
@@ -4105,7 +4146,10 @@ function uploadPhotos(date, files) {
     return mine.reduce(function (pr, q) {
       return pr.then(function () {
         return shrinkImage(q.f, 1600, 0.82).then(function (big) {
-          return call('addPhoto', { date: date, dataUrl: big, thumbUrl: q.small }).then(function (r) {
+          return pos.then(function (ps) {
+            var shot = stamp || (q.f.lastModified ? tzStamp(q.f.lastModified) : '');
+            return call('addPhoto', { date: date, dataUrl: big, thumbUrl: q.small, shot: shot, lat: ps ? ps.lat : '', lng: ps ? ps.lng : '', tag: opt.tag || '' });
+          }).then(function (r) {
             S.D.photos = r.photos; photoMem[r.photo.id + ':thumb'] = q.small; photoMem[r.photo.id + ':full'] = big; pput(r.photo.id + ':thumb', q.small);
             q.pid = r.photo.id; queueOrig(date, q.pid, q.f);   // 사본 보관(올리기는 이 묶음이 끝난 뒤)
           });
@@ -4120,13 +4164,13 @@ function uploadPhotos(date, files) {
   });
 }
 /* 크게 보기: 좌우로 넘기기(◀ ▶·밀기), 설명 고치기, 지우기(올린 사람·관리자) */
-function openPhoto(date, id) {
-  var ps = photosOf(date), i = 0, changed = false;
+function openPhoto(date, id, rid) {
+  var ps = photosOf(date, rid), i = 0, changed = false;
   ps.forEach(function (p, k) { if (p.id === id) i = k; });
   var sh = sheet('<div id="pv"></div>', null, true);
   sh.classList.add('pview');
   function draw() {
-    ps = photosOf(date); if (!ps.length) { closeSheet(); renderMain(); return; }
+    ps = photosOf(date, rid); if (!ps.length) { closeSheet(); renderMain(); return; }
     if (i >= ps.length) i = ps.length - 1;
     var p = ps[i], mine = (p.by === S.me.name || S.me.isAdmin) && !isRO();
     el('#pv', sh).innerHTML =
