@@ -537,6 +537,9 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .aw-tot th:first-child,.aw-tot td:first-child{width:4.6em;text-align:left}
 .repay{border:2px solid var(--pri)}
 .undo-rp{border:1px dashed var(--warn)}
+.seg-tabs button{position:relative}
+.seg-tabs button.has-dot{padding-right:12px!important}
+.req-dot{position:absolute;top:1px;right:1px;min-width:15px;height:15px;padding:0 3px;border-radius:8px;background:#e53935;color:#fff;font-size:10.5px;font-weight:800;line-height:15px;text-align:center;letter-spacing:0}   /* 관리자 칸: 기다리는 요청 수 (빨간 동그라미) */
 .dv-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line)}
 .rp-src{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;white-space:nowrap}
 .rp-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
@@ -702,7 +705,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-21';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-22';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -4225,7 +4228,7 @@ function viewInfo() {
   else if (tab === 'admin') tab = 'me';
   var wait = S.D.requests.filter(function (r) { return r.status === '대기'; }).length;
   var tabs = '<div class="seg-tabs folder ' + (list.length === 6 ? 'six' : list.length === 5 ? 'five' : 'four') + '">' + list.map(function (t) {
-    return '<button class="' + (tab === t[0] ? 'on' : '') + (t[0] === 'admin' ? ' adm' : '') + '" data-itab="' + t[0] + '">' + t[1] + (t[0] === 'admin' && wait ? ' ' + wait : '') + '</button>';
+    return '<button class="' + (tab === t[0] ? 'on' : '') + (t[0] === 'admin' ? ' adm' : '') + (t[0] === 'admin' && wait ? ' has-dot' : '') + '" data-itab="' + t[0] + '">' + t[1] + (t[0] === 'admin' && wait ? '<span class="req-dot" title="기다리는 요청 ' + wait + '건">' + wait + '</span>' : '') + '</button>';
   }).join('') + '</div>';
   if (tab === 'admin') return tabs + '<div class="admin-box" style="margin-top:8px"><div class="adm-title">🛠️ 관리자만 보이는 화면</div>' + adminHtml() + '</div>';
   if (tab === 'thai') return tabs + thaiHtml();
