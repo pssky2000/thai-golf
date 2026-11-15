@@ -150,7 +150,7 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 @keyframes nxpulse2{50%{box-shadow:0 0 0 6px rgba(225,29,72,.3)}}
 @media (prefers-reduced-motion:reduce){.next.fl.soon{animation:none}}
 .next .nx-time{font-size:calc(28px*var(--fs));font-weight:800;line-height:1.1;letter-spacing:.5px}
-.next .nx-sub{font-size:calc(15px*var(--fs));font-weight:700;line-height:1.3}
+.next .nx-from{font-size:calc(15px*var(--fs));font-weight:800;letter-spacing:0}
 .next .nx-air{font-size:calc(13px*var(--fs));margin-top:2px}
 .next .nx-left b{display:block;font-size:calc(17px*var(--fs));white-space:nowrap}
 .next .nx-left span{font-size:calc(12px*var(--fs))}
@@ -566,7 +566,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.15-16';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.15-17';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1089,7 +1089,7 @@ function nextCard(date) {
   var by = fl ? fromMin(toMin(nx.time) - 120) : '';
   var soon = fl ? left <= 120 : left <= 30;
   return '<div class="next' + (fl ? ' fl' : '') + (soon ? ' soon' : '') + '"><div class="nx-i">' + icon(nx.type) + '</div><div class="nx-b"><div class="nx-l">⏰ ' + (fl ? '비행기 출발까지' : '티오프까지') + '</div>' +
-    bigLine(nx, fl) + (nameOf(nx) ? '<div class="nx-p">' + esc(nameOf(nx)) + '</div>' : '') +
+    bigLine(nx, fl) + (!fl && nameOf(nx) ? '<div class="nx-p">' + esc(nameOf(nx)) + '</div>' : '') +
     (fl ? '<div class="nx-air">🛄 공항엔 <b>' + by + '</b>까지</div>' : '') + '</div>' +
     '<div class="nx-left">' + lt + '<span>남음</span></div></div>';
 }
@@ -1098,7 +1098,9 @@ function nextCard(date) {
 function bigLine(nx, fl) {
   var m = fl && String(nx.title).match(/^([A-Z0-9]{2}\s?\d{2,4})\s+(.+)$/);
   // 출발 시각을 크게, 편명·출발지는 한 줄 작게 (사용자 뜻: 시각이 먼저 눈에 들어오게)
-  if (fl) return '<div class="nx-time">' + esc(nx.time) + '</div><div class="nx-sub">' + (m ? esc(m[1]) + ' · ' + esc(m[2]) : esc(nx.title)) + '</div>';
+  // 윗줄: 시각(아주 크게) + 출발지(작고 진하게) / 아랫줄: 편명 · 공항(작게)
+  if (fl) return '<div class="nx-time">' + esc(nx.time) + ' <span class="nx-from">' + esc(m ? m[2] : nx.title) + '</span></div>' +
+    '<div class="nx-p">' + [m ? m[1] : '', nameOf(nx)].filter(Boolean).map(esc).join(' · ') + '</div>';
   return '<div class="big">' + esc(nx.time) + ' ' + esc(nx.title) + '</div>';
 }
 
