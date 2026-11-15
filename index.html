@@ -712,7 +712,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-25';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-26';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -844,7 +844,7 @@ function toast(msg, action, ms) {
   t.innerHTML = '<span>' + esc(msg) + '</span>' + (action ? '<button>' + esc(action.label) + '</button>' : '');
   document.body.appendChild(t);
   if (action) t.querySelector('button').onclick = function () { t.remove(); action.fn(); };
-  setTimeout(function () { t.remove(); }, ms || (action ? 4500 : 2600));
+  setTimeout(function () { t.remove(); }, ms || (action ? 4000 : 2600));   // 단추 있는 알림 4초, 글만 2.6초 (사용자: 답답하지 않게)
 }
 
 function sheet(html, onMount, center) {
@@ -1267,7 +1267,7 @@ function vShow(o, said, out, sh) {
     var cats = CATS.map(function (c) { return c[0]; }), names = memberNames();
     var preset = { thb: thb ? String(thb) : '', krw: thb ? String(Math.round(thb * rate)) : '', category: cats.indexOf(o.category) >= 0 ? o.category : '기타', title: o.title || '',
       payer: o.payer === '공금' || names.indexOf(o.payer) >= 0 ? o.payer : '공금', kind: ['공동', '지원', '일부지원'].indexOf(o.kind) >= 0 ? o.kind : '공동', memo: '🎤 ' + said };
-    closeSheet(); setTimeout(function () { expenseForm(null, preset); toast('🎤 알아들은 대로 채웠어요. 확인하고 [저장]을 눌러 주세요.', null, 5000); }, 250);
+    closeSheet(); setTimeout(function () { expenseForm(null, preset); toast('🎤 알아들은 대로 채웠어요. 확인하고 [저장]을 눌러 주세요.', null, 3000); }, 250);
     return;
   }
   if (o.intent === 'query') { var a = vAnswer(o.what); card('<div class="vc-ans">' + esc(a) + '</div>'); vSpeak(a); return; }
@@ -2239,7 +2239,7 @@ function startDrag(handle, ev) {
   li.style.width = rect.width + 'px'; li.style.position = 'fixed'; li.style.left = rect.left + 'px'; li.style.top = rect.top + 'px'; li.style.margin = '0';   // 여백이 남으면 8px 아래로 밀려 빈자리 점선을 덮음
   dragState = { li: li, ph: ph, tl: tl, offY: ev.clientY - rect.top, id: li.dataset.id, overTab: null, y0: ev.clientY, moved: false };
   els('.seg', tl).forEach(function (s) { s.style.visibility = 'hidden'; });
-  toast('↕️ 끌어서 옮기기 · 그대로 떼면 삭제', null, 4000);
+  toast('↕️ 끌어서 옮기기 · 그대로 떼면 삭제', null, 3000);
 }
 function moveDrag(ev) {
   var d = dragState; if (!d) return;
@@ -2349,7 +2349,7 @@ function movedToast(r, id, msg) {
     el('#tp-undo', sh).onclick = function () {
       call('undo', { logId: r.logId }).then(function (u) { closeSheet(); S.D.items = u.items; renderMain(); toast('되돌렸어요'); }).catch(function (e) { toast(e.message); });
     };
-  } }, 6000);
+  } }, 4000);
 }
 /* 시·분 단추로 시각 고르기: 시를 누르고 분을 누르면 끝 (onPick('HH:MM')) */
 function timeGrid(box, cur, onPick) {
@@ -4059,7 +4059,7 @@ function repayForm(src) {
   el('#rp-x', sh).onclick = closeSheet;
   el('#rp-ok', sh).onclick = function () {
     var btn = this; btn.disabled = true; el('#rp-msg', sh).textContent = '바꾸는 중…';
-    call('repayFromCash', { source: 'cash', holder: st.holder, ids: L.ids }).then(function (r) { S.D.expenses = r.expenses; S.D.lastRepay = r.lastRepay; saveCache(); closeSheet(); renderMain(); toast('공금에서 돌려줬어요.', { label: '되돌리기', fn: undoRepay }, 8000); })
+    call('repayFromCash', { source: 'cash', holder: st.holder, ids: L.ids }).then(function (r) { S.D.expenses = r.expenses; S.D.lastRepay = r.lastRepay; saveCache(); closeSheet(); renderMain(); toast('공금에서 돌려줬어요.', { label: '되돌리기', fn: undoRepay }, 5000); })
       .catch(function (e) { el('#rp-msg', sh).textContent = e.message; btn.disabled = false; });
   };
 }
@@ -4073,7 +4073,7 @@ function repayBankForm() {
   el('#rp-x', sh).onclick = closeSheet;
   el('#rp-ok', sh).onclick = function () {
     var btn = this; btn.disabled = true; el('#rp-msg', sh).textContent = '바꾸는 중…';
-    call('repayFromCash', { source: 'bank', ids: L.ids }).then(function (r) { S.D.expenses = r.expenses; if (r.feeUses) S.D.feeUses = r.feeUses; S.D.lastRepay = r.lastRepay; saveCache(); closeSheet(); renderMain(); toast('회비 통장에서 돌려줬어요.', { label: '되돌리기', fn: undoRepay }, 8000); })
+    call('repayFromCash', { source: 'bank', ids: L.ids }).then(function (r) { S.D.expenses = r.expenses; if (r.feeUses) S.D.feeUses = r.feeUses; S.D.lastRepay = r.lastRepay; saveCache(); closeSheet(); renderMain(); toast('회비 통장에서 돌려줬어요.', { label: '되돌리기', fn: undoRepay }, 5000); })
       .catch(function (e) { el('#rp-msg', sh).textContent = e.message; btn.disabled = false; });
   };
 }
@@ -4707,7 +4707,7 @@ function bindMain() {
   els('[data-feeuse]', m).forEach(function (b) {
     b.onclick = function () {
       var id = b.dataset.feeuse;
-      if (id === 'ex') { toast('현지 환전 기록이에요. 경비 › 공금 카드의 💱 추가 환전에서 고칠 수 있어요.', null, 5000); return; }
+      if (id === 'ex') { toast('현지 환전 기록이에요. 경비 › 공금 카드의 💱 추가 환전에서 고칠 수 있어요.', null, 3000); return; }
       var u = (S.D.feeUses || []).filter(function (x) { return x.id === id; })[0]; if (!u) return;
       if (S.me.isAdmin) { feeForm('use', u); return; }
       var sh = sheet('<h3>📤 회비 사용</h3><div class="kv"><span>어디에</span><b>' + esc(u.title) + '</b></div><div class="kv"><span>금액</span><b>' + won(Number(String(u.amount).replace(/,/g, ''))) + '</b></div>' +
