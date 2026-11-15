@@ -362,6 +362,19 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .bnav{position:fixed;left:0;right:0;bottom:0;z-index:40;display:grid;grid-template-columns:repeat(5,1fr);background:var(--nav-bg);border-top:3px solid var(--nav-line);padding:4px 4px calc(4px + env(safe-area-inset-bottom));box-shadow:0 -4px 16px rgba(0,0,0,.18)}
 .bnav button{border:0;background:transparent;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;border-radius:12px;font-size:calc(13px*var(--fs));font-weight:700;color:var(--sub)}
 .bnav button .i{font-size:calc(22px*var(--fs));line-height:1}
+.mic-fab{position:fixed;right:14px;bottom:90px;z-index:41;width:58px;height:58px;border-radius:50%;border:3px solid #fff;background:var(--pri);color:#fff;font-size:26px;line-height:1;box-shadow:0 4px 14px rgba(0,0,0,.35);cursor:pointer}
+.vc-mic{display:block;margin:6px auto 4px;width:84px;height:84px;border-radius:50%;border:0;background:var(--pri);color:#fff;font-size:40px;box-shadow:0 4px 14px rgba(0,0,0,.25);cursor:pointer}
+.vc-mic.on{background:#d32f2f;animation:vcpulse 1.2s ease-in-out infinite}
+.vc-mic.off{background:var(--line);color:var(--sub)}
+@keyframes vcpulse{50%{box-shadow:0 0 0 12px rgba(211,47,47,.25)}}
+@media (prefers-reduced-motion:reduce){.vc-mic.on{animation:none}}
+.vc-st{text-align:center;font-size:calc(14px*var(--fs));color:var(--sub);min-height:1.4em}
+.vc-said{text-align:center;font-weight:800;font-size:calc(17px*var(--fs));margin:6px 0;min-height:1.3em}
+.vc-card{border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:8px;background:var(--bg)}
+.vc-big{font-size:calc(22px*var(--fs));margin:8px 0 10px}
+.vc-ans{font-size:calc(17px*var(--fs));font-weight:700;line-height:1.5}
+.vc-cam{display:block;width:100%;margin-top:10px;padding:16px 0;font-size:calc(18px*var(--fs));text-align:center}
+.chips .chip{border:0;cursor:pointer;font:inherit;font-size:calc(13px*var(--fs))}
 .bnav button.on{background:var(--pri-soft);color:var(--pri);box-shadow:inset 0 0 0 2px var(--pri)}
 .wrap{padding-bottom:calc(150px*var(--fs))}
 .it{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
@@ -567,7 +580,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.15-23';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-1';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -869,6 +882,236 @@ function dayLabel(date) {
 }
 
 /* ═════════ 전체 화면 ═════════ */
+/* ═════════ 🎤 음성 입력 ═════════
+   누르고 말하기(항상 듣지 않음) → 알아들은 내용을 카드로 보여 주고 [저장]을 눌러야 반영.
+   정해진 말(3번 홀 5타, 전반 45 후반 48, 저녁 3000바트 공금, 다음 일정 …)은 화면에서 바로 읽고,
+   못 읽은 문장만 서버 AI(voiceParse)에 물어봄. 폰이 바로 듣기를 못 하면 키보드 마이크로 적게 안내 */
+var VSR = window.SpeechRecognition || window.webkitSpeechRecognition;
+function micOn() { return LS.get('trip_mic', 'on') !== 'off'; }
+function placeMic() {
+  var f = el('#mic-fab'), n = el('.bnav'); if (!f || !n) return;
+  f.style.bottom = (n.offsetHeight + 12) + 'px';
+}
+window.addEventListener('resize', placeMic);
+// 한글 숫자 → 아라비아 숫자 ('삼번 홀 오타' → '3번 홀 5타', '다섯 타' → '5 타')
+var V_NATIVE = { '하나': 1, '한': 1, '둘': 2, '두': 2, '셋': 3, '세': 3, '넷': 4, '네': 4, '다섯': 5, '여섯': 6, '일곱': 7, '여덟': 8, '아홉': 9, '열': 10 };
+var V_SINO = { '일': 1, '이': 2, '삼': 3, '사': 4, '오': 5, '육': 6, '칠': 7, '팔': 8, '구': 9 };
+function vSino(w) {   // 십오 → 15, 이십칠 → 27, 사십오 → 45
+  var n = 0, cur = 0;
+  for (var i = 0; i < w.length; i++) { var c = w[i]; if (c === '십') { n += (cur || 1) * 10; cur = 0; } else cur = V_SINO[c] || 0; }
+  return n + cur;
+}
+function vSinoBig(w) {   // 삼천 → 3000, 이천오백 → 2500, 삼만 → 30000, 사십오 → 45
+  var total = 0, sec = 0, cur = 0, U = { '십': 10, '백': 100, '천': 1000 };
+  for (var i = 0; i < w.length; i++) {
+    var c = w[i];
+    if (V_SINO[c]) cur = V_SINO[c];
+    else if (U[c]) { sec += (cur || 1) * U[c]; cur = 0; }
+    else if (c === '만') { total += (sec + cur || 1) * 10000; sec = 0; cur = 0; }
+  }
+  return total + sec + cur;
+}
+function vNorm(t) {
+  t = String(t || '').replace(/\s+/g, ' ').trim();
+  t = t.replace(/(?<!\d)([일이삼사오육칠팔구십백천][일이삼사오육칠팔구십백천만]*)(?=\s*(바트|밧|원))/g, function (m) { return String(vSinoBig(m)); });
+  t = t.replace(/(전반|후반)(\s*(?:은|는|에)?\s*)([일이삼사오육칠팔구십]+)/g, function (m, a, b, c) { return a + b + vSinoBig(c); });
+  t = t.replace(/([일이삼사오육칠팔구십]+)(?=\s*(번|홀|타|개))/g, function (m) { return String(vSino(m)); });
+  t = t.replace(/(열\s?(?:하나|한|둘|두|셋|세|넷|네|다섯|여섯|일곱|여덟|아홉)|하나|한|둘|두|셋|세|넷|네|다섯|여섯|일곱|여덟|아홉|열)(?=\s*(번|홀|타))/g, function (m) {
+    var p = m.replace(/\s/g, ''); return String(p.indexOf('열') === 0 && p.length > 1 ? 10 + V_NATIVE[p.slice(1)] : V_NATIVE[p]);
+  });
+  t = t.replace(/(\d+(?:\.\d+)?)\s*만\s*(\d+)\s*천/g, function (m, a, b) { return String(Number(a) * 10000 + Number(b) * 1000); })
+       .replace(/(\d+(?:\.\d+)?)\s*만/g, function (m, a) { return String(Math.round(Number(a) * 10000)); })
+       .replace(/(\d+(?:\.\d+)?)\s*천/g, function (m, a) { return String(Math.round(Number(a) * 1000)); })
+       .replace(/(\d),(\d{3})/g, '$1$2');
+  return t;
+}
+// 말 속의 회원 이름 (전체 이름 → 성 뺀 이름, '상민이' 같은 부름도)
+function vMember(t) {
+  var names = memberNames(), hit = '';
+  names.forEach(function (n) { if (!hit && t.indexOf(n) >= 0) hit = n; });
+  names.forEach(function (n) { if (!hit && n.length >= 3 && t.indexOf(n.slice(1)) >= 0) hit = n; });
+  return hit;
+}
+var V_REL = [['알바트로스', -3], ['이글', -2], ['버디', -1], ['트리플', 3], ['더블', 2], ['보기', 1], ['파', 0]];
+var V_CAT = [['식사', /저녁|점심|아침|식사|밥|식당|국밥|해산물|조식/], ['술·음료', /맥주|술|음료|커피|소주|와인|펍/], ['마사지', /마사지/], ['교통', /택시|그랩|교통|차비|버스|툭툭|기사/], ['팁', /팁/], ['골프', /골프|캐디|그린피|카트/], ['쇼핑', /쇼핑|마트|선물|시장|빅씨|빅C/]];
+function vLocal(raw) {
+  var t = vNorm(raw), me = S.me.name, who = vMember(t) || me, m;
+  // 홀 타수
+  m = t.match(/(\d{1,2})\s*번\s*(?:째)?\s*홀?\s*(?:에서|은|는|이|가)?\s*(\d{1,2})\s*타/) || t.match(/(\d{1,2})\s*홀\s*(?:에서|은|는)?\s*(\d{1,2})\s*타/);
+  if (m) return { intent: 'hole', member: who, hole: Number(m[1]), strokes: Number(m[2]) };
+  m = t.match(/(\d{1,2})\s*번\s*(?:째)?\s*홀?\s*(?:에서|은|는)?\s*(알바트로스|이글|버디|트리플\s*보기|트리플|더블\s*보기|더블|보기|파)/) || t.match(/(\d{1,2})\s*홀\s*(?:에서|은|는)?\s*(알바트로스|이글|버디|트리플|더블|보기|파)/);
+  if (m) { var rel = 0; V_REL.some(function (r) { if (m[2].indexOf(r[0]) === 0) { rel = r[1]; return true; } }); return { intent: 'hole', member: who, hole: Number(m[1]), rel: rel }; }
+  // 전반·후반 합계
+  var f = t.match(/전반\s*(?:은|는|에)?\s*(\d{2,3})/), b = t.match(/후반\s*(?:은|는|에)?\s*(\d{2,3})/);
+  if (f || b) return { intent: 'half', member: who, front: f ? Number(f[1]) : null, back: b ? Number(b[1]) : null };
+  // 지출 (금액 + 바트/원)
+  m = t.match(/(\d+(?:\.\d+)?)\s*(바트|밧|원)/);
+  if (m) {
+    var cat = '기타'; V_CAT.some(function (c) { if (c[1].test(t)) { cat = c[0]; return true; } });
+    var sup = /쏨|쐈|쏜|쏘|샀|사\s?줬|사\s?줌|지원|한턱/.test(t);
+    // 낸 사람: '내가' → 나, 회원 이름 → 그 사람, 아니면 공금 ('공동경비 내가 냄' = 내가 내고 다 같이 나눔)
+    var payer = /내가|제가/.test(t) ? me : (vMember(t) || '공금');
+    if (sup && payer === '공금') payer = vMember(t) || me;
+    var title = (t.match(/저녁|점심|아침|조식|맥주|마사지|택시|그랩|캐디팁|팁|커피|쇼핑|마트/) || [''])[0];
+    return { intent: 'expense', thb: m[2] === '원' ? null : Number(m[1]), krw: m[2] === '원' ? Number(m[1]) : null, category: cat, title: title, payer: payer, kind: sup ? '지원' : '공동' };
+  }
+  if (/사진|카메라|찍/.test(t)) return { intent: 'photo' };
+  if (/다음\s*일정|다음\s*거|다음엔|다음은/.test(t)) return { intent: 'query', what: 'next' };
+  if (/날씨|기온|비\s*와|비\s*오/.test(t)) return { intent: 'query', what: 'weather' };
+  if (/환율|바트\s*얼마|1\s*바트/.test(t)) return { intent: 'query', what: 'rate' };
+  if (/순위|등수|몇\s*등|누가\s*1등|일등/.test(t)) return { intent: 'query', what: 'rank' };
+  if (/정산/.test(t)) return { intent: 'nav', to: 'settle' };
+  if (/경비|지출|회비|공금/.test(t)) return { intent: 'nav', to: 'money' };
+  if (/스코어|점수/.test(t)) return { intent: 'nav', to: 'score' };
+  if (/내일/.test(t)) return { intent: 'nav', to: 'tomorrow' };
+  if (/오늘\s*일정|일정/.test(t)) return { intent: 'nav', to: 'today' };
+  if (/연락처|숙소|정보|태국어/.test(t)) return { intent: 'nav', to: 'info' };
+  return null;
+}
+function vSpeak(txt) {   // 대답을 소리로도 (지원하는 폰만)
+  try { if (!window.speechSynthesis) return; speechSynthesis.cancel(); var u = new SpeechSynthesisUtterance(txt); u.lang = 'ko-KR'; u.rate = 0.95; speechSynthesis.speak(u); } catch (e) {}
+}
+function vRoundFor() {   // 오늘 라운드(없으면 가장 가까운 지난 라운드)
+  var rid = defaultRound(); return S.D.rounds.filter(function (r) { return r.round_id === rid; })[0];
+}
+function vAnswer(what) {
+  var n = localNow();
+  if (what === 'next') {
+    var all = S.D.items.filter(function (i) { return i.time && minsUntil(i) > 0; }).sort(function (a, b) { return minsUntil(a) - minsUntil(b); });
+    if (!all.length) return '남은 일정이 없어요.';
+    var x = all[0]; return '다음 일정은 ' + md(x.date) + '(' + wd(x.date) + ') ' + x.time + ' ' + x.title + (nameOf(x) ? ' · ' + nameOf(x) : '') + ', ' + durText(minsUntil(x)) + ' 남았어요.';
+  }
+  if (what === 'weather') {
+    var w = S.wx && S.wx[n.date];
+    return w ? '오늘 날씨는 최고 ' + Math.round(w.max) + '도, 최저 ' + Math.round(w.min) + '도, 비 올 확률 ' + (w.rain === null ? '-' : w.rain + '%') + '예요.' : '오늘 날씨 예보가 아직 없어요. (약 2주 전부터 보여요)';
+  }
+  if (what === 'rate') { var r = liveRate(); return '1바트는 약 ' + r.toFixed(2) + '원이에요. 1,000바트는 약 ' + num(Math.round(r * 1000)) + '원.'; }
+  if (what === 'rank') {
+    var rd = vRoundFor(); if (!rd) return '라운드가 없어요.';
+    var rows = memberNames().map(function (nm) { var t = totalOf(scoreOf(rd.round_id, nm)); return { n: nm, t: t }; }).filter(function (x) { return x.t && (x.t.f !== null || x.t.b !== null); });
+    if (!rows.length) return md(rd.date) + ' ' + rd.course + ' 스코어가 아직 없어요.';
+    rows.sort(function (a, b) { return a.t.t - b.t.t; });
+    return md(rd.date) + ' ' + rd.course + ' 순위: ' + rows.map(function (x, i) { return (i + 1) + '위 ' + x.n + ' ' + x.t.t + '타' + (x.t.holes && x.t.holes < 18 ? '(' + x.t.holes + '홀)' : ''); }).join(', ');
+  }
+  return '';
+}
+function vSetHole(rd, who, hi, v) {
+  var sc = scoreOf(rd.round_id, who);
+  if (!sc) { sc = { round_id: rd.round_id, member: who, mode: 'holes', front: '', back: '', holes: '' }; S.D.scores.push(sc); }
+  var h = parseHoles(sc);
+  if (sc.mode === 'half' && (sc.front !== '' || sc.back !== '') && !h.some(function (x) { return x !== '' && x !== null && x !== undefined; }))
+    return '전·후반 합계로 적혀 있어서 홀별로 넣을 수 없어요. 스코어 화면에서 [홀별]로 바꾼 뒤 다시 말해 주세요.';
+  while (h.length < (hi >= 18 ? 27 : 18)) h.push('');
+  h[hi] = v; sc.holes = JSON.stringify(h); sc.mode = 'holes';
+  sc.front = sumHoles(h, 0, 9); sc.back = sumHoles(h, 9, 18); sc.extra = h.length > 18 ? sumHoles(h, 18, 27) : '';
+  queueSave(sc); return '';
+}
+function vSetHalf(rd, who, f, b) {
+  var sc = scoreOf(rd.round_id, who);
+  if (!sc) { sc = { round_id: rd.round_id, member: who, mode: 'half', front: '', back: '', holes: '' }; S.D.scores.push(sc); }
+  if (parseHoles(sc).some(function (x) { return x !== '' && x !== null && x !== undefined; })) return '홀별로 적혀 있어서 전·후반 합계를 넣을 수 없어요. (홀별 합계가 자동으로 계산돼요)';
+  if (f !== null) sc.front = f;
+  if (b !== null) sc.back = b;
+  sc.mode = 'half';
+  queueSave(sc); return '';
+}
+// 알아들은 내용을 카드로 → [저장]
+function vShow(o, said, out, sh) {
+  var me = S.me.name, card = function (h) { out.innerHTML = '<div class="vc-card">' + h + '</div>'; };
+  var nameLine = function (who) { return who === me ? '내 스코어' : '<b style="color:var(--warn)">' + esc(who) + ' 님</b> 기록을 대신 적어요'; };
+  if (!o || o.intent === 'unknown') { card('🤔 알아듣지 못했어요. 아래 예시처럼 다시 말해 주세요.'); return; }
+  if (o.intent === 'hole' || o.intent === 'half') {
+    var rd = vRoundFor(); if (!rd) { card('라운드가 없어요.'); return; }
+    var who = o.member || me, label = md(rd.date) + ' ' + esc(rd.course);
+    if (o.intent === 'hole') {
+      var hi = Number(o.hole) - 1, maxH = hasExtra(rd) ? 27 : 18;
+      if (!(hi >= 0 && hi < maxH)) { card('홀 번호(1~' + maxH + ')를 다시 말해 주세요.'); return; }
+      var par = roundPars(rd)[hi], v = o.strokes;
+      if ((v === undefined || v === null) && o.rel !== undefined) { if (!par) { card((hi + 1) + '번 홀 파를 몰라서 타수로 말해 주세요. 예) ' + (hi + 1) + '번 홀 5타'); return; } v = par + Number(o.rel); }
+      v = Number(v); if (!(v >= 1 && v <= 15)) { card('타수를 다시 말해 주세요.'); return; }
+      var relTxt = par ? ' <span class="muted">(파' + par + ' · ' + (v - par === 0 ? '파' : (v - par > 0 ? '+' : '') + (v - par)) + ')</span>' : '';
+      card('⛳ ' + label + '<br>' + nameLine(who) + '<div class="vc-big">' + (hi + 1) + '번 홀 <b>' + v + '타</b>' + relTxt + '</div><button class="btn pri" id="vc-save" style="width:100%">✓ 저장</button>');
+      el('#vc-save', sh).onclick = function () { var err = vSetHole(rd, who, hi, v); if (err) { card(err); return; } closeSheet(); toast('⛳ ' + (who === me ? '' : who + ' 님 ') + (hi + 1) + '번 홀 ' + v + '타 저장'); if (S.tab === 'score') renderMain(); };
+    } else {
+      if (o.front === null && o.back === null) { card('전반·후반 타수를 다시 말해 주세요.'); return; }
+      card('⛳ ' + label + '<br>' + nameLine(who) + '<div class="vc-big">' + (o.front !== null ? '전반 <b>' + o.front + '</b> ' : '') + (o.back !== null ? '후반 <b>' + o.back + '</b>' : '') + '</div><button class="btn pri" id="vc-save" style="width:100%">✓ 저장</button>');
+      el('#vc-save', sh).onclick = function () { var err = vSetHalf(rd, who, o.front, o.back); if (err) { card(err); return; } closeSheet(); toast('⛳ 전·후반 저장'); if (S.tab === 'score') renderMain(); };
+    }
+    return;
+  }
+  if (o.intent === 'expense') {
+    if (!canMoney()) { card('경비는 관리자만 적을 수 있어요.'); return; }
+    var rate = liveRate(), thb = o.thb || (o.krw ? Math.round(o.krw / rate * 100) / 100 : '');
+    var cats = CATS.map(function (c) { return c[0]; }), names = memberNames();
+    var preset = { thb: thb ? String(thb) : '', krw: thb ? String(Math.round(thb * rate)) : '', category: cats.indexOf(o.category) >= 0 ? o.category : '기타', title: o.title || '',
+      payer: o.payer === '공금' || names.indexOf(o.payer) >= 0 ? o.payer : '공금', kind: ['공동', '지원', '일부지원'].indexOf(o.kind) >= 0 ? o.kind : '공동', memo: '🎤 ' + said };
+    closeSheet(); setTimeout(function () { expenseForm(null, preset); toast('🎤 알아들은 대로 채웠어요. 확인하고 [저장]을 눌러 주세요.', null, 5000); }, 250);
+    return;
+  }
+  if (o.intent === 'query') { var a = vAnswer(o.what); card('<div class="vc-ans">' + esc(a) + '</div>'); vSpeak(a); return; }
+  if (o.intent === 'nav') {
+    var n = localNow().date, ds = dates(), tg = { today: ds.indexOf(n) >= 0 ? n : defaultDay(), tomorrow: ds.indexOf(addDays(n, 1)) >= 0 ? addDays(n, 1) : defaultDay(), score: 'score', money: 'money', settle: 'money', info: 'info' }[o.to];
+    if ((o.to === 'money' || o.to === 'settle') && !canMoney()) { card('경비 화면은 관리자만 볼 수 있어요.'); return; }
+    if (o.to === 'settle') S.moneyTab = 'settle';
+    closeSheet(); if (tg) go(tg); return;
+  }
+  if (o.intent === 'photo') {
+    var d = localNow().date; if (dates().indexOf(d) < 0) d = /^\d{4}-/.test(S.tab) ? S.tab : dates()[0];
+    card('📷 ' + md(d) + ' 사진<label class="btn pri vc-cam">사진 찍기<input type="file" accept="image/*" capture="environment" data-pup="' + d + '" hidden></label>');
+    bindPhotos(out); els('[data-pup]', out).forEach(function (i) { i.addEventListener('change', function () { setTimeout(closeSheet, 100); }); });
+    return;
+  }
+  card('🤔 알아듣지 못했어요.');
+}
+function vRun(said, out, sh) {
+  said = String(said || '').trim(); if (!said) return;
+  el('#vc-said', sh).textContent = '“' + said + '”';
+  var o = vLocal(said);
+  if (o) { vShow(o, said, out, sh); return; }
+  out.innerHTML = '<div class="vc-card muted">🤖 뜻을 알아보는 중…</div>';
+  call('voiceParse', { text: said }).then(function (r) { vShow(r, said, out, sh); }).catch(function () { vShow(null, said, out, sh); });
+}
+function voiceOpen() {
+  var ex = ['3번 홀 5타', '7번 홀 보기', '상민이 5번 홀 6타', '전반 45 후반 48', '다음 일정', '오늘 날씨', '환율', '지금 순위', '내일 일정', '사진'];
+  if (canMoney()) ex.splice(4, 0, '저녁 3000바트 공금', '마사지 2000바트 상민이가 쏨');
+  var sh = sheet('<h3>🎤 말로 하기</h3>' +
+    '<button type="button" class="vc-mic" id="vc-mic" aria-label="듣기">🎤</button>' +
+    '<div class="vc-st" id="vc-st"></div><div class="vc-said" id="vc-said"></div><div id="vc-out"></div>' +
+    '<div class="small muted" style="margin-top:10px">이렇게 말해 보세요 (눌러도 돼요)</div><div class="chips" style="margin-top:4px">' + ex.map(function (x) { return '<button type="button" class="chip" data-vex="' + esc(x) + '">' + esc(x) + '</button>'; }).join('') + '</div>' +
+    '<div class="row" style="margin-top:12px"><input class="inp" id="vc-txt" placeholder="글로 적어도 돼요"><button class="btn pri" id="vc-go" style="flex:none">실행</button></div>' +
+    '<div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn" id="vc-x">닫기</button></div>');
+  var out = el('#vc-out', sh), st = el('#vc-st', sh), mic = el('#vc-mic', sh), rec = null, listening = false;
+  var stop = function () { listening = false; mic.classList.remove('on'); try { if (rec) rec.stop(); } catch (e) {} };
+  el('#vc-x', sh).onclick = function () { stop(); closeSheet(); };
+  el('#vc-go', sh).onclick = function () { stop(); vRun(el('#vc-txt', sh).value, out, sh); };
+  el('#vc-txt', sh).onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); el('#vc-go', sh).click(); } };
+  els('[data-vex]', sh).forEach(function (b) { b.onclick = function () { stop(); el('#vc-txt', sh).value = b.dataset.vex; vRun(b.dataset.vex, out, sh); }; });
+  if (!VSR) {
+    mic.classList.add('off');
+    st.innerHTML = '이 폰(브라우저)에서는 바로 듣기가 안 돼요.<br>아래 칸을 누르고 <b>키보드의 🎤 마이크</b>로 말한 뒤 [실행]을 눌러 주세요.';
+    mic.onclick = function () { el('#vc-txt', sh).focus(); };
+    return;
+  }
+  var start = function () {
+    out.innerHTML = ''; el('#vc-said', sh).textContent = '';
+    rec = new VSR(); rec.lang = 'ko-KR'; rec.interimResults = true; rec.maxAlternatives = 1;
+    var finalTxt = '', failed = false;
+    rec.onresult = function (e) {
+      var t = ''; for (var i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
+      el('#vc-said', sh).textContent = '“' + t + '”';
+      if (e.results[e.results.length - 1].isFinal) finalTxt = t;
+    };
+    rec.onerror = function (e) {
+      failed = true;
+      st.textContent = e.error === 'not-allowed' || e.error === 'service-not-allowed' ? '마이크 사용이 꺼져 있어요. Chrome 주소창 옆 설정에서 마이크를 [허용]으로 바꿔 주세요.' : e.error === 'no-speech' ? '말소리가 안 들렸어요. 🎤를 눌러 다시 말해 주세요.' : '잘 못 들었어요. 🎤를 눌러 다시 말해 주세요.';
+    };
+    rec.onend = function () { listening = false; mic.classList.remove('on'); if (finalTxt) { st.textContent = '🎤를 누르면 다시 들어요'; vRun(finalTxt, out, sh); } else if (!failed) st.textContent = '🎤를 누르고 말씀하세요'; };
+    try { rec.start(); listening = true; mic.classList.add('on'); st.textContent = '듣는 중… 말씀하세요'; } catch (e) { st.textContent = '🎤를 다시 눌러 주세요'; }
+  };
+  mic.onclick = function () { if (listening) stop(); else start(); };
+  start();   // 열자마자 듣기
+}
+
 function render() {
   var s = S.D.settings, ds = dates(), now = localNow();
   var dday = dayDiff(now.date, s.start_date), ddTxt;
@@ -904,8 +1147,10 @@ function render() {
     '</div>' +
     '<nav class="bnav" style="grid-template-columns:repeat(' + SECS.length + ',1fr)">' + SECS.map(function (x) {
       return '<button class="' + (x.k === sec ? 'on' : '') + '" data-sec="' + x.k + '"><span class="i">' + x.i + '</span><span>' + x.t + '</span></button>';
-    }).join('') + '</nav>';
+    }).join('') + '</nav>' +
+    (micOn() ? '<button class="mic-fab" id="mic-fab" aria-label="말로 하기">🎤</button>' : '');
 
+  if (el('#mic-fab')) { el('#mic-fab').onclick = voiceOpen; placeMic(); }
   els('[data-tab]').forEach(function (b) { b.onclick = function () { go(b.dataset.tab); }; });
   els('[data-sec]').forEach(function (b) {
     b.onclick = function () {
@@ -3436,6 +3681,9 @@ function viewInfo() {
       '<div class="small muted" style="margin-top:10px">🌙 화면 밝기</div><div class="seg-tabs" style="margin-top:4px">' + [['auto', '자동'], ['light', '밝게'], ['dark', '어둡게']].map(function (x) {
         return '<button class="' + ((LS.get('trip_theme', 'auto') || 'auto') === x[0] ? 'on' : '') + '" data-theme="' + x[0] + '">' + x[1] + '</button>';
       }).join('') + '</div>' +
+      '<div class="small muted" style="margin-top:10px">🎤 말로 하기 단추 (화면 오른쪽 아래)</div><div class="seg-tabs" style="margin-top:4px">' + [['on', '보이기'], ['off', '숨기기']].map(function (x) {
+        return '<button class="' + (LS.get('trip_mic', 'on') === x[0] ? 'on' : '') + '" data-mic="' + x[0] + '">' + x[1] + '</button>';
+      }).join('') + '</div>' +
       myRequests() + '</div>';
   return html;
 }
@@ -3479,6 +3727,7 @@ function bindMain() {
     };
   });
   els('[data-admin]', m).forEach(function (d) { d.ontoggle = function () { S.adminOpen = d.open; }; });
+  els('[data-mic]', m).forEach(function (b) { b.onclick = function () { LS.set('trip_mic', b.dataset.mic); render(); }; });
   els('[data-theme]', m).forEach(function (b) {
     b.onclick = function () {
       var v = b.dataset.theme; LS.set('trip_theme', v);
