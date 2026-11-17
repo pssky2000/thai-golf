@@ -728,7 +728,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-39';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-40';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -2019,9 +2019,10 @@ function openItem(id) {
       setTimeout(function () { var b = document.getElementById('e-rb'); if (b) { b.scrollIntoView({ block: 'center' }); b.click(); } }, 350);
     };
   }
-  if (S.me.isAdmin) el('#iedit', sh).onclick = function () { editItem(it); };
-  if (S.me.isAdmin) el('#idel', sh).onclick = function () { deleteItemAsk(it); };
-  else el('#ireq', sh).onclick = function () { requestEdit(it); };
+  var backHere = function () { nextSheetRet = function () { openItem(id); }; };   // 수정·요청·삭제 창을 닫으면 이 창으로
+  if (S.me.isAdmin) el('#iedit', sh).onclick = function () { backHere(); editItem(it); };
+  if (S.me.isAdmin) el('#idel', sh).onclick = function () { backHere(); deleteItemAsk(it); };
+  else el('#ireq', sh).onclick = function () { backHere(); requestEdit(it); };
 }
 
 function requestEdit(it) {
@@ -2294,8 +2295,8 @@ function parseMapUrlLocal(url) {
   return { lat: Number(m[1]), lng: Number(m[2]), name: name };
 }
 function afterAdmin(r, msg) {
+  S.D.items = r.items;   // 먼저 바꿔 둠 → 창을 닫고 앞 창(일정 자세히)으로 돌아갈 때 바뀐 내용이 보이게
   closeSheet();
-  S.D.items = r.items;
   renderMain();
   toast(msg || '저장했습니다.', { label: '되돌리기', fn: function () {
     call('undo', { logId: r.logId }).then(function (u) { S.D.items = u.items; renderMain(); toast('되돌렸습니다.'); }).catch(function (e) { toast(e.message); });
