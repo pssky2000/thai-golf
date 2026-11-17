@@ -728,7 +728,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-41';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-42';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -4690,6 +4690,34 @@ function itemLabel(id) { var it = S.D.items.filter(function (x) { return x.id ==
    ④ 읽기 전용 (③을 끝내야 켜짐) — 회원은 보기만, 데이터는 지우지 않음 */
 function isRO() { return !!(S.D && S.D.readOnly && !(S.me && S.me.isAdmin)); }
 function starred(p) { return p.star === 'Y' || p.star === true || String(p.star).toUpperCase() === 'TRUE'; }
+/* 🧪 시험 기본값 (관리자, 2026-11-17): 여행 전 시험한 뒤 처음 상태로. 여행 시작일부터는 칸을 숨김 */
+function baselineCard() {
+  var st = S.D.settings || {};
+  if (st.start_date && localNow().date >= st.start_date) return '';
+  return '<div class="card"><b>🧪 시험 기본값</b><p class="small muted">여행 전에 이것저것 시험해 본 뒤 처음 상태로 되돌려요. 여행이 시작되면 이 칸은 사라져요.</p>' +
+    '<div class="small">' + (st.baseline_at ? '저장한 기본값: <b>' + esc(st.baseline_at) + '</b>' : '<span style="color:var(--warn)">아직 저장한 기본값이 없어요.</span>') + '</div>' +
+    '<div class="small muted" style="margin-top:4px">📌 저장: 일정 · 항공 · 라운드 · 연락처 · 현지 팁 · 설정 · 회비 입금/사용<br>↺ 되돌리면 지움: 지출 · 스코어 · 내기 · 사진 · 댓글 · 수정 요청 · 공금 이동 · 정산 확인 · 변경 기록<br>그대로: 회원 · PIN · 기기 허락 · 바우처</div>' +
+    '<button class="btn pri" data-act="bl-save" style="width:100%;margin-top:8px">📌 지금 상태 저장</button>' +
+    '<button class="btn" data-act="bl-reset" style="width:100%;margin-top:6px;color:var(--bad)"' + (st.baseline_at ? '' : ' disabled') + '>↺ 기본값으로 되돌리기</button></div>';
+}
+function baselineAct(act, b) {
+  if (act === 'bl-save') {
+    return confirmBox('지금 일정 · 항공 · 라운드 · 연락처 · 현지 팁 · 설정 · 회비 기록을 기본값으로 저장할까요? (전에 저장한 기본값은 바뀌어요)', '저장').then(function (y) {
+      if (!y) return;
+      b.disabled = true; b.textContent = '저장하는 중…';
+      call('baselineSave', {}).then(function (r) { S.D.settings.baseline_at = r.at; saveCache(); renderMain(); toast('기본값으로 저장했어요.'); }).catch(function (e) { toast(e.message); renderMain(); });
+    });
+  }
+  if (act === 'bl-reset') {
+    return confirmBox((S.D.settings.baseline_at || '') + '에 저장한 기본값으로 되돌릴까요? 지출 · 스코어 · 사진 · 댓글 같은 시험 자료는 지워져요. (되돌리기 전에 시트 사본을 드라이브 「보관」 폴더에 만들어 둬요)', '되돌리기').then(function (y) {
+      if (!y) return;
+      b.disabled = true; b.textContent = '되돌리는 중… 잠시만요';
+      call('baselineReset', {}).then(function (r) {
+        return call('data').then(function (d) { S.D = d; saveCache(); renderMain(); toast('기본값으로 되돌렸어요.' + (r.trashed ? ' 사진·영수증 파일 ' + r.trashed + '개는 드라이브 휴지통으로 옮겼어요.' : ''), null, 4000); });
+      }).catch(function (e) { toast(e.message); renderMain(); });
+    });
+  }
+}
 function archiveCard() {
   var st = S.D.settings || {}, nStar = (S.D.photos || []).filter(starred).length, nPh = (S.D.photos || []).length;
   var step = function (n, done, title, body) { return '<div class="ar-step' + (done ? ' done' : '') + '"><div class="ar-n">' + (done ? '✓' : n) + '</div><div class="ar-b"><b>' + title + '</b>' + body + '</div></div>'; };
@@ -4818,7 +4846,7 @@ function unlockDevice(name) {
 }
 function adminHtml() {
   var reqs = S.D.requests.slice().reverse();
-  return archiveCard() + '<div class="card"><b>✋ 수정 요청 (' + reqs.filter(function (r) { return r.status === '대기'; }).length + '건 대기)</b>' +
+  return baselineCard() + archiveCard() + '<div class="card"><b>✋ 수정 요청 (' + reqs.filter(function (r) { return r.status === '대기'; }).length + '건 대기)</b>' +
     (reqs.length ? reqs.map(function (r) {
       return '<div style="border-top:1px solid var(--line);padding:8px 0;margin-top:6px"><div class="small muted">' + esc(r.member) + ' · ' + esc(r.at.slice(5)) + (r.item_id ? ' · ' + esc(itemLabel(r.item_id)) : '') + '</div><div>' + esc(r.text) + '</div>' +
         (r.status === '대기' ? '<div class="row" style="margin-top:6px">' + (/PC에서 입장/.test(r.text) ? '<button class="btn sm pri" data-act="pcok" data-nm="' + esc(r.member) + '" data-on="1">💻 PC 허락</button>' : '') + (r.item_id ? '<button class="btn sm" data-ropen="' + esc(r.item_id) + '">일정 열기</button>' : '') + '<button class="btn sm pri" data-res="' + esc(r.id) + '" data-st="반영">반영함</button><button class="btn sm" data-res="' + esc(r.id) + '" data-st="반려">반려</button></div>' : '<span class="chip">' + esc(r.status) + '</span>') + '</div>';
@@ -4897,6 +4925,7 @@ function bindMain() {
     b.onclick = function () {
       var a = b.dataset.act;
       if (a === 'album' || a.indexOf('ar-') === 0) { archiveAct(a, b); return; }   // 여행 보관 · 종료
+      if (a.indexOf('bl-') === 0) { baselineAct(a, b); return; }   // 🧪 시험 기본값
       if (a === 'repay') { repayForm(b.dataset.src); return; }
       if (a === 'undo-repay') { undoRepay(); return; }
       if (a === 'unlock') { unlockDevice(b.dataset.nm); return; }
