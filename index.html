@@ -229,6 +229,11 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 @media(min-width:600px){.map-box iframe{height:min(72vw,72vh,680px)}}
 /* 오늘 동선 지도: 한 손가락은 화면 위아래로 넘기기, 한 번 누르거나 두 손가락이면 지도 움직이기 (2026-11-17) */
 .map-wrap{position:relative}
+/* 🧪 시험 기본값 칸: 저장·지움·그대로 표, 같은 크기 단추 두 개 */
+.bl-tbl{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;margin:8px 0;padding:8px 10px;border-radius:10px;background:rgba(127,127,127,.12);font-size:calc(13px*var(--fs));line-height:1.4}
+.bl-k{font-weight:700;white-space:nowrap}
+.bl-btns{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.bl-btns .btn{width:100%}
 .map-cover{position:absolute;inset:0;z-index:2;touch-action:pan-y;cursor:pointer;display:flex;justify-content:center;align-items:flex-start;padding-top:8px}
 .map-cover span{background:rgba(0,0,0,.6);color:#fff;border-radius:999px;padding:4px 12px;font-size:calc(12px*var(--fs));pointer-events:none;white-space:nowrap}
 .map-cover.off{display:none}
@@ -728,7 +733,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-42';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-43';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -4696,9 +4701,12 @@ function baselineCard() {
   if (st.start_date && localNow().date >= st.start_date) return '';
   return '<div class="card"><b>🧪 시험 기본값</b><p class="small muted">여행 전에 이것저것 시험해 본 뒤 처음 상태로 되돌려요. 여행이 시작되면 이 칸은 사라져요.</p>' +
     '<div class="small">' + (st.baseline_at ? '저장한 기본값: <b>' + esc(st.baseline_at) + '</b>' : '<span style="color:var(--warn)">아직 저장한 기본값이 없어요.</span>') + '</div>' +
-    '<div class="small muted" style="margin-top:4px">📌 저장: 일정 · 항공 · 라운드 · 연락처 · 현지 팁 · 설정 · 회비 입금/사용<br>↺ 되돌리면 지움: 지출 · 스코어 · 내기 · 사진 · 댓글 · 수정 요청 · 공금 이동 · 정산 확인 · 변경 기록<br>그대로: 회원 · PIN · 기기 허락 · 바우처</div>' +
-    '<button class="btn pri" data-act="bl-save" style="width:100%;margin-top:8px">📌 지금 상태 저장</button>' +
-    '<button class="btn" data-act="bl-reset" style="width:100%;margin-top:6px;color:var(--bad)"' + (st.baseline_at ? '' : ' disabled') + '>↺ 기본값으로 되돌리기</button></div>';
+    '<div class="bl-tbl">' +
+      '<span class="bl-k" style="color:var(--pri)">📌 저장</span><span>일정 · 항공 · 라운드 · 연락처 · 현지 팁 · 설정 · 회비</span>' +
+      '<span class="bl-k" style="color:var(--bad)">🗑️ 지움</span><span>지출 · 스코어 · 내기 · 사진 · 댓글 · 수정 요청 · 공금 이동 · 정산 확인 · 변경 기록</span>' +
+      '<span class="bl-k">✋ 그대로</span><span>회원 · PIN · 기기 허락 · 바우처</span></div>' +
+    '<div class="bl-btns"><button class="btn sm pri" data-act="bl-save">📌 기본값 저장</button>' +
+    '<button class="btn sm" data-act="bl-reset" style="color:var(--bad)"' + (st.baseline_at ? '' : ' disabled') + '>↺ 되돌리기</button></div></div>';
 }
 function baselineAct(act, b) {
   if (act === 'bl-save') {
