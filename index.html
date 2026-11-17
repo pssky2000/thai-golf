@@ -569,13 +569,12 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .seg-tabs button.has-dot{padding-right:12px!important}
 .req-dot{position:absolute;top:1px;right:1px;min-width:15px;height:15px;padding:0 3px;border-radius:8px;background:#e53935;color:#fff;font-size:10.5px;font-weight:800;line-height:15px;text-align:center;letter-spacing:0}   /* 관리자 칸: 기다리는 요청 수 (빨간 동그라미) */
 .dv-row .nw{white-space:nowrap}
-/* 기기 칸: 📱 폰 · 💻 PC (밝음 = 입장 중, 테두리 = PC 허락, 흐림 = 막힘/안 함) */
-.dv-chips{display:flex;gap:6px;flex:none}
-.dv-chip{border:1.5px solid color-mix(in srgb,var(--sub) 45%,transparent);background:transparent;color:var(--sub);border-radius:999px;padding:5px 8px;min-width:calc(76px*var(--fs));text-align:center;font:inherit;font-size:calc(13px*var(--fs));white-space:nowrap;cursor:pointer;opacity:.75}
+/* 기기 칸: 표 (머리 📱 폰 · 💻 PC). 칸 글자 = 상태 (● 입장 중 = 주황으로 밝게, 허락됨 = 주황 테두리, 안 들어옴·🔒 막힘 = 흐리게) */
+.dv-grid{display:grid;grid-template-columns:auto 1fr 1fr;gap:6px 8px;align-items:center;margin-top:4px}
+.dv-h{text-align:center;font-size:calc(12.5px*var(--fs));color:var(--sub);font-weight:700}
+.dv-chip{border:1.5px solid color-mix(in srgb,var(--sub) 45%,transparent);background:transparent;color:var(--sub);border-radius:999px;padding:5px 6px;text-align:center;font:inherit;font-size:calc(13px*var(--fs));white-space:nowrap;cursor:pointer;opacity:.75}
 .dv-chip.ok{border-color:var(--warn);color:var(--ink);opacity:1}
 .dv-chip.live{background:var(--warn);border-color:var(--warn);color:var(--warn-ink);font-weight:800;opacity:1}
-.dv-legend{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 6px}
-.dv-legend .dv-chip{min-width:0;cursor:default;font-size:calc(11.5px*var(--fs));padding:3px 8px}
 .dv-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line)}
 .rp-src{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;white-space:nowrap}
 .rp-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
@@ -653,8 +652,8 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 /* 정보 탭: 폴더 모양 + 한 줄(글씨는 화면 폭에 맞춰) */
 .seg-tabs.folder.six,.seg-tabs.folder.five{gap:3px;margin-bottom:10px}
 .seg-tabs.folder.six button,.seg-tabs.folder.five button{font-size:min(calc(13px*var(--fs)),4.3vw);letter-spacing:-.07em;padding:10px 0 8px}
-.seg-tabs.folder button.adm{border:2px solid var(--warn);border-radius:12px;margin-bottom:5px;color:var(--warn)}   /* 관리자 칸은 주황 상자로, 아래 초록 선과 띄움 */
-.seg-tabs.folder button.adm.on{background:var(--warn);border-color:var(--warn);color:var(--warn-ink);font-weight:800;margin-top:0;padding-top:10px}
+.seg-tabs.folder button.adm{border:2px solid var(--warn);border-bottom:0;color:var(--warn)}   /* 관리자 칸은 주황 테두리. 다른 탭처럼 아래 선에 붙음 (2026-11-17, 열면 선도 주황) */
+.seg-tabs.folder button.adm.on{background:var(--warn);border-color:var(--warn);color:var(--warn-ink);font-weight:800}
 .seg-tabs.folder.adm-on{border-bottom-color:var(--warn)}   /* 관리자 탭을 열면 아래 선도 주황 (2026-11-17) */
 /* 관리자 상자 안은 초록 대신 주황 (주 단추·단계 번호·켜짐). 주황 위 글씨는 --warn-ink(다크: 진한 갈색, 라이트: 흰색) (2026-11-17) */
 .admin-box .btn.pri{background:var(--warn);border-color:var(--warn);color:var(--warn-ink);font-weight:800}
@@ -747,7 +746,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-47';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-48';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -4857,15 +4856,15 @@ function devOf(name) {   // 옛 서버(숫자)도 받음 → 폰으로 셈
   return typeof v === 'number' ? { phone: v, pc: 0 } : { phone: (v && v.phone) || 0, pc: (v && v.pc) || 0 };
 }
 function deviceCard() {
-  return '<div class="card"><b>📱 기기 · 💻 PC 허락</b><p class="small muted">회원은 <b>폰에서만</b>, 그리고 <b>한 기기에서만</b> 입장해요. 폰을 바꾸거나 앱을 지워 못 들어오면 밝은 칸을 눌러 <b>기기 풀기</b>(PIN 초기화를 해도 풀려요). PC에서 막히면 요청이 위 수정 요청에 와요.</p>' +
-    '<div class="dv-legend"><span class="dv-chip live">● 입장 중</span><span class="dv-chip ok">PC 허락됨</span><span class="dv-chip">🔒 PC 막힘</span></div>' +
+  return '<div class="card"><b>📱 기기 · 💻 PC 허락</b><p class="small muted">회원은 <b>폰에서만</b>, 그리고 <b>한 기기에서만</b> 입장해요. 폰을 바꾸거나 앱을 지워 못 들어오면 <b>기기 풀기</b>(PIN 초기화를 해도 풀려요). PC에서 막히면 요청이 위 수정 요청에 와요.</p>' +
+    '<div class="dv-grid"><span></span><span class="dv-h">📱 폰</span><span class="dv-h">💻 PC</span>' +
     S.D.members.filter(function (m) { return m.role !== 'admin'; }).map(function (m) {
       var d = devOf(m.name), nm = esc(m.name);
-      return '<div class="dv-row"><b class="nw">' + nm + '</b><div class="dv-chips">' +
-        '<button class="dv-chip' + (d.phone ? ' live' : '') + '" data-act="dvphone" data-nm="' + nm + '">' + (d.phone ? '● ' : '') + '📱 폰</button>' +
-        '<button class="dv-chip' + (d.pc ? ' live' : m.pc_ok ? ' ok' : '') + '" data-act="dvpc" data-nm="' + nm + '">' + (d.pc ? '● ' : m.pc_ok ? '' : '🔒 ') + '💻 PC</button>' +
-        '</div></div>';
-    }).join('') + '</div>';
+      return '<b class="nw">' + nm + '</b>' +
+        '<button class="dv-chip' + (d.phone ? ' live' : '') + '" data-act="dvphone" data-nm="' + nm + '">' + (d.phone ? '● 입장 중' : '안 들어옴') + '</button>' +
+        '<button class="dv-chip' + (d.pc ? ' live' : m.pc_ok ? ' ok' : '') + '" data-act="dvpc" data-nm="' + nm + '">' + (d.pc ? '● 입장 중' : m.pc_ok ? '허락됨' : '🔒 막힘') + '</button>';
+    }).join('') + '</div>' +
+    '<div class="small muted" style="margin-top:8px">👆 📱 <b>입장 중</b> 칸을 누르면 기기 풀기<br>👆 💻 칸을 누르면 PC 허락 · 막기</div></div>';
 }
 function devPhoneTap(name) {
   if (devOf(name).phone) unlockDevice(name);
