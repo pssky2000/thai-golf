@@ -647,7 +647,12 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .seg-tabs.folder.six button,.seg-tabs.folder.five button{font-size:min(calc(13px*var(--fs)),4.3vw);letter-spacing:-.07em;padding:10px 0 8px}
 .seg-tabs.folder button.adm{border:2px solid var(--warn);border-radius:12px;margin-bottom:5px;color:var(--warn)}   /* 관리자 칸은 주황 상자로, 아래 초록 선과 띄움 */
 .seg-tabs.folder button.adm.on{background:var(--warn);border-color:var(--warn);color:#fff;margin-top:0;padding-top:10px}
-.seg-tabs.folder.adm-on{border-bottom-color:var(--warn)}   /* 관리자 탭을 열면 아래 선도 주황 (2026-11-17) */
+.seg-tabs.folder.adm-on{border-bottom-color:var(--warn)}
+/* 관리자 상자 안은 초록 대신 주황으로 맞춤 (주 단추·단계 번호) (2026-11-17) */
+.admin-box .btn.pri{background:var(--warn);border-color:var(--warn);color:#fff}
+.admin-box .ar-n{border-color:var(--warn);color:var(--warn)}
+.admin-box .ar-step.done .ar-n{background:var(--warn);color:#fff}
+.admin-box button.on{background:var(--warn);border-color:var(--warn);color:#fff}   /* 관리자 탭을 열면 아래 선도 주황 (2026-11-17) */
 .adm-title{font-weight:800;color:var(--warn);padding:8px 2px 0}
 /* 회비: 회원별 연도 줄 */
 .fee-y{display:flex;justify-content:space-between;font-size:calc(14px*var(--fs));padding:2px 0 2px 8px;color:var(--sub)}
@@ -734,7 +739,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-44';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-45';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -4703,7 +4708,7 @@ function baselineCard() {
   return '<div class="card"><b>🧪 시험 기본값</b><p class="small muted">여행 전에 이것저것 시험해 본 뒤 처음 상태로 되돌려요. 여행이 시작되면 이 칸은 사라져요.</p>' +
     '<div class="small">' + (st.baseline_at ? '저장한 기본값: <b>' + esc(st.baseline_at) + '</b>' : '<span style="color:var(--warn)">아직 저장한 기본값이 없어요.</span>') + '</div>' +
     '<div class="bl-tbl">' +
-      '<span class="bl-k" style="color:var(--pri)">📌 저장</span><span>일정 · 항공 · 라운드 · 연락처 · 현지 팁 · 설정 · 회비</span>' +
+      '<span class="bl-k" style="color:var(--warn)">📌 저장</span><span>일정 · 항공 · 라운드 · 연락처 · 현지 팁 · 설정 · 회비</span>' +
       '<span class="bl-k" style="color:var(--bad)">🗑️ 지움</span><span>지출 · 스코어 · 내기 · 사진 · 댓글 · 수정 요청 · 공금 이동 · 정산 확인 · 변경 기록</span>' +
       '<span class="bl-k">✋ 그대로</span><span>회원 · PIN · 기기 허락 · 바우처</span></div>' +
     '<div class="bl-btns"><button class="btn sm pri" data-act="bl-save">📌 기본값 저장</button>' +
