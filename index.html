@@ -227,6 +227,11 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .map-box{border-radius:var(--r);overflow:hidden;border:1px solid var(--line);background:var(--card)}
 .map-box iframe{width:100%;height:260px;border:0;display:block;background:var(--line)}
 @media(min-width:600px){.map-box iframe{height:min(72vw,72vh,680px)}}
+/* 오늘 동선 지도: 한 손가락은 화면 위아래로 넘기기, 한 번 누르거나 두 손가락이면 지도 움직이기 (2026-11-17) */
+.map-wrap{position:relative}
+.map-cover{position:absolute;inset:0;z-index:2;touch-action:pan-y;cursor:pointer;display:flex;justify-content:center;align-items:flex-start;padding-top:8px}
+.map-cover span{background:rgba(0,0,0,.6);color:#fff;border-radius:999px;padding:4px 12px;font-size:calc(12px*var(--fs));pointer-events:none;white-space:nowrap}
+.map-cover.off{display:none}
 .pts{display:flex;gap:6px;flex-wrap:wrap;padding:10px}
 .pt{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:4px 10px;font-size:calc(13px*var(--fs))}
 .pt b{color:#d93025}
@@ -723,7 +728,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-38';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-39';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -866,6 +871,7 @@ function sheet(html, onMount, center) {
   bg.innerHTML = '<div class="sheet" role="dialog">' + html + '</div>';
   // 꾹 눌렀다 뗄 때 따라오는 클릭에 창이 바로 닫히지 않게
   bg.addEventListener('click', function (e) { if (e.target === bg && Date.now() >= suppressClickUntil) closeSheet(); });
+  if (nextSheetRet) { bg._ret = nextSheetRet; nextSheetRet = null; }   // 이 창을 닫으면 앞 창으로 돌아감
   document.body.appendChild(bg);
   openSheetEntry();   // 뒤로가기로 이 창을 닫을 수 있게 기록 한 칸
   els('[data-close]', bg).forEach(function (b) { b.onclick = closeSheet; });
@@ -873,7 +879,11 @@ function sheet(html, onMount, center) {
   return bg.firstChild;
 }
 function removeSheets() { closePicker(); els('.sheet-bg').forEach(function (b) { b.remove(); }); }
-function closeSheet() { removeSheets(); dropSheetEntry(); }
+/* 창 안에서 연 창(예: 일정 자세히 → 지출 고치기)은 닫으면 앞 창으로 돌아감 (2026-11-17, 뒤로가기·닫기·저장 모두)
+ *  - 앞 창을 여는 함수를 nextSheetRet에 넣고 다음 sheet()를 열면 그 창에 붙음 */
+var nextSheetRet = null;
+function sheetRet() { var b = el('.sheet-bg'); return b && b._ret; }
+function closeSheet() { var ret = sheetRet(); removeSheets(); dropSheetEntry(); if (ret) ret(); }
 function confirmBox(msg, okLabel) {
   return new Promise(function (res) {
     var s = sheet('<h3>확인</h3><p>' + esc(msg) + '</p><div class="row" style="justify-content:flex-end"><button class="btn" data-x>취소</button><button class="btn pri" data-ok>' + esc(okLabel || '확인') + '</button></div>');
@@ -1825,7 +1835,7 @@ function viewDay(date) {
   var selPt = pts.filter(function (p) { return p.letter === sel; })[0];
   var map = pts.length
     ? '<div class="map-box"><div class="map-head"><b>🗺️ 오늘 동선</b><div class="mapsw"><button class="' + (!S.mapSat ? 'on' : '') + '" data-sat="0">지도</button><button class="' + (S.mapSat ? 'on' : '') + '" data-sat="1">위성</button></div></div>' +
-      '<iframe referrerpolicy="no-referrer-when-downgrade" src="' + esc(selPt ? embedPlace(selPt, 16, S.mapSat) : embedRoute(pts, S.mapSat)) + '" title="오늘 지도"></iframe>' +
+      '<div class="map-wrap"><iframe referrerpolicy="no-referrer-when-downgrade" src="' + esc(selPt ? embedPlace(selPt, 16, S.mapSat) : embedRoute(pts, S.mapSat)) + '" title="오늘 지도"></iframe><div class="map-cover"><span>👆 지도를 움직이려면 한 번 누르세요</span></div></div>' +
       '<div class="pts"><button class="pt' + (!selPt ? ' on' : '') + '" data-pt="">전체 동선</button>' +
       pts.map(function (p) { return '<button class="pt' + (p === selPt ? ' on' : '') + '" data-pt="' + p.letter + '"><b>' + p.letter + '</b> ' + esc(p.name) + '</button>'; }).join('') + '</div>' +
       '<div style="padding:0 10px 12px"><a class="btn sm" target="_blank" href="' + esc(pts.length > 1 ? gmapDayRoute(pts) : gmapOpen(pts[0])) + '">' + (pts.length > 1 ? '🧭 오늘 경로 전체 보기 (구글지도)' : '🗺️ 구글지도 앱으로 열기') + '</a></div>' +
@@ -1962,9 +1972,10 @@ function openItem(id) {
   });
   if (el('#iexp', sh)) el('#iexp', sh).onclick = function () {
     var cat = it.type === 'meal' ? '식사' : it.type === 'massage' ? '마사지' : it.type === 'golf' ? '골프' : it.type === 'shop' ? '쇼핑' : it.type === 'move' ? '교통' : '기타';
+    nextSheetRet = function () { openItem(id); };
     expenseForm(null, { date: it.date, item_id: it.id, category: cat, title: nameOf(it) || it.title });
   };
-  els('[data-iex]', sh).forEach(function (b) { b.onclick = function () { var e = (S.D.expenses || []).filter(function (x) { return x.id === b.dataset.iex; })[0]; if (e) expenseForm(e); }; });
+  els('[data-iex]', sh).forEach(function (b) { b.onclick = function () { var e = (S.D.expenses || []).filter(function (x) { return x.id === b.dataset.iex; })[0]; if (e) { nextSheetRet = function () { openItem(id); }; expenseForm(e); } }; });
   // 장소 찾기 → 줄을 누르면 지도로 확인 → [이 곳으로 넣기]로 저장
   if (el('#ifind', sh)) {
     var ires = el('#ires', sh);
@@ -5274,7 +5285,7 @@ if (BACK_OK) window.addEventListener('popstate', function () {
     return;
   }
   if (el('.picker')) { closePicker(); if (el('.sheet-bg')) openSheetEntry(); return; }   // 타수 고르기 창만 닫기
-  if (el('.sheet-bg')) { removeSheets(); return; }   // 뒤로가기 → 창만 닫기
+  if (el('.sheet-bg')) { var ret = sheetRet(); removeSheets(); if (ret) ret(); return; }   // 뒤로가기 → 창만 닫기 (앞 창이 있으면 그리로)
   if (history.state && (history.state.tripTrap || history.state.tripSheet)) history.back();   // 남은 빈 칸은 건너뜀
 });
 /* 같은 탭에 옛 앱 기록이 쌓여 있을 때 (링크·바로가기로 같은 탭에서 여러 번 연 경우)
@@ -5310,6 +5321,15 @@ var jumpAt = 0;
     history.go(-(r.idx - r.first));
   }
 })();
+
+/* 오늘 동선 지도 덮개: 한 번 누르거나 두 손가락이면 덮개를 걷어 지도 움직이기, 지도 밖을 누르면 다시 덮음 */
+document.addEventListener('click', function (e) { var c = e.target.closest && e.target.closest('.map-cover'); if (c) c.classList.add('off'); });
+document.addEventListener('touchstart', function (e) {
+  var c = e.target.closest && e.target.closest('.map-cover');
+  if (c) { if (e.touches.length >= 2) c.classList.add('off'); return; }
+  if (!(e.target.closest && e.target.closest('.map-wrap'))) els('.map-cover.off').forEach(function (x) { x.classList.remove('off'); });
+}, { passive: true, capture: true });
+document.addEventListener('mousedown', function (e) { if (!(e.target.closest && e.target.closest('.map-wrap'))) els('.map-cover.off').forEach(function (x) { x.classList.remove('off'); }); }, true);
 
 start();   // 옮기는 중이어도 일단 시작 (옮기기가 안 돼도 화면이 멈추지 않게)
 // 창이 열린 채 새로고침하면 창 없는 '창 칸'이 남음 → 조용히 빼 둠 (뒤로가기 한 번 헛누름 방지)
