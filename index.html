@@ -746,7 +746,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-48';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-49';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -4875,7 +4875,7 @@ function devPcTap(name) {
   var d = devOf(name), on = !!m.pc_ok;
   var sh = sheet('<h3>💻 ' + esc(name) + ' 님 PC</h3><p>' + (d.pc ? '지금 <b>PC로 입장 중</b>이에요.' : on ? 'PC 입장이 <b>허락돼</b> 있어요.' : 'PC 입장이 <b>막혀</b> 있어요. (회원은 폰에서만)') + '</p>' +
     '<div class="row wrap-row" style="justify-content:flex-end;margin-top:12px">' +
-      (d.pc || d.phone ? '<button class="btn" data-dv="unlock">기기 풀기</button>' : '') +
+      (d.pc ? '<button class="btn" data-dv="unlock">PC 기기 풀기</button>' : '') +   // 📱 칸은 폰 풀기, 💻 칸은 PC로 입장 중일 때만 풀기 (2026-11-17)
       '<button class="btn"' + (on ? '' : ' style="background:var(--warn);border-color:var(--warn);color:var(--warn-ink);font-weight:800"') + ' data-dv="pc">' + (on ? '🔒 PC 막기' : '💻 PC 허락') + '</button>' +
       '<button class="btn" data-close>닫기</button></div>', null, true);
   if (el('[data-dv="unlock"]', sh)) el('[data-dv="unlock"]', sh).onclick = function () { closeSheet(); unlockDevice(name); };
