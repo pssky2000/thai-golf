@@ -728,7 +728,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-40';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-41';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -873,7 +873,7 @@ function sheet(html, onMount, center) {
   bg.addEventListener('click', function (e) { if (e.target === bg && Date.now() >= suppressClickUntil) closeSheet(); });
   if (nextSheetRet) { bg._ret = nextSheetRet; nextSheetRet = null; }   // 이 창을 닫으면 앞 창으로 돌아감
   document.body.appendChild(bg);
-  openSheetEntry();   // 뒤로가기로 이 창을 닫을 수 있게 기록 한 칸
+  openSheetEntry(!!bg._ret);   // 뒤로가기로 이 창을 닫을 수 있게 기록 한 칸 (창 안의 창이면 한 칸 더)
   els('[data-close]', bg).forEach(function (b) { b.onclick = closeSheet; });
   if (onMount) onMount(bg.firstChild);
   return bg.firstChild;
@@ -1854,7 +1854,8 @@ function viewDay(date) {
 }
 
 function itemHtml(it, letter) {
-  var changed = it.updated_at && isRecent(it.updated_at);
+  // ✏️ 변경됨: 고친 뒤 24시간 안 + 내가 아직 안 열어 봄 + 내가 고친 게 아님 (2026-11-17, 열어 보면 사라짐 — 이 폰에 기억)
+  var changed = it.updated_at && isRecent(it.updated_at) && it.updated_by !== S.me.name && LS.get('trip_seenchg', {})[it.id] !== it.updated_at;
   var cmts = S.D.comments.filter(function (c) { return c.item_id === it.id; }).length;
   return '<li class="it ty-' + esc(it.type) + (it.fixed ? ' fixed' : '') + (changed ? ' changed' : '') + '" data-id="' + esc(it.id) + '">' +
     '<div class="tm">' + esc(it.time || '--:--') + (it.fixed ? '<div class="lock">🔒 고정</div>' : '') + '</div>' +
@@ -1927,6 +1928,13 @@ function openItem(id) {
   var it = S.D.items.filter(function (x) { return x.id === id; })[0];
   if (!it) return;
   var cm = S.D.comments.filter(function (c) { return c.item_id === id; });
+  if (it.updated_at) {   // 열어 봤으니 '변경됨' 표시를 지움
+    var seen = LS.get('trip_seenchg', {});
+    if (seen[id] !== it.updated_at) {
+      seen[id] = it.updated_at; LS.set('trip_seenchg', seen);
+      els('li.it.changed').forEach(function (li) { if (li.dataset.id === id) { li.classList.remove('changed'); els('.chg', li).forEach(function (c) { c.remove(); }); } });
+    }
+  }
   var links = hasLL(it)
     ? '<div class="row wrap-row" style="margin:10px 0"><a class="btn sm" target="_blank" href="' + esc(gmapOpen(it)) + '">🗺️ 구글지도에서 열기</a>' +
       '<a class="btn sm" target="_blank" href="' + esc(gmapNearby(it)) + '">🍽️ 주변 맛집</a></div>'
@@ -5271,8 +5279,11 @@ var NAV = window.navigation && typeof navigation.entries === 'function' ? naviga
 var popIgnore = 0;
 LS.del('trip_backlog');   // 예전 점검 기록 지움
 function onSheetEntry() { return !!(history.state && history.state.tripSheet); }
-function openSheetEntry() {
-  if (!BACK_OK || onSheetEntry() || popIgnore) return;
+function openSheetEntry(nested) {
+  if (!BACK_OK || popIgnore) return;
+  // 창 안에서 연 창은 기록을 한 칸 더 넣음 (누를 때 넣어야 함 — 크롬은 뒤로가기 처리 중에 넣은 칸을 건너뛰어 앱이 꺼짐, 2026-11-17)
+  if (nested && history.state && history.state.tripSheet === 1) { try { history.pushState({ tripSheet: 2 }, ''); } catch (e) {} return; }
+  if (onSheetEntry()) return;
   try { history.pushState({ tripSheet: 1 }, ''); } catch (e) {}
 }
 function dropSheetEntry() {
