@@ -230,7 +230,12 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 /* 오늘 동선 지도: 한 손가락은 화면 위아래로 넘기기, 한 번 누르거나 두 손가락이면 지도 움직이기 (2026-11-17) */
 .map-wrap{position:relative}
 .share-row{margin-top:10px}
-.share-btn{width:100%;min-height:52px;font-size:calc(15px*var(--fs));white-space:nowrap;background:#fee500 !important;color:#191919 !important;border-color:#fee500 !important;font-weight:800}   /* 카톡 노랑·화면 폭 가득·손가락으로 누르기 좋은 높이 (2026-11-18) */
+.share-c{width:100%;min-height:56px;display:flex;align-items:center;gap:12px;padding:6px 16px;border:0;border-radius:12px;background:#fee500;color:#191919;font:inherit;cursor:pointer;text-align:left}
+.share-c svg{width:calc(30px*var(--fs));height:calc(27px*var(--fs));flex:none}
+.share-c span{display:flex;flex-direction:column;line-height:1.25;min-width:0}
+.share-c b{font-size:calc(15px*var(--fs));font-weight:800}
+.share-c small{font-size:calc(12px*var(--fs));color:#3c3c3c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
 /* 🧪 시험 기본값 칸: 저장·지움·그대로 표, 같은 크기 단추 두 개 */
 .bl-tbl{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;margin:8px 0;padding:8px 10px;border-radius:10px;background:color-mix(in srgb,var(--warn) 12%,var(--bg));border:1px solid color-mix(in srgb,var(--warn) 40%,var(--line));font-size:calc(13px*var(--fs));line-height:1.4}
 .bl-k{font-weight:700;white-space:nowrap}
@@ -748,7 +753,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-51';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-52';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1869,7 +1874,8 @@ function viewDay(date) {
   var nc = nextCard(date), ncFl = nc.indexOf('next fl') >= 0;
   return (ncFl ? golfDay(date) + nc : nc + golfDay(date)) + fl + wxCard(date) + dayVouchers(date) +
     '<div class="day-grid"><div class="map-col">' + map + '</div>' +
-    '<div class="list-col">' + adminTip + '<ul class="tl" id="tl">' + list + '</ul>' + addBtn + (its.length ? '<div class="share-row">' + shareBtn('day:' + date, '이 날 일정 카톡으로 보내기') + '</div>' : '') + '</div></div>' +
+    '<div class="list-col">' + adminTip + '<ul class="tl" id="tl">' + list + '</ul>' +
+      addBtn + (its.length ? shareRow('day:' + date, dayLabel(date) + ' 일정') : '') + '</div></div>' +
     photoCard(date, md(date) + '(' + wd(date) + ') 사진');
 }
 
@@ -1958,7 +1964,12 @@ function shareText(text) {
   if (navigator.share) navigator.share({ text: text }).catch(function (e) { if (e && e.name !== 'AbortError') copy(); });
   else copy();
 }
-function shareBtn(key, label) { return '<button class="btn share-btn" data-share="' + esc(key) + '">📤 ' + label + '</button>'; }
+/* 카톡 단추 (2026-11-18 사용자 C안): 노란 바탕 + 검은 말풍선(직접 그림, 카카오 공식 로고는 안 씀) + 두 줄 글씨
+ *  큰 글씨 '카톡으로 보내기/알리기', 작은 글씨 = 무엇을 보내는지 */
+var KAKAO_SVG = '<svg viewBox="0 0 24 22" aria-hidden="true"><ellipse cx="12" cy="9.5" rx="11" ry="8.5" fill="#191919"/><path d="M6 15 L5 21 L11 17 Z" fill="#191919"/></svg>';
+function shareRow(key, sub, verb) {
+  return '<div class="share-row"><button class="share-c" data-share="' + esc(key) + '">' + KAKAO_SVG + '<span><b>카톡으로 ' + (verb || '보내기') + '</b><small>' + esc(sub || '') + '</small></span></button></div>';
+}
 function dayLabel(d) { return md(d) + '(' + wd(d) + ')'; }
 function itemLine(it) { return (it.time ? it.time + ' ' : '') + icon(it.type) + ' ' + it.title + (nameOf(it) ? ' · ' + nameOf(it) : ''); }
 function shareDayText(date) {
@@ -2041,7 +2052,7 @@ function openItem(id) {
     (nameOf(it) ? '<p style="margin:8px 0 0"><b>📍 ' + esc(nameOf(it)) + '</b>' + (it.display && it.place && it.display !== it.place ? '<br><span class="small muted">원래 이름: ' + esc(it.place) + '</span>' : '') + '</p>' : '') +
     (it.memo ? '<p class="small">' + esc(it.memo) + '</p>' : '') + links + exHtml +
     (it.updated_at ? '<p class="small muted">마지막 수정: ' + esc(it.updated_at) + ' ' + esc(it.updated_by) + '</p>' : '') +
-    '<div class="share-row" style="margin-top:8px">' + shareBtn('item:' + id, '이 일정 카톡으로 알리기') + '</div>' +
+    shareRow('item:' + id, md(it.date) + ' ' + (it.time || '') + ' ' + it.title, '알리기') +
     '<h4 style="margin:14px 0 4px">💬 메모 · 댓글</h4>' +
     (cm.length ? cm.map(function (c) {
       return '<div class="cmt"><b>' + esc(c.member) + '</b> <span class="muted small">' + esc(c.at.slice(5)) + '</span>' +
@@ -2674,7 +2685,7 @@ function viewScore() {
   var r = allTab ? null : rs.filter(function (x) { return x.round_id === S.scoreRound; })[0] || rs[0];
   var tabsR = '<div class="rounds" style="grid-template-columns:repeat(' + rs.length + ',1fr) .85fr">' + rs.map(function (x) { return '<button class="tab' + (r && x.round_id === r.round_id ? ' on' : '') + '" data-round="' + x.round_id + '"><span class="d">' + md(x.date) + '</span><span class="s">' + esc(x.course) + '</span></button>'; }).join('') +
     '<button class="tab tab-all' + (allTab ? ' on' : '') + '" data-round="all"><span class="d">🏅</span><span class="s">전체</span></button></div>';
-  if (allTab) return tabsR + overallHtml() + '<div class="share-row">' + shareBtn('overall', '전체 순위 카톡으로 보내기') + '</div>' + awardsTotalHtml();
+  if (allTab) return tabsR + overallHtml() + shareRow('overall', '전체 순위') + awardsTotalHtml();
   var who = S.scoreFor || S.me.name;
   var members = S.D.members.map(function (m) { return m.name; });
   var sc = scoreOf(r.round_id, who) || { mode: LS.get('trip_mode', 'half'), front: '', back: '', holes: '' };
@@ -2891,7 +2902,7 @@ function scoreTables(r) {
       var crown = t && t.done && t.t === best ? ' 👑' : '';
       return '<tr' + (crown ? ' class="first"' : '') + '><td>' + esc(x.n) + crown + '</td><td>' + (t && t.f !== null ? t.f : '-') + '</td><td>' + (t && t.b !== null ? t.b : '-') + '</td>' + (xcol ? '<td>' + (t && t.x !== null ? t.x : '-') + '</td>' : '') + '<td><b>' + (t && (t.f !== null || t.b !== null || t.x !== null) ? t.t : '-') + '</b>' + (t && t.holes !== null && t.holes > 0 && t.holes < 18 ? '<div class="small muted">' + t.holes + '홀</div>' : '') + '</td>' +
         '<td>' + (isRO() ? '' : x.n !== S.me.name ? '<button class="btn sm ghost" data-for="' + esc(x.n) + '">대신 입력</button>' : '<button class="btn sm ghost" data-editme>수정</button>') + '</td></tr>';
-    }).join('') + '</table></div><div class="share-row">' + shareBtn('round:' + r.round_id, '결과 · 내기 카톡으로 보내기') + '</div></div>';
+    }).join('') + '</table></div>' + shareRow('round:' + r.round_id, md(r.date) + ' ' + r.course + ' 결과 · 내기') + '</div>';
   return table + awardsHtml(r) + '<button class="btn sm ghost sc-alllink" data-round="all">🏅 전체 순위 · 내기 합계 보기 ›</button>';
 }
 function refreshTables() {
@@ -3606,7 +3617,7 @@ function viewSettle(c) {
     html += '<p class="small" style="color:var(--warn);margin:8px 0 0">⚠️ 전에 <b>' + esc(k.replace('>', ' → ')) + '</b>' + (g.amt ? ' ' + won(Number(g.amt)) : '') + '을 "' + g.what.join('·') + '"로 표시했지만, 지출이 바뀌어 지금 계산에는 없어요. 이미 주고받은 돈이면 서로 돌려주거나 관리자와 맞춰 주세요.</p>';
   });
   if (allDone) html += '<p class="chip" style="margin-top:8px">🎉 송금이 모두 끝났습니다. 정산 종료!</p>';
-  html += '<div class="share-row">' + shareBtn('settle', '정산 결과 카톡으로 보내기') + '</div></div>';
+  html += shareRow('settle', '정산 결과 · 누가 누구에게') + '</div>';
 
   // 회원별
   html += '<div class="card"><b>👥 회원별</b><p class="small muted" style="margin:4px 0 0">받을·보낼 돈 = <b>내가 낸 공동경비</b> − <b>나눠 낼 몫</b>(공동경비를 함께한 사람 수로 나눈 내 몫)</p>';
