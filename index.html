@@ -229,8 +229,8 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 @media(min-width:600px){.map-box iframe{height:min(72vw,72vh,680px)}}
 /* 오늘 동선 지도: 한 손가락은 화면 위아래로 넘기기, 한 번 누르거나 두 손가락이면 지도 움직이기 (2026-11-17) */
 .map-wrap{position:relative}
-.share-row{margin-top:10px;display:flex;justify-content:flex-end}
-.share-btn{white-space:nowrap;background:#fee500 !important;color:#191919 !important;border-color:#fee500 !important;font-weight:700}   /* 카톡 노랑 → 한눈에 카톡 단추 */
+.share-row{margin-top:10px}
+.share-btn{width:100%;min-height:52px;font-size:calc(15px*var(--fs));white-space:nowrap;background:#fee500 !important;color:#191919 !important;border-color:#fee500 !important;font-weight:800}   /* 카톡 노랑·화면 폭 가득·손가락으로 누르기 좋은 높이 (2026-11-18) */
 /* 🧪 시험 기본값 칸: 저장·지움·그대로 표, 같은 크기 단추 두 개 */
 .bl-tbl{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;margin:8px 0;padding:8px 10px;border-radius:10px;background:color-mix(in srgb,var(--warn) 12%,var(--bg));border:1px solid color-mix(in srgb,var(--warn) 40%,var(--line));font-size:calc(13px*var(--fs));line-height:1.4}
 .bl-k{font-weight:700;white-space:nowrap}
@@ -748,7 +748,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-50';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-51';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1958,7 +1958,7 @@ function shareText(text) {
   if (navigator.share) navigator.share({ text: text }).catch(function (e) { if (e && e.name !== 'AbortError') copy(); });
   else copy();
 }
-function shareBtn(key, label) { return '<button class="btn sm share-btn" data-share="' + esc(key) + '">📤 ' + label + '</button>'; }
+function shareBtn(key, label) { return '<button class="btn share-btn" data-share="' + esc(key) + '">📤 ' + label + '</button>'; }
 function dayLabel(d) { return md(d) + '(' + wd(d) + ')'; }
 function itemLine(it) { return (it.time ? it.time + ' ' : '') + icon(it.type) + ' ' + it.title + (nameOf(it) ? ' · ' + nameOf(it) : ''); }
 function shareDayText(date) {
