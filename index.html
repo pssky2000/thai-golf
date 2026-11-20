@@ -800,7 +800,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-77';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-78';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1125,18 +1125,12 @@ function camDate() {
   return ds[0];
 }
 /* 💬 카톡 떠 있는 단추 (2026-11-21 사용자 요청): 그 화면의 [카톡으로 …] 단추와 같은 내용을 보냄 · 그런 단추가 없는 화면에서는 숨김
-   자리: 카메라·마이크 단추 위 (끌어 옮기기 없음) */
+   처음 자리: 카메라 단추 위 · 꾹 눌러 끌면 옮겨짐(다른 단추와 같이 trip_fab에 기억) */
 function kakaoTarget() { var m = el('#main'); return m ? m.querySelector('[data-share]') : null; }
-function kakaoFabRefresh() {
-  var k = el('#kakao-fab'); if (!k) return;
-  k.style.display = kakaoTarget() ? '' : 'none';
-  var n = el('.bnav'), nh = n ? n.offsetHeight : 70, size = k.offsetWidth || 58, top = nh + 12 - (size + 12), W = window.innerWidth;
-  ['#mic-fab', '#cam-fab'].forEach(function (q) { var e = el(q); if (e && parseFloat(e.style.right) < W / 2) top = Math.max(top, parseFloat(e.style.bottom) || 0); });
-  k.style.right = '14px'; k.style.bottom = (top + size + 12) + 'px'; k.style.left = 'auto'; k.style.top = 'auto';
-}
+function kakaoFabRefresh() { var k = el('#kakao-fab'); if (k) k.style.display = kakaoTarget() ? '' : 'none'; }
 function placeFabs() {
   var n = el('.bnav'), nh = n ? n.offsetHeight : 70, pos = fabPos(), W = window.innerWidth, H = window.innerHeight;
-  [['mic', '#mic-fab', 0], ['cam', '#cam-fab', 1]].forEach(function (f) {
+  [['mic', '#mic-fab', 0], ['cam', '#cam-fab', 1], ['kakao', '#kakao-fab', 2]].forEach(function (f) {
     var e = el(f[1]); if (!e) return;
     var p = pos[f[0]], size = e.offsetWidth || 58;
     var r = p ? p.r : 14, b = p ? p.b : nh + 12 + f[2] * (size + 12);
@@ -1191,11 +1185,10 @@ function snapFab(e, key) {
   r = (W - r - size / 2) < W / 2 ? W - size - 14 : 14;
   var base = nh + gap, step = size + gap, maxSlot = Math.floor((H - size - 4 - base) / step);
   var slot = Math.max(0, Math.min(maxSlot, Math.round((b - base) / step)));
-  var o = el(key === 'mic' ? '#cam-fab' : '#mic-fab');
-  if (o) {
-    var or = parseFloat(o.style.right), ob = parseFloat(o.style.bottom);
-    if (Math.abs(or - r) < 2 && Math.abs(ob - (base + slot * step)) < step / 2) slot = slot < maxSlot ? slot + 1 : slot - 1;   // 같은 칸이면 한 칸 비켜 섬
-  }
+  // 다른 단추(마이크·카메라·카톡)가 있는 칸이면 빈 칸으로 비켜 섬 — 위로 먼저, 없으면 아래로
+  var others = ['#mic-fab', '#cam-fab', '#kakao-fab'].map(function (q) { return el(q); }).filter(function (o) { return o && o !== e && o.style.display !== 'none'; });
+  var taken = function (sl) { return others.some(function (o) { return Math.abs(parseFloat(o.style.right) - r) < 2 && Math.abs(parseFloat(o.style.bottom) - (base + sl * step)) < step / 2; }); };
+  if (taken(slot)) { var up = slot, dn = slot; while (up < maxSlot && taken(up)) up++; while (dn > 0 && taken(dn)) dn--; slot = !taken(up) ? up : !taken(dn) ? dn : slot; }
   e.style.transition = 'right .15s, bottom .15s';
   e.style.right = r + 'px'; e.style.bottom = (base + slot * step) + 'px';
   setTimeout(function () { e.style.transition = ''; }, 200);
@@ -1480,7 +1473,7 @@ function render() {
     '<button class="mic-fab kakao-fab" id="kakao-fab" aria-label="카톡으로 보내기" style="display:none">' + KAKAO_SVG + '</button>';
 
   if (el('#mic-fab')) bindFab(el('#mic-fab'), 'mic', function () { voiceOpen(); });
-  if (el('#kakao-fab')) el('#kakao-fab').onclick = function () { var b = kakaoTarget(); if (b) b.click(); };
+  if (el('#kakao-fab')) bindFab(el('#kakao-fab'), 'kakao', function () { var b = kakaoTarget(); if (b) b.click(); });   // 꾹 눌러 옮기기 (2026-11-21)
   if (el('#cam-fab')) {
     bindFab(el('#cam-fab'), 'cam', null);
     el('#cam-in').onchange = function () {   // 찍은 사진은 그날(여행 중이면 오늘) 사진 칸으로
