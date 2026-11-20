@@ -800,7 +800,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-79';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-80';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1127,7 +1127,47 @@ function camDate() {
 /* 💬 카톡 떠 있는 단추 (2026-11-21 사용자 요청): 그 화면의 [카톡으로 …] 단추와 같은 내용을 보냄 · 그런 단추가 없는 화면에서는 숨김
    처음 자리: 카메라 단추 위 · 꾹 눌러 끌면 옮겨짐(다른 단추와 같이 trip_fab에 기억) */
 function kakaoTarget() { var m = el('#main'); return m ? m.querySelector('[data-share]') : null; }
-function kakaoFabRefresh() { var k = el('#kakao-fab'); if (k) k.style.display = kakaoTarget() ? '' : 'none'; }
+function kakaoFabRefresh() { var k = el('#kakao-fab'); if (k) k.style.display = ''; }   // 캡처는 어느 화면에서나 되므로 늘 보임
+/* 카톡 단추를 누르면: 📝 글로 보내기(그 화면에 보낼 글이 있을 때) · 📸 지금 보이는 화면 · 📜 이 페이지 전체 (2026-11-21 사용자 요청) */
+function kakaoMenu() {
+  var t = kakaoTarget();
+  var sh = sheet('<h3>💬 카톡으로 보내기</h3>' +
+    (t ? '<button class="btn wide" data-km="text" style="margin-top:6px;text-align:left">📝 글로 보내기<div class="small muted">' + esc((t.querySelector('small') || {}).textContent || '이 화면 내용') + '</div></button>' : '') +
+    '<button class="btn wide" data-km="view" style="margin-top:8px;text-align:left">📸 지금 보이는 화면 그대로<div class="small muted">폰 화면에 보이는 만큼 그림 한 장으로</div></button>' +
+    '<button class="btn wide" data-km="page" style="margin-top:8px;text-align:left">📜 이 페이지 전체 (길게)<div class="small muted">위에서 아래 끝까지 긴 그림 한 장으로</div></button>' +
+    '<div class="small muted" style="margin-top:8px">지도 부분은 그림에 안 나올 수 있어요.</div>' +
+    '<div id="km-msg" class="small" style="margin-top:6px"></div>' +
+    '<div style="text-align:right;margin-top:10px"><button class="btn close-btn" data-close>✕ 닫기</button></div>', null, true);
+  els('[data-km]', sh).forEach(function (b) {
+    b.onclick = function () {
+      var k = b.dataset.km;
+      closeSheet();
+      if (k === 'text') { var tb = kakaoTarget(); if (tb) tb.click(); return; }
+      setTimeout(function () { captureShare(k === 'page'); }, 350);   // 창이 닫힌 뒤 찍음
+    };
+  });
+}
+function captureShare(whole) {
+  toast('📸 그림으로 만드는 중…', null, 6000);
+  var hide = ['#mic-fab', '#cam-fab', '#kakao-fab', '.toast'].concat(whole ? ['.bnav'] : []);   // 긴 그림에는 아래 메뉴 빼기
+  loadH2C().then(function (h2c) {
+    var bg = getComputedStyle(document.body).backgroundColor;
+    var opt = { backgroundColor: bg, scale: Math.min(2, window.devicePixelRatio || 1), useCORS: true, logging: false,
+      ignoreElements: function (n) { return hide.some(function (q) { return n.matches && n.matches(q); }); } };
+    if (whole) return h2c(el('#app') || document.body, opt);
+    return h2c(document.body, Object.assign(opt, { x: window.scrollX, y: window.scrollY, width: window.innerWidth, height: window.innerHeight, windowWidth: document.documentElement.clientWidth, windowHeight: window.innerHeight }));
+  }).then(function (cv) {
+    return new Promise(function (ok) { cv.toBlob(ok, 'image/png'); });
+  }).then(function (blob) {
+    var tm = new Date(), p2 = function (x) { return ('0' + x).slice(-2); };
+    var name = '여행앱_' + (/^\d{4}-/.test(S.tab) ? S.tab.slice(5) : S.tab) + '_' + p2(tm.getHours()) + p2(tm.getMinutes()) + '.png';
+    var file = window.File ? new File([blob], name, { type: 'image/png' }) : null;
+    var t = el('.toast'); if (t) t.remove();
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) return navigator.share({ files: [file] }).catch(function () {});
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    toast('그림을 내려받았어요. 갤러리 › Download에서 카톡으로 보내세요.', null, 4000);
+  }).catch(function (e) { toast(e.message || '그림을 만들지 못했어요.'); });
+}
 function placeFabs() {
   var n = el('.bnav'), nh = n ? n.offsetHeight : 70, pos = fabPos(), W = window.innerWidth, H = window.innerHeight;
   [['mic', '#mic-fab', 0], ['cam', '#cam-fab', 1], ['kakao', '#kakao-fab', 2]].forEach(function (f) {
@@ -1473,7 +1513,7 @@ function render() {
     '<button class="mic-fab kakao-fab" id="kakao-fab" aria-label="카톡으로 보내기" style="display:none">' + KAKAO_SVG + '</button>';
 
   if (el('#mic-fab')) bindFab(el('#mic-fab'), 'mic', function () { voiceOpen(); });
-  if (el('#kakao-fab')) bindFab(el('#kakao-fab'), 'kakao', function () { var b = kakaoTarget(); if (b) b.click(); });   // 꾹 눌러 옮기기 (2026-11-21)
+  if (el('#kakao-fab')) bindFab(el('#kakao-fab'), 'kakao', kakaoMenu);   // 꾹 눌러 옮기기 (2026-11-21)
   if (el('#cam-fab')) {
     bindFab(el('#cam-fab'), 'cam', null);
     el('#cam-in').onchange = function () {   // 찍은 사진은 그날(여행 중이면 오늘) 사진 칸으로
