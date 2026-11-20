@@ -792,7 +792,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-68';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-69';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -2258,14 +2258,20 @@ function openItem(id) {
         '<div id="ires"></div></div>' : '');
   // 이 일정에서 적은 지출 (경비를 볼 수 있는 사람만)
   var exs = canMoney() ? (S.D.expenses || []).filter(function (e) { return e.item_id === id; }) : [];
-  var exHtml = exs.length ? '<div class="fbox" style="margin:10px 0"><div class="row between"><b>💰 이 일정 지출</b><b>' + baht(exs.reduce(function (a, e) { return a + Number(e.thb || 0); }, 0)) + '</b></div>' +
-    exs.map(function (e) { return '<button class="vrow" data-iex="' + esc(e.id) + '" style="grid-template-columns:1fr auto;margin-top:6px"><span><div class="t">' + esc(e.title || e.category || '지출') + '</div><div class="s">' + esc(e.payer || '') + (e.category ? ' · ' + esc(e.category) : '') + '</div></span><b>' + baht(e.thb) + '</b></button>'; }).join('') + '</div>' : '';
+  /* 💰 지출 (2026-11-20 다시 짬): 적은 지출은 줄로 보이고 줄을 누르면 고치기·삭제 창, [＋ 지출 적기]는 바로 적는 창 */
+  var exHtml = !canMoney() ? '' : exs.length
+    ? '<div class="fbox" style="margin:12px 0 0"><div class="row between"><b>💰 이 일정 지출 ' + exs.length + '건</b><b>' + baht(exs.reduce(function (a, e) { return a + Number(e.thb || 0); }, 0)) + '</b></div>' +
+      exs.map(function (e) { return '<button class="vrow" data-iex="' + esc(e.id) + '" style="grid-template-columns:1fr auto;margin-top:6px"><span><div class="t">' + esc(e.title || e.category || '지출') + '</div><div class="s">' + esc(e.payer || '') + (e.category ? ' · ' + esc(e.category) : '') + '</div></span><b>' + baht(e.thb) + ' ›</b></button>'; }).join('') +
+      '<div class="small muted" style="margin-top:6px">줄을 누르면 고치거나 지울 수 있어요.</div>' +
+      '<button type="button" class="btn ghost" id="iexp" style="width:100%;margin-top:8px">＋ 지출 더 적기</button></div>'
+    : '<button type="button" class="btn ghost" id="iexp" style="width:100%;margin-top:8px">💰 지출 적기</button>';
   var html =
-    '<h3>' + icon(it.type) + ' ' + esc(it.time) + ' ' + esc(it.title) + (it.fixed ? ' 🔒' : '') + '</h3>' +
+    '<div class="row between" style="align-items:flex-start;gap:8px"><h3 style="margin-right:auto">' + icon(it.type) + ' ' + esc(it.time) + ' ' + esc(it.title) + (it.fixed ? ' 🔒' : '') + '</h3>' +
+      (S.me.isAdmin ? '<button class="btn sm" id="iedit" style="flex:none">✏️ 수정</button>' : '<button class="btn sm" id="ireq" style="flex:none">✋ 수정 요청</button>') + '</div>' +
     '<div class="muted small">' + md(it.date) + '(' + wd(it.date) + ')</div>' +
     (nameOf(it) ? '<div class="pl-blk"><span class="pin">📍</span><div><b>' + esc(nameOf(it)) + '</b>' + placeSub(it) +
       (altMemo(it) ? '<div style="margin-top:8px"><b>' + esc(altParts(it).name) + '</b>' + (altParts(it).addr ? '<br><span class="small muted">' + esc(altParts(it).addr) + '</span>' : '') + '</div>' : '') + '</div></div>' : '') +
-    (it.memo && !altMemo(it) ? '<p class="small">' + esc(it.memo) + '</p>' : '') + links + routeCard(it) + exHtml +
+    (it.memo && !altMemo(it) ? '<p class="small">' + esc(it.memo) + '</p>' : '') + links + routeCard(it) +
     (it.updated_at ? '<p class="small muted">마지막 수정: ' + esc(it.updated_at) + ' ' + esc(it.updated_by) + '</p>' : '') +
     shareRow('item:' + id, md(it.date) + ' ' + (it.time || '') + ' ' + it.title, '알리기') +
     (cm.length ? '' : '<button type="button" class="btn ghost" id="copen" style="width:100%;margin-top:12px">💬 메모 · 댓글 남기기</button><div id="cbox" style="display:none">') +
@@ -2275,17 +2281,10 @@ function openItem(id) {
         ((c.member === S.me.name || S.me.isAdmin) ? ' <button class="btn sm ghost" data-delc="' + esc(c.id) + '">지우기</button>' : '') + '<div>' + esc(c.text) + '</div></div>';
     }).join('') : '') +
     '<div class="row" style="margin-top:8px"><input class="inp" id="ctext" placeholder="모두에게 보이는 메모"><button class="btn pri" id="cadd">등록</button></div>' + (cm.length ? '' : '</div>') +
-    /* 지출·수정·삭제는 접어 둠 → 눌러야 펼쳐짐 (2026-11-20, 사용자: 메모처럼) */
-    '<div><button type="button" class="btn ghost" id="iact" style="width:100%;margin-top:8px">' +
-      (canMoney() ? '💰 지출 적기' : S.me.isAdmin ? '✏️ 수정' : '✋ 수정 요청') + '</button>' +   // 사용자: 이름은 '지출 적기'만 (누르면 수정·삭제도 나옴)
-      '<div style="text-align:right;margin-top:10px"><button class="btn" id="iclose">닫기</button></div></div>' +
-    '<div id="iactbox" style="display:none"><div class="row act-row" style="margin-top:8px;justify-content:flex-end">' +
-      (canMoney() ? '<button class="btn" id="iexp">💰 지출 적기</button>' : '') +
-      (S.me.isAdmin ? '<button class="btn pri" id="iedit">✏️ 수정</button>' : '<button class="btn" id="ireq">✋ 수정 요청</button>') + '</div>' +
-    (S.me.isAdmin ? '<div style="text-align:right;margin-top:10px"><button class="btn sm ghost" id="idel" style="color:var(--bad)">🗑️ 이 일정 삭제</button></div>' : '') + '</div>';
+    exHtml +   // 일정 수정은 맨 위 [✏️ 수정], 일정 삭제는 수정 창 안 [🗑️ 삭제]
+    '<div style="text-align:right;margin-top:12px"><button class="btn" id="iclose">닫기</button></div>';
   var sh = sheet(html);
   el('#iclose', sh).onclick = closeSheet;
-  el('#iact', sh).onclick = function () { el('#iact', sh).parentNode.style.display = 'none'; el('#iactbox', sh).style.display = ''; el('.act-row', el('#iactbox', sh)).insertAdjacentHTML('beforeend', '<button class="btn" data-close>닫기</button>'); els('[data-close]', el('#iactbox', sh)).forEach(function (b) { b.onclick = closeSheet; }); };
   if (el('#copen', sh)) el('#copen', sh).onclick = function () { el('#copen', sh).style.display = 'none'; el('#cbox', sh).style.display = ''; el('#ctext', sh).focus(); };
   el('#cadd', sh).onclick = function () {
     var t = el('#ctext', sh).value.trim(); if (!t) return;
@@ -2349,7 +2348,6 @@ function openItem(id) {
   }
   var backHere = function () { nextSheetRet = function () { openItem(id); }; };   // 수정·요청·삭제 창을 닫으면 이 창으로
   if (S.me.isAdmin) el('#iedit', sh).onclick = function () { backHere(); editItem(it); };
-  if (S.me.isAdmin) el('#idel', sh).onclick = function () { backHere(); deleteItemAsk(it); };
   else el('#ireq', sh).onclick = function () { backHere(); requestEdit(it); };
 }
 
@@ -4059,9 +4057,10 @@ function expenseForm(e, preset) {
   onPick(el('#x-cam', sh)); onPick(el('#x-pic', sh));
   el('#x-x', sh).onclick = closeSheet;
   if (el('#x-del', sh)) el('#x-del', sh).onclick = function () {
+    var back = sh.parentNode && sh.parentNode._ret;   // 일정 창에서 왔으면 지운 뒤 그 일정 창으로 (확인 창이 이 창을 덮어서 미리 기억)
     confirmBox('이 지출을 지울까요?', '삭제').then(function (y) {
-      if (!y) return;
-      call('deleteExpense', { id: e.id }).then(function (r) { S.D.expenses = r.expenses; saveCache(); closeSheet(); renderMain(); toast('지웠습니다.'); }).catch(function (err) { toast(err.message); });
+      if (!y) { nextSheetRet = back || null; expenseForm(e); return; }   // 취소 → 고치기 창으로 돌아감
+      call('deleteExpense', { id: e.id }).then(function (r) { S.D.expenses = r.expenses; saveCache(); closeSheet(); renderMain(); if (back) back(); toast('지웠습니다.'); }).catch(function (err) { toast(err.message); });
     });
   };
   if (el('#x-ok', sh)) el('#x-ok', sh).onclick = function () {
