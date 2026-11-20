@@ -205,6 +205,8 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .it .body{flex:1;min-width:0}
 .it .ttl{font-weight:700}
 .it .plc{font-size:calc(14px*var(--fs));color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl-blk{display:flex;gap:6px;margin:8px 0 0;align-items:flex-start}.pl-blk .pin{flex:none}
+.it .memo.alt{padding-left:calc(19.5px*var(--fs))}
 .it .memo{font-size:calc(13px*var(--fs));color:var(--sub)}
 .it .side{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
 .it .letter{width:24px;height:24px;border-radius:50%;background:#d93025;color:#fff;font-size:calc(13px*var(--fs));font-weight:800;display:flex;align-items:center;justify-content:center}
@@ -790,7 +792,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-65';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-66';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1860,6 +1862,13 @@ function gmapDayRoute(pts) {
   var w = pts.slice(1, -1).map(function (p) { return p.lat + ',' + p.lng; }).join('|');
   return 'https://www.google.com/maps/dir/?api=1&origin=' + a.lat + ',' + a.lng + '&destination=' + z.lat + ',' + z.lng + (w ? '&waypoints=' + encodeURIComponent(w) : '') + '&travelmode=driving';
 }
+/* 🇰🇷 한국 안 장소는 네이버지도로 (2026-11-20, 사용자 요청: 청주 주차장) — gurl에 네이버 링크가 있으면 그 링크 */
+function inKorea(it) { var a = Number(it.lat), o = Number(it.lng); return a > 33 && a < 39.5 && o > 124 && o < 132; }
+function naverQ(it) { var r = placeSub(it).replace(/<[^>]+>/g, '').replace(/^원래 이름: /, '').trim(); return r || String(it.place || it.display || '').replace(/\s*\([^)]*\)\s*/g, ' ').trim(); }
+function naverOpen(it) { return /^https:\/\/(map\.naver\.com|naver\.me)\//.test(it.gurl || '') ? it.gurl : 'https://map.naver.com/p/search/' + encodeURIComponent(naverQ(it)); }
+function naverNearby(it) { return 'https://map.naver.com/p/search/' + encodeURIComponent(naverQ(it) + ' 맛집'); }
+/* 메모가 '(2순위) …'처럼 다른 장소면 장소 이름 줄에 맞춰 들여 씀 */
+function altMemo(it) { return /^\(\d+순위\)/.test(it.memo || '') && !!nameOf(it); }
 function gmapNearby(it) { return 'https://www.google.com/maps/search/restaurants/@' + it.lat + ',' + it.lng + ',16z'; }
 
 /* 한국에서 하는 일정인지: 출발일 비행기 뜨기 전(청주·인천)과 돌아오는 비행기 도착일 일정은 한국 시각으로 적혀 있음 */
@@ -2015,7 +2024,7 @@ function itemHtml(it, letter) {
     '<div class="body" data-open="' + esc(it.id) + '">' +
       '<div class="ttl">' + icon(it.type) + ' ' + esc(it.title) + '</div>' +
       (nameOf(it) ? '<div class="plc">📍 ' + esc(nameOf(it)) + '</div>' : '') +
-      (it.memo ? '<div class="memo">' + esc(it.memo) + '</div>' : '') +
+      (it.memo ? '<div class="memo' + (altMemo(it) ? ' alt' : '') + '">' + esc(it.memo) + '</div>' : '') +
       '<div class="row" style="gap:6px;margin-top:2px">' + (changed ? '<span class="chg">✏️ 변경됨</span>' : '') + (cmts ? '<span class="chip">💬 ' + cmts + '</span>' : '') + '</div>' +
     '</div>' +
     '<div class="side">' + (letter ? '<span class="letter">' + letter + '</span>' : '') +
@@ -2213,8 +2222,9 @@ function placeSub(it) {
   if (!it.display || !it.place || it.display === it.place) return '';
   var dn = String(it.display).replace(/^\s*\([^)]*\)\s*|\s*\([^)]*\)\s*$/g, '').trim(), pl = String(it.place).trim();
   if (dn && pl.indexOf(dn) === 0) {
-    var rest = pl.slice(dn.length).trim().replace(/^\((.*)\)$/, '$1').trim();
-    return rest ? '<br><span class="small muted">' + esc(rest) + '</span>' : '';
+    var rest = pl.slice(dn.length).trim(), m = /^\((.*)\)$/.exec(rest);   // 나머지가 괄호 속(주소)일 때만 — '피닉스 골드' + '골프 & 컨트리 클럽'은 그대로 원래 이름
+    if (!rest) return '';
+    if (m) return '<br><span class="small muted">' + esc(m[1].trim()) + '</span>';
   }
   return '<br><span class="small muted">원래 이름: ' + esc(pl) + '</span>';
 }
@@ -2231,8 +2241,11 @@ function openItem(id) {
     }
   }
   var links = hasLL(it)
-    ? '<div class="row wrap-row" style="margin:10px 0"><a class="btn sm" target="_blank" href="' + esc(gmapOpen(it)) + '">🗺️ 구글지도에서 열기</a>' +
-      '<a class="btn sm" target="_blank" href="' + esc(gmapNearby(it)) + '">🍽️ 주변 맛집</a></div>'
+    ? (inKorea(it)
+      ? '<div class="row wrap-row" style="margin:10px 0"><a class="btn sm" target="_blank" href="' + esc(naverOpen(it)) + '">🗺️ 네이버지도에서 열기</a>' +
+        '<a class="btn sm" target="_blank" href="' + esc(naverNearby(it)) + '">🍽️ 주변 맛집</a></div>'
+      : '<div class="row wrap-row" style="margin:10px 0"><a class="btn sm" target="_blank" href="' + esc(gmapOpen(it)) + '">🗺️ 구글지도에서 열기</a>' +
+        '<a class="btn sm" target="_blank" href="' + esc(gmapNearby(it)) + '">🍽️ 주변 맛집</a></div>')
     : '<p class="small muted">아직 위치가 없습니다.' + (S.me.isAdmin ? '' : ' 관리자에게 수정 요청을 보내 주세요.') + '</p>' +
       (S.me.isAdmin && !isRO() ? '<div class="fbox" style="margin:6px 0 10px"><div class="fbt">🔎 장소 찾기</div>' +
         '<div class="row"><input class="inp" id="iq" placeholder="예) 가게 이름이나 주소"><button class="btn sm pri" id="ifind" style="flex:none;white-space:nowrap">찾기</button></div>' +
@@ -2246,8 +2259,9 @@ function openItem(id) {
   var html =
     '<h3>' + icon(it.type) + ' ' + esc(it.time) + ' ' + esc(it.title) + (it.fixed ? ' 🔒' : '') + '</h3>' +
     '<div class="muted small">' + md(it.date) + '(' + wd(it.date) + ')</div>' +
-    (nameOf(it) ? '<p style="margin:8px 0 0"><b>📍 ' + esc(nameOf(it)) + '</b>' + placeSub(it) + '</p>' : '') +
-    (it.memo ? '<p class="small">' + esc(it.memo) + '</p>' : '') + links + routeCard(it) + exHtml +
+    (nameOf(it) ? '<div class="pl-blk"><span class="pin">📍</span><div><b>' + esc(nameOf(it)) + '</b>' + placeSub(it) +
+      (altMemo(it) ? '<div class="small" style="margin-top:6px">' + esc(it.memo) + '</div>' : '') + '</div></div>' : '') +
+    (it.memo && !altMemo(it) ? '<p class="small">' + esc(it.memo) + '</p>' : '') + links + routeCard(it) + exHtml +
     (it.updated_at ? '<p class="small muted">마지막 수정: ' + esc(it.updated_at) + ' ' + esc(it.updated_by) + '</p>' : '') +
     shareRow('item:' + id, md(it.date) + ' ' + (it.time || '') + ' ' + it.title, '알리기') +
     (cm.length ? '' : '<button type="button" class="btn ghost" id="copen" style="width:100%;margin-top:12px">💬 메모 · 댓글 남기기</button><div id="cbox" style="display:none">') +
@@ -2257,13 +2271,17 @@ function openItem(id) {
         ((c.member === S.me.name || S.me.isAdmin) ? ' <button class="btn sm ghost" data-delc="' + esc(c.id) + '">지우기</button>' : '') + '<div>' + esc(c.text) + '</div></div>';
     }).join('') : '') +
     '<div class="row" style="margin-top:8px"><input class="inp" id="ctext" placeholder="모두에게 보이는 메모"><button class="btn pri" id="cadd">등록</button></div>' + (cm.length ? '' : '</div>') +
-    '<div class="row act-row" style="margin-top:16px;justify-content:flex-end">' +
+    /* 지출·수정·삭제는 접어 둠 → 눌러야 펼쳐짐 (2026-11-20, 사용자: 메모처럼) */
+    '<div class="row" style="margin-top:16px;gap:6px"><button type="button" class="btn ghost" id="iact" style="flex:1">' +
+      [canMoney() ? '💰 지출' : '', S.me.isAdmin ? '✏️ 수정 · 🗑️ 삭제' : '✋ 수정 요청'].filter(Boolean).join(' · ') + ' ▾</button>' +
+      '<button class="btn" id="iclose" style="flex:none">닫기</button></div>' +
+    '<div id="iactbox" style="display:none"><div class="row act-row" style="margin-top:8px;justify-content:flex-end">' +
       (canMoney() ? '<button class="btn" id="iexp">💰 지출 적기</button>' : '') +
-      (S.me.isAdmin ? '<button class="btn pri" id="iedit">✏️ 수정</button>' : '<button class="btn" id="ireq">✋ 수정 요청</button>') +
-      '<button class="btn" id="iclose">닫기</button></div>' +
-    (S.me.isAdmin ? '<div style="text-align:right;margin-top:10px"><button class="btn sm ghost" id="idel" style="color:var(--bad)">🗑️ 이 일정 삭제</button></div>' : '');
+      (S.me.isAdmin ? '<button class="btn pri" id="iedit">✏️ 수정</button>' : '<button class="btn" id="ireq">✋ 수정 요청</button>') + '</div>' +
+    (S.me.isAdmin ? '<div style="text-align:right;margin-top:10px"><button class="btn sm ghost" id="idel" style="color:var(--bad)">🗑️ 이 일정 삭제</button></div>' : '') + '</div>';
   var sh = sheet(html);
   el('#iclose', sh).onclick = closeSheet;
+  el('#iact', sh).onclick = function () { el('#iact', sh).parentNode.style.display = 'none'; el('#iactbox', sh).style.display = ''; el('.act-row', el('#iactbox', sh)).insertAdjacentHTML('beforeend', '<button class="btn" data-close>닫기</button>'); els('[data-close]', el('#iactbox', sh)).forEach(function (b) { b.onclick = closeSheet; }); };
   if (el('#copen', sh)) el('#copen', sh).onclick = function () { el('#copen', sh).style.display = 'none'; el('#cbox', sh).style.display = ''; el('#ctext', sh).focus(); };
   el('#cadd', sh).onclick = function () {
     var t = el('#ctext', sh).value.trim(); if (!t) return;
