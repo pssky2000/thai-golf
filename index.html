@@ -230,6 +230,21 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 /* 오늘 동선 지도: 한 손가락은 화면 위아래로 넘기기, 한 번 누르거나 두 손가락이면 지도 움직이기 (2026-11-17) */
 .map-wrap{position:relative}
 .share-row{margin-top:10px}
+.rt svg{width:100%;height:auto;display:block;margin:4px 0 6px}
+.rt-sea{fill:var(--flight);opacity:.16}
+.rt-road{stroke:var(--sub);stroke-width:4;opacity:.55}
+.rt-road2{stroke:var(--sub);stroke-width:3;opacity:.4}
+.rt-leg{fill:none;stroke-width:4;stroke-dasharray:7 5;stroke-linecap:round}
+.rt-l1,.rt-p1{stroke:var(--warn)} .rt-l2,.rt-p2{stroke:var(--shop)}
+.rt-p1{fill:var(--warn)} .rt-p2{fill:var(--shop)}
+.rt-ws{fill:var(--massage);opacity:.9}
+.rt-tx{font-size:11px;fill:var(--ink)} .rt-sub{fill:var(--sub);font-size:10px} .rt-b{font-weight:800;font-size:12px}
+.rt-wst{fill:#fff;font-size:11px} .rt-c1{fill:var(--warn);font-weight:800} .rt-c2{fill:var(--shop);font-weight:800}
+.rt-st{display:flex;gap:8px;padding:8px 0;border-top:1px solid var(--line);font-size:calc(13px*var(--fs));color:var(--sub)}
+.rt-st b{color:var(--ink)}
+.rt-st.on{color:var(--ink)} .rt-st.on>div>b{color:var(--warn)}
+.rt-n{flex:none;font-weight:800;font-size:calc(15px*var(--fs))}
+.rt-tip{border-top:1px solid var(--line);padding-top:8px;font-size:calc(12px*var(--fs));color:var(--sub)}
 .share-c{width:100%;min-height:56px;display:flex;align-items:center;gap:12px;padding:6px 16px;border:0;border-radius:12px;background:#fee500;color:#191919;font:inherit;cursor:pointer;text-align:left}
 .share-c svg{width:calc(30px*var(--fs));height:calc(27px*var(--fs));flex:none}
 .share-c span{display:flex;flex-direction:column;line-height:1.25;min-width:0}
@@ -753,7 +768,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-52';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-53';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -2021,6 +2036,46 @@ document.addEventListener('click', function (e) {
   if (t) shareText(t);
 });
 
+/* ═════════ 🛻 가는 법 카드 (2026-11-20) ═════════
+ * 일정 자세히 창에 '어떻게 가나'를 그림 + 순서로 보여 줌. 일정 이름·장소에 아래 낱말이 있으면 뜸 (날짜를 옮겨도 따라감)
+ * 그림은 실제 지도가 아니라 길만 단순하게 그린 것. 위치 기준: 숙소 12.9372,100.8945 · 매 씨 르언 12.9348,100.8821 · 워킹스트리트 12.9263,100.8729
+ * 썽태우 요금 15바트(먼 곳 20) = 2026-04-10부터 (Pattaya Mail 2026-04-11) */
+var ROUTE_GUIDES = [{
+  key: 'walking',
+  match: /매 ?씨 ?르언|워킹 ?스트리트|walking ?st/i,
+  steps: function (it) { var t = (it.title || '') + ' ' + (it.place || '') + ' ' + (it.display || ''); return /워킹|walking/i.test(t) ? [2, 3] : [1]; },
+  html: function (on) {
+    var st = function (n, head, body) { return '<div class="rt-st' + (on.indexOf(n) >= 0 ? ' on' : '') + '"><span class="rt-n">' + '①②③'.charAt(n - 1) + '</span><div><b>' + head + '</b><div>' + body + '</div></div></div>'; };
+    return '<div class="fbox rt"><div class="fbt">🛻 가는 법</div>' +
+      '<svg viewBox="0 0 320 205" role="img" aria-label="숙소에서 매 씨 르언, 워킹스트리트로 가는 길 그림">' +
+        '<polygon points="0,0 128,0 38,205 0,205" class="rt-sea"/>' +
+        '<text x="22" y="120" class="rt-tx rt-sub">바다</text>' +
+        '<line x1="142" y1="0" x2="52" y2="205" class="rt-road"/>' +
+        '<line x1="184" y1="0" x2="94" y2="205" class="rt-road"/>' +
+        '<line x1="111" y1="70" x2="316" y2="70" class="rt-road2"/>' +
+        '<text x="150" y="13" class="rt-tx rt-sub" text-anchor="end">비치로드 ↓</text>' +
+        '<text x="190" y="13" class="rt-tx rt-sub">세컨드로드 ↑</text>' +
+        '<text x="250" y="86" class="rt-tx rt-sub" text-anchor="middle">파타야 끌랑 길</text>' +
+        '<polyline points="284,58 284,70 120,70" class="rt-leg rt-l1"/>' +
+        '<polyline points="112,76 62,188" class="rt-leg rt-l2"/>' +
+        '<circle cx="284" cy="50" r="8" class="rt-pt rt-p1"/><text x="284" y="36" class="rt-tx rt-b" text-anchor="middle">숙소</text>' +
+        '<circle cx="116" cy="72" r="7" class="rt-pt rt-p2"/><text x="104" y="60" class="rt-tx rt-b" text-anchor="end">매 씨 르언</text>' +
+        '<rect x="20" y="186" width="92" height="19" rx="5" class="rt-ws"/><text x="66" y="200" class="rt-tx rt-b rt-wst" text-anchor="middle">워킹스트리트</text>' +
+        '<text x="228" y="62" class="rt-tx rt-c1" text-anchor="middle">① 걸어서 20분</text>' +
+        '<text x="128" y="140" class="rt-tx rt-c2">② 걸어서 15분</text>' +
+      '</svg>' +
+      st(1, '숙소 → 매 씨 르언', '걸어서 20분 · 끌랑 길 따라 바다 쪽으로 쭉 (약 1.4km). 피곤하면 Grab') +
+      st(2, '매 씨 르언 → 워킹스트리트', '비치로드 따라 남쪽으로 걸어서 15분 (약 1.2km). 또는 비치로드에서 남쪽 가는 썽태우 아무거나 → 끝에서 내림 (15바트)') +
+      st(3, '워킹스트리트 → 숙소', '밤늦게는 <b>Grab 추천</b> (4명 합계 100~200바트쯤). 썽태우는 세컨드로드 북쪽 차 → 끌랑 교차로에서 내려 1.2km 걷기') +
+      '<div class="rt-tip">🛻 썽태우: 손 흔들어 세움 → 내릴 때 벨 → 내려서 앞 창문으로 돈 내기 · <b>15바트</b> (먼 곳 20) · 2026년 4월 기준<br>⚠️ 세컨드로드 차는 <b>북쪽으로만</b> 가요. 워킹스트리트 쪽은 바다 앞 비치로드에서 타기</div></div>';
+  }
+}];
+function routeCard(it) {
+  var t = (it.title || '') + ' ' + (it.place || '') + ' ' + (it.display || '');
+  for (var i = 0; i < ROUTE_GUIDES.length; i++) { var g = ROUTE_GUIDES[i]; if (g.match.test(t)) return g.html(g.steps(it)); }
+  return '';
+}
+
 /* ─── 일정 상세 · 댓글 · 수정 요청 ─── */
 function openItem(id) {
   var it = S.D.items.filter(function (x) { return x.id === id; })[0];
@@ -2050,7 +2105,7 @@ function openItem(id) {
     '<h3>' + icon(it.type) + ' ' + esc(it.time) + ' ' + esc(it.title) + (it.fixed ? ' 🔒' : '') + '</h3>' +
     '<div class="muted small">' + md(it.date) + '(' + wd(it.date) + ')</div>' +
     (nameOf(it) ? '<p style="margin:8px 0 0"><b>📍 ' + esc(nameOf(it)) + '</b>' + (it.display && it.place && it.display !== it.place ? '<br><span class="small muted">원래 이름: ' + esc(it.place) + '</span>' : '') + '</p>' : '') +
-    (it.memo ? '<p class="small">' + esc(it.memo) + '</p>' : '') + links + exHtml +
+    (it.memo ? '<p class="small">' + esc(it.memo) + '</p>' : '') + links + routeCard(it) + exHtml +
     (it.updated_at ? '<p class="small muted">마지막 수정: ' + esc(it.updated_at) + ' ' + esc(it.updated_by) + '</p>' : '') +
     shareRow('item:' + id, md(it.date) + ' ' + (it.time || '') + ' ' + it.title, '알리기') +
     '<h4 style="margin:14px 0 4px">💬 메모 · 댓글</h4>' +
