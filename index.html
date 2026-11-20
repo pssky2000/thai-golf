@@ -212,6 +212,7 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 /* 닫기: 다른 단추와 다르게 테두리만 (2026-11-21 사용자: 색이 같아 구분 안 됨) */
 .btn.close-btn{background:transparent!important;border:1.5px solid var(--sub);color:var(--sub);font-weight:700}
 .it-head{border-bottom:1.5px solid rgba(127,127,127,.45);padding-bottom:4px;margin-bottom:10px}.it-title{margin:4px 0 0;white-space:nowrap;overflow:hidden}
+.empty-box{margin:12px 0 4px;padding:14px;border:1.5px dashed rgba(127,127,127,.45);border-radius:12px;text-align:center}
 .pl-blk{display:flex;gap:6px;margin:8px 0 0;align-items:flex-start}.pl-blk .pin{flex:none}
 .it .memo.alt{font-size:calc(14px*var(--fs))}.it .memo.alt .ghostpin{visibility:hidden}
 .it .memo{font-size:calc(13px*var(--fs));color:var(--sub)}
@@ -811,7 +812,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-91';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-92';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -2084,7 +2085,7 @@ function viewDay(date) {
   return (ncFl ? golfDay(date) + nc : nc + golfDay(date)) + fl + wxCard(date) + dayVouchers(date) +
     '<div class="day-grid"><div class="map-col">' + map + '</div>' +
     '<div class="list-col">' + adminTip + '<ul class="tl" id="tl">' + list + '</ul>' +
-      addBtn + (its.length ? shareRow('day:' + date, dayLabel(date) + ' 일정') : '') + '</div></div>' +
+      addBtn + (its.length ? shareRow('day:' + date, dayMd(date) + ' 일정') : '') + '</div></div>' +
     photoCard(date, md(date) + '(' + wd(date) + ') 사진');
 }
 
@@ -2188,15 +2189,15 @@ var KAKAO_SVG = '<svg viewBox="0 0 24 22" aria-hidden="true"><ellipse cx="12" cy
 function shareRow(key, sub, verb) {
   return '<div class="share-row"><button class="share-c" data-share="' + esc(key) + '">' + KAKAO_SVG + '<span><b>카톡으로 ' + (verb || '보내기') + '</b><small>' + esc(sub || '') + '</small></span></button></div>';
 }
-function dayLabel(d) { return md(d) + '(' + wd(d) + ')'; }
+function dayMd(d) { return md(d) + '(' + wd(d) + ')'; }   // 카톡 글용 '12/16(수)' — 예전엔 이름이 dayLabel과 겹쳐 날짜 탭 이름(⛳ 골프장·출발)을 덮어썼음 (2026-11-21 고침)
 function itemLine(it) { return (it.time ? it.time + ' ' : '') + icon(it.type) + ' ' + it.title + (nameOf(it) ? ' · ' + nameOf(it) : ''); }
 function shareDayText(date) {
   var r = S.D.rounds.filter(function (x) { return x.date === date; })[0];
-  return '📅 ' + dayLabel(date) + ' 일정' + (r ? ' — ⛳ ' + r.course : '') + '\n' + itemsOf(date).map(itemLine).join('\n');
+  return '📅 ' + dayMd(date) + ' 일정' + (r ? ' — ⛳ ' + r.course : '') + '\n' + itemsOf(date).map(itemLine).join('\n');
 }
 function shareItemText(id) {
   var it = S.D.items.filter(function (x) { return x.id === id; })[0]; if (!it) return '';
-  return '📢 일정 안내\n' + dayLabel(it.date) + ' ' + (it.time || '') + ' ' + icon(it.type) + ' ' + it.title +
+  return '📢 일정 안내\n' + dayMd(it.date) + ' ' + (it.time || '') + ' ' + icon(it.type) + ' ' + it.title +
     (nameOf(it) ? '\n📍 ' + nameOf(it) : '') + (it.memo ? '\n📝 ' + memoClean(it.memo) : '') + (hasLL(it) ? '\n🗺️ ' + gmapOpen(it) : '');
 }
 function shareSettleText() {
@@ -2209,7 +2210,7 @@ function shareRoundText(rid) {
   var names = memberNames();
   var rows = names.map(function (n) { return { n: n, t: totalOf(scoreOf(rid, n)) }; }).filter(function (x) { return x.t && x.t.done; }).sort(function (a, b) { return a.t.t - b.t.t; });
   var best = rows.length ? rows[0].t.t : null;
-  var out = '⛳ ' + dayLabel(r.date) + ' ' + r.course + ' 결과\n' + (rows.length ? rows.map(function (x, i) {
+  var out = '⛳ ' + dayMd(r.date) + ' ' + r.course + ' 결과\n' + (rows.length ? rows.map(function (x, i) {
     return (x.t.t === best ? '👑 ' : (i + 1) + '. ') + x.n + ' ' + x.t.t + '타' + (x.t.f !== null && x.t.b !== null ? ' (' + x.t.f + '·' + x.t.b + (x.t.x ? '·' + x.t.x : '') + ')' : '');
   }).join('\n') : '아직 끝난 스코어가 없어요');
   var aw = awardsOf(rid).slice().sort(function (a, b) { return Number(a.hole) - Number(b.hole); });
@@ -4277,8 +4278,9 @@ function vouchersHtml() {
   var vs = S.D.vouchers || [], days = {}, none = [];
   vs.forEach(function (v) { if (v.date) (days[v.date] = days[v.date] || []).push(v); else none.push(v); });
   return '<div class="card"><div class="row between"><b>📄 바우처</b><span class="small muted">' + (vs.length ? vs.length + '개' : '') + '</span></div>' +
-    '<div class="small muted" style="margin-top:4px">누르면 화면 가득 보여요. 이 칸을 한 번 열어 두면 폰에 저장돼서 인터넷이 약해도 열려요. <span id="v-pre"></span></div>' +
-    (vs.length ? '' : '<p class="muted" style="margin:12px 0 4px">아직 올린 바우처가 없습니다.' + (S.me.isAdmin ? ' 구글 드라이브 「여행 자료 폴더 › 바우처」에 PDF·사진을 넣거나 아래 버튼으로 올려 주세요.' : '') + '</p>') +
+    // 안내(작은 글씨)와 '없음'(점선 상자)을 나눠 보이게 (2026-11-21 사용자: 두 내용이 섞여 보임). 바우처가 없으면 안내는 숨김
+    (vs.length ? '<div class="small muted" style="margin-top:4px">누르면 화면 가득 보여요. 이 칸을 한 번 열어 두면 폰에 저장돼서 인터넷이 약해도 열려요. <span id="v-pre"></span></div>' : '<span id="v-pre"></span>') +
+    (vs.length ? '' : '<div class="empty-box">📭 <b>아직 올린 바우처가 없습니다.</b>' + (S.me.isAdmin ? '<div class="small muted" style="margin-top:4px">구글 드라이브 「여행 자료 폴더 › 바우처」에 PDF·사진을 넣거나 아래 버튼으로 올려 주세요.</div>' : '<div class="small muted" style="margin-top:4px">관리자가 올리면 여기에 보여요.</div>') + '</div>') +
     Object.keys(days).sort().map(function (d) { return '<div class="vday">' + md(d) + '(' + wd(d) + ')</div>' + days[d].map(vRow).join(''); }).join('') +
     (none.length ? '<div class="vday">날짜 없음</div>' + none.map(vRow).join('') : '') +
     (S.me.isAdmin ? '<div class="admin-box" style="margin-top:12px;padding:10px"><b class="small">🛠️ 관리자</b>' +
