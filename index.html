@@ -78,6 +78,8 @@ a{color:var(--pri)}
 .act-row{flex-wrap:wrap;gap:6px}.act-row>.btn{padding:10px 9px}
 .btn.pri{background:var(--pri);color:var(--pri-ink);border-color:var(--pri);font-weight:700}
 .btn.ghost{background:transparent}
+/* 카드 안 보통 단추는 카드 바탕과 살짝 다르게 (지도/위성 단추처럼, 2026-11-20 사용자: 갤러리 단추가 바탕에 묻힘) */
+.card .btn:not(.pri):not(.ghost):not(.bad):not(.on){background:rgba(127,127,127,.2)}
 .btn.bad{color:var(--bad);border-color:var(--bad)}
 .btn.sm{padding:6px 10px;min-height:36px;font-size:calc(14px*var(--fs));border-radius:10px}
 .chip{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:3px 10px;font-size:calc(13px*var(--fs));background:var(--pri-soft);color:var(--pri);font-weight:600}
@@ -793,7 +795,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-71';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-72';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1874,6 +1876,8 @@ function altParts(it) {   // '(2순위) 이름 (주소)' → { name: '(2순위) 
   var t = String(it.memo || ''), pre = (/^\(\d+순위\)\s*/.exec(t) || [''])[0], rest = t.slice(pre.length), m = /^(.*?)\s*\(([^()]*\d[^()]*)\)\s*$/.exec(rest);
   return m ? { name: pre + m[1], addr: m[2] } : { name: t, addr: '' };
 }
+/* 🍽️ 주변 맛집은 이동·비행기 일정과 새벽(06시 전) 일정에는 안 보임 (2026-11-20, 사용자: 청주 04:00 출발엔 필요 없음) */
+function wantNearby(it) { return !{ move: 1, flight: 1 }[it.type] && !(it.time && it.time < '06:00'); }
 function gmapNearby(it) { return 'https://www.google.com/maps/search/restaurants/@' + it.lat + ',' + it.lng + ',16z'; }
 
 /* 한국에서 하는 일정인지: 출발일 비행기 뜨기 전(청주·인천)과 돌아오는 비행기 도착일 일정은 한국 시각으로 적혀 있음 */
@@ -2248,9 +2252,9 @@ function openItem(id) {
   var links = hasLL(it)
     ? (inKorea(it)
       ? '<div class="row wrap-row" style="margin:10px 0"><a class="btn sm" target="_blank" href="' + esc(naverOpen(it)) + '">🗺️ 네이버지도에서 열기</a>' +
-        '<a class="btn sm" target="_blank" href="' + esc(naverNearby(it)) + '">🍽️ 주변 맛집</a></div>'
+        (wantNearby(it) ? '<a class="btn sm" target="_blank" href="' + esc(naverNearby(it)) + '">🍽️ 주변 맛집</a>' : '') + '</div>'
       : '<div class="row wrap-row" style="margin:10px 0"><a class="btn sm" target="_blank" href="' + esc(gmapOpen(it)) + '">🗺️ 구글지도에서 열기</a>' +
-        '<a class="btn sm" target="_blank" href="' + esc(gmapNearby(it)) + '">🍽️ 주변 맛집</a></div>')
+        (wantNearby(it) ? '<a class="btn sm" target="_blank" href="' + esc(gmapNearby(it)) + '">🍽️ 주변 맛집</a>' : '') + '</div>')
     : '<p class="small muted">아직 위치가 없습니다.' + (S.me.isAdmin ? '' : ' 관리자에게 수정 요청을 보내 주세요.') + '</p>' +
       (S.me.isAdmin && !isRO() ? '<div class="fbox" style="margin:6px 0 10px"><div class="fbt">🔎 장소 찾기</div>' +
         '<div class="row"><input class="inp" id="iq" placeholder="예) 가게 이름이나 주소"><button class="btn sm pri" id="ifind" style="flex:none;white-space:nowrap">찾기</button></div>' +
