@@ -812,7 +812,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-92';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-93';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1538,7 +1538,7 @@ function render() {
   els('[data-sec]').forEach(function (b) {
     b.onclick = function () {
       var k = b.dataset.sec;
-      if (k === 'day') k = /^\d{4}-/.test(S.tab) ? S.tab : (LS.get('trip_day', null) || defaultDay());
+      if (k === 'day') k = /^\d{4}-/.test(S.tab) ? S.tab : (LS.get('trip_day_on', '') === localNow().date && LS.get('trip_day', null)) || defaultDay();   // 여행 중엔 날이 바뀌면 오늘 일정부터 (2026-11-21)
       go(k);
     };
   });
@@ -1558,7 +1558,7 @@ function go(tab) {
   if (tab === 'money' && !canMoney()) tab = 'all';
   var wasDay = /^\d{4}-/.test(S.tab), isDay = /^\d{4}-/.test(tab);
   S.tab = tab; LS.set('trip_tab', tab);
-  if (isDay) LS.set('trip_day', tab);
+  if (isDay) { LS.set('trip_day', tab); LS.set('trip_day_on', localNow().date); }
   if (wasDay !== isDay || !isDay) { render(); window.scrollTo({ top: 0 }); return; }
   els('[data-tab]').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === tab); });
   var on = el('.tab.on'); if (on) on.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
@@ -2290,6 +2290,7 @@ function wakeOf(date) {
   if (!its.length) return null;
   var w = its.filter(function (x) { return /기상/.test(x.title); })[0];
   if (w) return { time: w.time, why: w.title };
+  if (its[0].type === 'flight') return null;   // 첫 일정이 비행기 도착(밤 비행기 안)이면 기상 카드 없음 (2026-11-21 점검: 12/20 05:55 기상이 나왔음)
   var t = Math.max(0, toMin(its[0].time) - 60);
   return { time: fromMin(t), why: '첫 일정 ' + its[0].time + ' ' + its[0].title + '의 1시간 전' };
 }
