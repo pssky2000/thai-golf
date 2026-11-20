@@ -439,6 +439,8 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .mic-fab{position:fixed;right:14px;bottom:90px;z-index:41;width:58px;height:58px;border-radius:50%;border:3px solid #fff;background:#37474f;color:#fff;padding:0;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.35);cursor:pointer}   /* 앱 초록과 겹치지 않게 진한 남회색 */
 .mic-fab svg{display:block;pointer-events:none}
 .cam-fab{background:#37474f}
+/* 카톡 고르기 창 단추: 제목 한 줄 + 아래 작은 설명 (2026-11-21 글자 뒤섞임 고침) */
+.btn.km-opt{display:block;width:100%;white-space:normal;text-align:left;padding:12px 14px;line-height:1.35;font-weight:700}.btn.km-opt .small{display:block;font-weight:400;margin-top:2px}
 .kakao-fab{background:#fee500}.kakao-fab svg{width:30px;height:28px}
 .mic-fab{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .mic-fab.fab-drag{transform:scale(1.15);box-shadow:0 10px 26px rgba(0,0,0,.45);opacity:.92}
@@ -800,7 +802,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-80';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-81';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1132,9 +1134,9 @@ function kakaoFabRefresh() { var k = el('#kakao-fab'); if (k) k.style.display = 
 function kakaoMenu() {
   var t = kakaoTarget();
   var sh = sheet('<h3>💬 카톡으로 보내기</h3>' +
-    (t ? '<button class="btn wide" data-km="text" style="margin-top:6px;text-align:left">📝 글로 보내기<div class="small muted">' + esc((t.querySelector('small') || {}).textContent || '이 화면 내용') + '</div></button>' : '') +
-    '<button class="btn wide" data-km="view" style="margin-top:8px;text-align:left">📸 지금 보이는 화면 그대로<div class="small muted">폰 화면에 보이는 만큼 그림 한 장으로</div></button>' +
-    '<button class="btn wide" data-km="page" style="margin-top:8px;text-align:left">📜 이 페이지 전체 (길게)<div class="small muted">위에서 아래 끝까지 긴 그림 한 장으로</div></button>' +
+    (t ? '<button class="btn km-opt" data-km="text" style="margin-top:6px">📝 글로 보내기<div class="small muted">' + esc((t.querySelector('small') || {}).textContent || '이 화면 내용') + '</div></button>' : '') +
+    '<button class="btn km-opt" data-km="view" style="margin-top:8px">📸 지금 보이는 화면 그대로<div class="small muted">폰 화면에 보이는 만큼 그림 한 장으로</div></button>' +
+    '<button class="btn km-opt" data-km="page" style="margin-top:8px">📜 이 페이지 전체 (길게)<div class="small muted">위에서 아래 끝까지 긴 그림 한 장으로</div></button>' +
     '<div class="small muted" style="margin-top:8px">지도 부분은 그림에 안 나올 수 있어요.</div>' +
     '<div id="km-msg" class="small" style="margin-top:6px"></div>' +
     '<div style="text-align:right;margin-top:10px"><button class="btn close-btn" data-close>✕ 닫기</button></div>', null, true);
