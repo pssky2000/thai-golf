@@ -793,7 +793,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-60';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-61';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -2203,7 +2203,8 @@ function alarmSheet(time, date) {
       '<li>폰의 <b>시계</b> 앱 열기</li><li>아래 <b>알람</b> 탭 → 오른쪽 위 <b>＋</b></li><li><b>' + esc(time) + '</b> 맞추고 <b>저장</b></li></ol></div>' +
     '<div class="fbox" style="margin-top:8px"><div class="fbt">🗣️ 말로 맞추기</div><div>옆 버튼을 길게 눌러 빅스비에게<br><b>"' + esc(spokenTime(time)) + ' 알람 맞춰 줘"</b></div></div>' +
     '<p class="small muted" style="margin-top:8px">알람은 다음에 오는 ' + esc(time) + '에 울려요.' + (far ? ' ' + md(date) + ' 전날 밤에 맞추세요.' : '') + ' 폰 시각이 태국 시각인지 확인하세요(한국보다 2시간 늦음).</p>' +
-    '<button class="btn wide" data-close style="margin-top:10px">닫기</button>', null, true);
+    '<a class="btn wide" href="alarm-test.html" style="margin-top:10px">🧪 시계 앱 자동 열기 시험 (임시)</a>' +   // 시험 끝나면 지우기
+    '<button class="btn wide" data-close style="margin-top:8px">닫기</button>', null, true);
 }
 function spokenTime(t) {
   var m = /^(\d{1,2}):(\d{2})/.exec(t), h = Number(m[1]), mi = Number(m[2]);
