@@ -718,7 +718,7 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .seg-tabs.folder button.adm.on{background:var(--warn);border-color:var(--warn);color:var(--warn-ink);font-weight:800}
 .seg-tabs.folder.adm-on{border-bottom-color:var(--warn)}
 .seg-tabs.folder button.adm{position:relative}
-.seg-tabs.folder:not(.adm-on) button.adm{border-bottom:2px solid var(--warn);margin-bottom:4px;padding-top:10px;padding-bottom:2px}   /* 다른 탭을 볼 땐: 초록 선은 끝까지, 관리자 칸은 주황 밑줄을 두고 초록 선과 4px 띄움 (2026-11-21 사용자 그림) */
+.seg-tabs.folder:not(.adm-on) button.adm{border-bottom:0;margin-bottom:4px;padding-top:10px;padding-bottom:4px}   /* 다른 탭을 볼 땐: 초록 선은 끝까지, 관리자 칸은 주황 밑줄을 두고 초록 선과 4px 띄움 (2026-11-21 사용자 그림) */
 .seg-tabs.folder.adm-on{border-bottom-color:var(--warn)}   /* 관리자 탭을 열면 아래 선도 주황 (2026-11-17) */
 /* 관리자 상자 안은 초록 대신 주황 (주 단추·단계 번호·켜짐). 주황 위 글씨는 --warn-ink(다크: 진한 갈색, 라이트: 흰색) (2026-11-17) */
 .admin-box .btn.pri{background:var(--warn);border-color:var(--warn);color:var(--warn-ink);font-weight:800}
@@ -811,7 +811,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-90';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-91';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
