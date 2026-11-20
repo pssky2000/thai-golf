@@ -247,8 +247,9 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .map-wrap{position:relative}
 .share-row{margin-top:10px}
 .btn.wide{display:flex;width:100%;justify-content:center;text-decoration:none}
-.alarm-row{margin-top:8px}
-.alarm-row .small{margin-top:4px}
+.alarm-chip{margin-top:auto;border:1.5px solid var(--warn);background:transparent;color:var(--warn);border-radius:999px;padding:6px 10px;font-weight:800;font-size:calc(14px*var(--fs));white-space:nowrap}
+.alarm-big{font-size:calc(44px*var(--fs));font-weight:900;text-align:center;margin:6px 0 10px;font-variant-numeric:tabular-nums}
+.alarm-steps{margin:4px 0 0;padding-left:22px;line-height:1.7}
 .rt svg{width:100%;height:auto;display:block;margin:4px 0 6px}
 .rt-sea{fill:var(--flight);opacity:.16}
 .rt-road{stroke:var(--sub);stroke-width:4;opacity:.55}
@@ -792,7 +793,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-59';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-60';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -2021,6 +2022,7 @@ function itemHtml(it, letter) {
       '<div class="row" style="gap:6px;margin-top:2px">' + (changed ? '<span class="chg">✏️ 변경됨</span>' : '') + (cmts ? '<span class="chip">💬 ' + cmts + '</span>' : '') + '</div>' +
     '</div>' +
     '<div class="side">' + (letter ? '<span class="letter">' + letter + '</span>' : '') +
+      (isWake(it) && it.date >= localNow().date ? '<button type="button" class="alarm-chip" data-alarm="' + esc(it.time) + '" data-adate="' + esc(it.date) + '">⏰ 알람</button>' : '') +
       '</div>' +
   '</li>';
 }
@@ -2189,17 +2191,23 @@ function routeCard(it) {
   return '';
 }
 
-/* ⏰ 알람 맞추기 (2026-11-20): 안드로이드(갤럭시)는 시계 앱을 열어 시각·이름을 채워 줌 → [저장]만 누르면 됨
- * 웹 앱은 알람을 몰래 맞출 수 없음(폰 보안). 안드로이드 알람은 날짜를 못 정해서 '다음에 오는 그 시각'에 울림 → 전날 밤에 누르기 */
-var IS_ANDROID = /Android/i.test(navigator.userAgent);
-function alarmUrl(time, label) {
-  var m = /^(\d{1,2}):(\d{2})/.exec(String(time || '')); if (!m) return '';
-  return 'intent:#Intent;action=android.intent.action.SET_ALARM;i.android.intent.extra.alarm.HOUR=' + Number(m[1]) + ';i.android.intent.extra.alarm.MINUTES=' + Number(m[2]) +
-    ';S.android.intent.extra.alarm.MESSAGE=' + encodeURIComponent(label) + ';end';
+/* ⏰ 기상 알람 (2026-11-20 고침): 웹 앱(Chrome)은 보안 때문에 시계 앱을 직접 열 수 없음(intent SET_ALARM이 갤럭시에서 안 열림 — 사용자 확인)
+ * → '기상' 일정 줄에 [⏰ 알람] 단추 → 맞추는 법 창(큰 시각 + 순서 + 빅스비 말로 맞추기). 다른 일정에는 알람 단추 없음 */
+function isWake(it) { return /기상/.test(it.title || '') && /^\d{1,2}:\d{2}/.test(it.time || ''); }
+function alarmSheet(time, date) {
+  var far = date && date > addDays(localNow().date, 1);
+  sheet('<h3>⏰ ' + esc(time) + ' 알람</h3>' +
+    (date ? '<div class="muted small">' + md(date) + '(' + wd(date) + ') 기상</div>' : '') +
+    '<div class="alarm-big">' + esc(time) + '</div>' +
+    '<div class="fbox"><div class="fbt">📱 시계 앱에서</div><ol class="alarm-steps">' +
+      '<li>폰의 <b>시계</b> 앱 열기</li><li>아래 <b>알람</b> 탭 → 오른쪽 위 <b>＋</b></li><li><b>' + esc(time) + '</b> 맞추고 <b>저장</b></li></ol></div>' +
+    '<div class="fbox" style="margin-top:8px"><div class="fbt">🗣️ 말로 맞추기</div><div>옆 버튼을 길게 눌러 빅스비에게<br><b>"' + esc(spokenTime(time)) + ' 알람 맞춰 줘"</b></div></div>' +
+    '<p class="small muted" style="margin-top:8px">알람은 다음에 오는 ' + esc(time) + '에 울려요.' + (far ? ' ' + md(date) + ' 전날 밤에 맞추세요.' : '') + ' 폰 시각이 태국 시각인지 확인하세요(한국보다 2시간 늦음).</p>' +
+    '<button class="btn wide" data-close style="margin-top:10px">닫기</button>', null, true);
 }
-function alarmBtn(time, label, cls) {
-  var u = IS_ANDROID ? alarmUrl(time, label) : '';
-  return u ? '<a class="btn ' + (cls || '') + '" href="' + esc(u) + '">⏰ ' + esc(time) + ' 알람 맞추기</a>' : '';
+function spokenTime(t) {
+  var m = /^(\d{1,2}):(\d{2})/.exec(t), h = Number(m[1]), mi = Number(m[2]);
+  return (h < 12 ? '오전 ' : '오후 ') + ((h % 12) || 12) + '시' + (mi ? ' ' + mi + '분' : '');
 }
 /* 내일 깨는 시각: '기상' 일정, 없으면 첫 일정 1시간 전 */
 function wakeOf(date) {
@@ -2217,8 +2225,7 @@ function wakeCard() {
   var w = wakeOf(tm); if (!w) return '';
   return '<div class="card wake-card"><div class="row between"><b>🌙 내일 ' + md(tm) + '(' + wd(tm) + ') 기상</b><b style="font-size:calc(20px*var(--fs))">' + esc(w.time) + '</b></div>' +
     '<div class="small muted">' + esc(w.why) + '</div>' +
-    (IS_ANDROID ? '<div style="margin-top:8px">' + alarmBtn(w.time, md(tm) + ' 기상 · ' + (st.trip_title || '여행'), 'pri wide') + '</div><div class="small muted" style="margin-top:4px">시계 앱이 열리면 [저장]만 누르세요.</div>'
-      : '<div class="small muted" style="margin-top:6px">폰 시계 앱에서 알람을 맞춰 두세요.</div>') + '</div>';
+    '<button class="btn pri wide" data-alarm="' + esc(w.time) + '" data-adate="' + esc(tm) + '" style="margin-top:8px">⏰ ' + esc(w.time) + ' 알람 맞추기</button></div>';
 }
 
 /* ─── 일정 상세 · 댓글 · 수정 요청 ─── */
@@ -2253,8 +2260,6 @@ function openItem(id) {
     (it.memo ? '<p class="small">' + esc(it.memo) + '</p>' : '') + links + routeCard(it) + exHtml +
     (it.updated_at ? '<p class="small muted">마지막 수정: ' + esc(it.updated_at) + ' ' + esc(it.updated_by) + '</p>' : '') +
     shareRow('item:' + id, md(it.date) + ' ' + (it.time || '') + ' ' + it.title, '알리기') +
-    (IS_ANDROID && it.time && it.date >= localNow().date ? '<div class="alarm-row">' + alarmBtn(it.time, md(it.date) + ' ' + it.title, 'wide') +
-      (it.date > addDays(localNow().date, 1) ? '<div class="small muted">알람은 다음에 오는 ' + esc(it.time) + '에 울려요. ' + md(it.date) + ' 전날 밤에 누르세요.</div>' : '') + '</div>' : '') +
     (cm.length ? '' : '<button type="button" class="btn ghost" id="copen" style="width:100%;margin-top:12px">💬 메모 · 댓글 남기기</button><div id="cbox" style="display:none">') +
     '<h4 style="margin:14px 0 4px">💬 메모 · 댓글</h4>' +
     (cm.length ? cm.map(function (c) {
@@ -5239,6 +5244,9 @@ function bindMain() {
       if (v === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', v);
       renderMain();
     };
+  });
+  els('[data-alarm]', m).forEach(function (b) {
+    b.onclick = function (e) { e.stopPropagation(); if (dragState || Date.now() < suppressClickUntil) return; alarmSheet(b.dataset.alarm, b.dataset.adate); };
   });
   els('[data-itab]', m).forEach(function (b) { b.onclick = function () { S.infoTab = b.dataset.itab; LS.set('trip_itab', S.infoTab); renderMain(); }; });
   els('[data-open]', m).forEach(function (b) {
