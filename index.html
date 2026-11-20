@@ -207,7 +207,10 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .it .body{flex:1;min-width:0}
 .it .ttl{font-weight:700}
 .it .plc{font-size:calc(14px*var(--fs));color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.imap-wrap{position:relative}.imap-sw{position:absolute;top:8px;right:8px;z-index:500;background:var(--card)}
 .imap{height:calc(190px*var(--fs));border-radius:12px;overflow:hidden;margin:10px 0 0;border:1px solid var(--line);background:#cfd8d2}
+/* 닫기: 다른 단추와 다르게 테두리만 (2026-11-21 사용자: 색이 같아 구분 안 됨) */
+.btn.close-btn{background:transparent!important;border:1.5px solid var(--sub);color:var(--sub);font-weight:700}
 .pl-blk{display:flex;gap:6px;margin:8px 0 0;align-items:flex-start}.pl-blk .pin{flex:none}
 .it .memo.alt{font-size:calc(14px*var(--fs))}.it .memo.alt .ghostpin{visibility:hidden}
 .it .memo{font-size:calc(13px*var(--fs));color:var(--sub)}
@@ -796,7 +799,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-74';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-76';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1562,7 +1565,7 @@ function fxHtml() {
       (fx.cash ? '<span class="small muted"> · 매매기준율 ' + fx.rate.toFixed(2) + '원</span>' : '') + '</div>'
     : '<div class="fx-line muted">환율을 불러오는 중…</div>';
   return '<div class="card"><div class="row between" style="flex-wrap:nowrap;align-items:baseline"><b style="white-space:nowrap">💱 환율</b>' +
-      (rate ? '<span class="small muted">' + esc(fx.date) + ' 기준' + (fx.fallback ? ' (고정값)' : '') + '</span>' : '') + '</div>' + head +
+      (rate ? '<span class="small muted">(' + esc(fx.date) + ' 기준' + (fx.fallback ? ' · 고정값' : '') + ')</span>' : '') + '</div>' + head +
     '<div class="fx-grid" style="margin-top:10px"><input class="inp" id="fxa" inputmode="decimal" placeholder="฿ THB">' +
     '<span>⇄</span><input class="inp" id="fxb" inputmode="numeric" placeholder="원"></div>' +
     (S.fx && S.fx.cash ? '<p class="small muted" style="margin:6px 0 0">계산은 현금 살 때 환율로 해요. 환전 우대를 받으면 조금 더 싸져요.</p>' : '') +
@@ -2255,8 +2258,8 @@ function openItem(id) {
   }
   var ap = altMemo(it) ? altParts(it) : null, two = !!(ap && ap.lat && hasLL(it));
   var links = two
-    ? '<div class="imap" id="imap"></div>' +   // 1·2순위 두 곳을 한 지도에 (2026-11-21 사용자 요청)
-      '<div class="row wrap-row" style="margin:10px 0">' +
+    ? '<div class="imap-wrap"><div class="imap" id="imap"></div><div class="mapsw imap-sw"><button type="button" data-isat="0">지도</button><button type="button" data-isat="1">위성</button></div></div>' +   // 1·2순위 두 곳을 한 지도에 (2026-11-21 사용자 요청)
+      '<div class="row wrap-row" style="margin:10px 0;gap:10px">' +
         '<a class="btn sm" target="_blank" href="' + esc(inKorea(it) ? naverOpen(it) : gmapOpen(it)) + '">🗺️ ① 1순위 ' + (inKorea(it) ? '네이버지도' : '구글지도') + '</a>' +
         '<a class="btn sm" target="_blank" href="' + esc(ap.url || (inKorea(ap) ? 'https://map.naver.com/p/search/' + encodeURIComponent(ap.addr || ap.name) : 'https://www.google.com/maps/search/?api=1&query=' + ap.lat + ',' + ap.lng)) + '">🗺️ ② 2순위 ' + (inKorea(ap) ? '네이버지도' : '구글지도') + '</a></div>'
     : hasLL(it)
@@ -2297,13 +2300,19 @@ function openItem(id) {
     }).join('') : '') +
     '<div class="row" style="margin-top:8px"><input class="inp" id="ctext" placeholder="모두에게 보이는 메모"><button class="btn pri" id="cadd">등록</button></div>' + (cm.length ? '' : '</div>') +
     exHtml +   // 일정 수정은 맨 위 [✏️ 수정], 일정 삭제는 수정 창 안 [🗑️ 삭제]
-    '<div style="text-align:right;margin-top:12px"><button class="btn" id="iclose">닫기</button></div>';
+    '<div style="text-align:right;margin-top:14px"><button class="btn close-btn" id="iclose">✕ 닫기</button></div>';
   var sh = sheet(html);
   el('#iclose', sh).onclick = closeSheet;
   // 1·2순위 지도: 구글 지도(다른 화면과 같은 모양, 키는 서버가 줌) → 안 되면 오픈스트리트맵 (2026-11-21)
+  // [지도/위성]: 처음엔 위성(사용자: 위성이 좋음), 고른 것은 이 폰에 기억
+  var iSat = function () { return LS.get('trip_isat', '1') === '1'; }, iSatSet = function () {};
+  var iSatPaint = function () { els('[data-isat]', sh).forEach(function (b) { b.classList.toggle('on', (b.dataset.isat === '1') === iSat()); }); };
+  iSatPaint();
+  els('[data-isat]', sh).forEach(function (b) { b.onclick = function () { LS.set('trip_isat', b.dataset.isat); iSatPaint(); iSatSet(iSat()); }; });
   if (el('#imap', sh) && S.D.mapsKey) loadGmaps(S.D.mapsKey).then(function (g) {
     var box = el('#imap', sh); if (!box || !box.isConnected) return;
-    var map = new g.maps.Map(box, { center: { lat: Number(it.lat), lng: Number(it.lng) }, zoom: 16, disableDefaultUI: true, zoomControl: true, clickableIcons: false, gestureHandling: 'greedy' });
+    var map = new g.maps.Map(box, { center: { lat: Number(it.lat), lng: Number(it.lng) }, zoom: 16, mapTypeId: iSat() ? 'hybrid' : 'roadmap', disableDefaultUI: true, zoomControl: true, clickableIcons: false, gestureHandling: 'greedy' });
+    iSatSet = function (v) { map.setMapTypeId(v ? 'hybrid' : 'roadmap'); };
     var dot = { path: g.maps.SymbolPath.CIRCLE, scale: 13, fillColor: '#d93025', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 };
     var bounds = new g.maps.LatLngBounds();
     [[{ lat: Number(it.lat), lng: Number(it.lng) }, '1'], [{ lat: ap.lat, lng: ap.lng }, '2']].forEach(function (x) {
@@ -2316,7 +2325,10 @@ function openItem(id) {
   function osmTwo() { loadLeaflet().then(function (L) {
     var box = el('#imap', sh); if (!box || !box.isConnected) return;
     var map = L.map(box, { zoomControl: true, attributionControl: true, scrollWheelZoom: false });
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+    var street = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' });
+    var sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: '© Esri' });
+    (iSat() ? sat : street).addTo(map);
+    iSatSet = function (v) { map.removeLayer(v ? street : sat); (v ? sat : street).addTo(map); };
     var a = [Number(it.lat), Number(it.lng)], b = [ap.lat, ap.lng];
     [[a, '1'], [b, '2']].forEach(function (x) { L.marker(x[0], { icon: L.divIcon({ className: '', html: '<div class="rpin">' + x[1] + '</div>', iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(map); });
     map.fitBounds([a, b], { padding: [40, 40], maxZoom: 17 });
