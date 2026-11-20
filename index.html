@@ -254,7 +254,7 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 @media(min-width:600px){.map-box iframe{height:min(72vw,72vh,680px)}}
 /* 오늘 동선 지도: 한 손가락은 화면 위아래로 넘기기, 한 번 누르거나 두 손가락이면 지도 움직이기 (2026-11-17) */
 .map-wrap{position:relative}
-.share-row{margin-top:10px}
+.share-row{margin-top:10px}.sheet .share-row{margin-top:16px}   /* 창 안: 카톡 단추 위·아래 간격 같게 16 (2026-11-21) */
 .fx-line{margin-top:6px;white-space:nowrap}.fx-line b{font-size:calc(15px*var(--fs))}.fx-line .small{font-size:calc(12px*var(--fs))}
 .btn.wide{display:flex;width:100%;justify-content:center;text-decoration:none}
 .rt svg{width:100%;height:auto;display:block;margin:4px 0 6px}
@@ -807,7 +807,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-85';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-86';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
