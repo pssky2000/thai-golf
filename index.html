@@ -787,7 +787,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-56';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-57';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1550,7 +1550,7 @@ function fxHtml() {
     ? '<span style="white-space:nowrap">1' + esc(cur) + ' = <b>' + rate.toFixed(2) + '원</b></span>'
     : '<span class="muted">환율을 불러오는 중…</span>';
   return '<div class="card"><div class="row between" style="flex-wrap:nowrap"><b style="white-space:nowrap">💱 환율</b>' + head + '</div>' +
-    (rate ? '<div class="small muted" style="text-align:right">' + esc(fx.date) + ' 기준' + (fx.fallback ? ' (고정값)' : '') + '</div>' : '') +
+    (rate ? '<div class="small muted" style="text-align:right">' + (fx.cash ? '현금 살 때 <b style="color:var(--ink)">' + fx.cash.toFixed(2) + '원</b> · ' : '') + esc(fx.date) + ' 기준' + (fx.fallback ? ' (고정값)' : '') + '</div>' : '') +
     '<div class="fx-grid" style="margin-top:10px"><input class="inp" id="fxa" inputmode="decimal" placeholder="฿ THB">' +
     '<span>⇄</span><input class="inp" id="fxb" inputmode="numeric" placeholder="원"></div>' +
     '<p class="small muted" style="margin:6px 0 0;white-space:nowrap">정산 환율 1' + esc(cur) + ' = ' + esc(settleRate()) + '원</p>' + fxChartHtml() + '</div>';
@@ -1561,7 +1561,7 @@ function fxRangePts() {
   var rg = FX_RANGES.filter(function (r) { return r[0] === S.fxRange; })[0] || FX_RANGES[1];
   var cut = new Date(Date.now() - rg[2] * 864e5).toISOString().slice(0, 10);
   var pts = S.fxh.filter(function (p) { return p[0] >= cut; });
-  if (S.fx && S.fx.rate && !S.fx.fallback && pts.length && String(S.fx.date).slice(0, 10) > pts[pts.length - 1][0]) pts = pts.concat([[String(S.fx.date).slice(0, 10), S.fx.rate]]);
+  if (S.fxSrc !== 'kr' && S.fx && S.fx.rate && !S.fx.fallback && pts.length && String(S.fx.date).slice(0, 10) > pts[pts.length - 1][0]) pts = pts.concat([[String(S.fx.date).slice(0, 10), S.fx.rate]]);
   return { pts: pts, label: rg[1] };
 }
 function fxChartHtml() {
@@ -1596,27 +1596,30 @@ function fxChartHtml() {
     '<div class="fx-wrap">' + svg + '<div class="fx-tip" style="display:none"></div></div>' +
     '<div class="small">' + r.label + ' 전보다 바트가 <b>' + (same ? '거의 그대로예요' : Math.abs(diff).toFixed(2) + '원 ' + (diff > 0 ? '올랐어요 ▲' : '내렸어요 ▼')) + '</b>' +
     (same ? '' : '<span class="muted"> (환전이 ' + (diff > 0 ? '조금 비싸졌어요' : '조금 싸졌어요') + ')</span>') + '</div>' +
-    '<div class="small muted" style="font-size:calc(11px*var(--fs))">손가락을 대면 그날 환율 · 유럽중앙은행 기준 (환전소는 수수료만큼 달라요)</div></div>';
+    '<div class="small muted" style="font-size:calc(11px*var(--fs))">손가락을 대면 그날 환율 · ' + (S.fxSrc === 'kr' ? '하나은행 매매기준율 (네이버 증권)' : '유럽중앙은행 기준 (환전소는 수수료만큼 달라요)') + '</div></div>';
 }
 function loadFxHist() {
   var s = S.D.settings, from = String(s.currency || 'THB').toUpperCase(), to = String(s.base_currency || 'KRW').toUpperCase();
-  var today = new Date().toISOString().slice(0, 10), c = null;
-  c = LS.get('trip_fxh', null);
-  if (c && c.day === today && c.key === from + to && c.pts && c.pts.length > 1) { S.fxh = c.pts; return; }
-  var start = new Date(Date.now() - 370 * 864e5).toISOString().slice(0, 10);
-  fetch('https://api.frankfurter.dev/v1/' + start + '..?from=' + from + '&to=' + to)
+  var c = LS.get('trip_fxh', null), useKr = function (pts) {   // 우리나라 값: 맨 끝 날을 지금 환율로
+    var l = pts[pts.length - 1]; S.fx = { rate: l[1], cash: l[2] || 0, date: l[0], src: 'kr' };
+  };
+  if (c && c.v === 2 && c.key === from + to && Date.now() - c.at < 3600e3 && c.pts && c.pts.length > 1) { S.fxh = c.pts; S.fxSrc = c.src; if (c.src === 'kr') useKr(c.pts); return; }
+  var start = new Date(Date.now() - 370 * 864e5).toISOString().slice(0, 10), src = 'kr';
+  (to === 'KRW' ? call('fxHist', {}).then(function (o) { if (!o || !o.pts || o.pts.length < 2) throw 0; return o.pts; }) : Promise.reject())
+    .catch(function () { src = 'ecb'; return fetch('https://api.frankfurter.dev/v1/' + start + '..?from=' + from + '&to=' + to)
     .then(function (r) { if (!r.ok) throw 0; return r.json(); })
     .then(function (j) { return Object.keys(j.rates || {}).sort().map(function (k) { return [k, Number(j.rates[k][to])]; }); })
     .catch(function () {
       return fetch('https://api.frankfurter.dev/v2/rates?base=' + from + '&quotes=' + to + '&from=' + start)
         .then(function (r) { if (!r.ok) throw 0; return r.json(); })
         .then(function (a) { return a.map(function (x) { return [x.date, Number(x.rate)]; }); });
-    })
+    }); })
     .then(function (pts) {
       pts = pts.filter(function (p) { return isFinite(p[1]) && p[1] > 0; }); if (pts.length < 2) throw 0;
-      S.fxh = pts; LS.set('trip_fxh', { day: today, key: from + to, pts: pts });
+      S.fxh = pts; S.fxSrc = src; if (src === 'kr') useKr(pts);
+      LS.set('trip_fxh', { v: 2, at: Date.now(), key: from + to, src: src, pts: pts });
     })
-    .catch(function () { S.fxh = (c && c.pts) || false; })
+    .catch(function () { S.fxh = (c && c.pts) || false; S.fxSrc = c && c.src; })
     .then(function () { if (S.tab === 'all') rerenderSoft(); });
 }
 function bindFxChart(m) {
@@ -1628,7 +1631,7 @@ function bindFxChart(m) {
     var i = Math.max(0, Math.min(v.n - 1, Math.round((vx - v.x(0)) / (v.x(1) - v.x(0))))), p = v.pts[i], px = v.x(i);
     cross.setAttribute('x1', px); cross.setAttribute('x2', px); cross.style.display = '';
     dot.setAttribute('cx', px); dot.setAttribute('cy', v.y(p[1])); dot.style.display = '';
-    tip.innerHTML = Number(p[0].slice(5, 7)) + '/' + Number(p[0].slice(8, 10)) + ' · <b>' + p[1].toFixed(2) + '원</b>';
+    tip.innerHTML = Number(p[0].slice(5, 7)) + '/' + Number(p[0].slice(8, 10)) + ' · <b>' + p[1].toFixed(2) + '원</b>' + (p[2] ? ' <span style="opacity:.75">현금 ' + Number(p[2]).toFixed(2) + '</span>' : '');
     var left = px / v.W * 100; tip.style.display = ''; tip.style.left = left + '%';
     tip.style.transform = 'translateX(' + (left < 25 ? '0' : left > 75 ? '-100%' : '-50%') + ')';
   };
@@ -2208,12 +2211,13 @@ function openItem(id) {
     (it.memo ? '<p class="small">' + esc(it.memo) + '</p>' : '') + links + routeCard(it) + exHtml +
     (it.updated_at ? '<p class="small muted">마지막 수정: ' + esc(it.updated_at) + ' ' + esc(it.updated_by) + '</p>' : '') +
     shareRow('item:' + id, md(it.date) + ' ' + (it.time || '') + ' ' + it.title, '알리기') +
+    (cm.length ? '' : '<button type="button" class="btn ghost" id="copen" style="width:100%;margin-top:12px">💬 메모 · 댓글 남기기</button><div id="cbox" style="display:none">') +
     '<h4 style="margin:14px 0 4px">💬 메모 · 댓글</h4>' +
     (cm.length ? cm.map(function (c) {
       return '<div class="cmt"><b>' + esc(c.member) + '</b> <span class="muted small">' + esc(c.at.slice(5)) + '</span>' +
         ((c.member === S.me.name || S.me.isAdmin) ? ' <button class="btn sm ghost" data-delc="' + esc(c.id) + '">지우기</button>' : '') + '<div>' + esc(c.text) + '</div></div>';
-    }).join('') : '<p class="small muted">아직 없습니다.</p>') +
-    '<div class="row" style="margin-top:8px"><input class="inp" id="ctext" placeholder="모두에게 보이는 메모"><button class="btn pri" id="cadd">등록</button></div>' +
+    }).join('') : '') +
+    '<div class="row" style="margin-top:8px"><input class="inp" id="ctext" placeholder="모두에게 보이는 메모"><button class="btn pri" id="cadd">등록</button></div>' + (cm.length ? '' : '</div>') +
     '<div class="row act-row" style="margin-top:16px;justify-content:flex-end">' +
       (canMoney() ? '<button class="btn" id="iexp">💰 지출 적기</button>' : '') +
       (S.me.isAdmin ? '<button class="btn pri" id="iedit">✏️ 수정</button>' : '<button class="btn" id="ireq">✋ 수정 요청</button>') +
@@ -2221,6 +2225,7 @@ function openItem(id) {
     (S.me.isAdmin ? '<div style="text-align:right;margin-top:10px"><button class="btn sm ghost" id="idel" style="color:var(--bad)">🗑️ 이 일정 삭제</button></div>' : '');
   var sh = sheet(html);
   el('#iclose', sh).onclick = closeSheet;
+  if (el('#copen', sh)) el('#copen', sh).onclick = function () { el('#copen', sh).style.display = 'none'; el('#cbox', sh).style.display = ''; el('#ctext', sh).focus(); };
   el('#cadd', sh).onclick = function () {
     var t = el('#ctext', sh).value.trim(); if (!t) return;
     call('addComment', { item_id: id, text: t }).then(function (row) { S.D.comments.push(row); openItem(id); renderMain(); }).catch(function (e) { toast(e.message); });
@@ -5545,7 +5550,7 @@ function loadFx() {
         .then(function (d) { var v = d.rates && d.rates[to.toUpperCase()]; if (!isFinite(v)) throw 0; return { rate: v, date: d.date }; });
     })
     .catch(function () { return { rate: Number(s.fallback_rate), date: '정산 환율', fallback: true }; })
-    .then(function (fx) { S.fx = fx; if (el('#fxa') || S.tab === 'all' || S.tab === 'info') rerenderSoft(); });
+    .then(function (fx) { if (S.fx && S.fx.src === 'kr') return; S.fx = fx; if (el('#fxa') || S.tab === 'all' || S.tab === 'info') rerenderSoft(); });   // 우리나라 값을 이미 받았으면 그대로
 }
 function loadWx() {
   var s = S.D.settings;
