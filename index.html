@@ -211,7 +211,7 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .imap{height:calc(190px*var(--fs));border-radius:12px;overflow:hidden;margin:10px 0 0;border:1px solid var(--line);background:#cfd8d2}
 /* 닫기: 다른 단추와 다르게 테두리만 (2026-11-21 사용자: 색이 같아 구분 안 됨) */
 .btn.close-btn{background:transparent!important;border:1.5px solid var(--sub);color:var(--sub);font-weight:700}
-.it-head{border-bottom:1.5px solid rgba(127,127,127,.45);padding-bottom:10px;margin-bottom:6px}
+.it-head{border-bottom:1.5px solid rgba(127,127,127,.45);padding-bottom:4px;margin-bottom:10px}
 .pl-blk{display:flex;gap:6px;margin:8px 0 0;align-items:flex-start}.pl-blk .pin{flex:none}
 .it .memo.alt{font-size:calc(14px*var(--fs))}.it .memo.alt .ghostpin{visibility:hidden}
 .it .memo{font-size:calc(13px*var(--fs));color:var(--sub)}
@@ -355,6 +355,10 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .pth .cap{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(transparent,rgba(0,0,0,.7));color:#fff;font-size:calc(11px*var(--fs));padding:10px 5px 3px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pth .ld{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:12px}
 .pgrid:empty{display:none}
+.pall-card{display:block;width:100%;text-align:left;color:inherit;font:inherit;cursor:pointer}
+.sheet.pall{max-height:92vh;overflow-y:auto}
+.pa-day{margin:16px 0 0;font-weight:800;border-bottom:1px solid rgba(127,127,127,.35);padding-bottom:4px}
+.linkbtn{background:none;border:0;color:var(--pri);font:inherit;font-weight:700;padding:4px 0;cursor:pointer;white-space:nowrap}
 .pby{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .pby button{border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:5px 11px;font:inherit;font-size:calc(13px*var(--fs));cursor:pointer;min-height:34px}
 .pby button small{color:var(--sub);font-size:.85em}
@@ -803,7 +807,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-83';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-84';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1877,7 +1881,7 @@ function viewAll() {
   // 출발 전(출발일까지)은 준비물 카드를 맨 위에, 여행 중에는 맨 아래에 (도착일 지나면 숨김)
   var nd = localNow().date, pk = nd <= S.D.settings.end_date ? packCard() : '', early = nd <= S.D.settings.start_date;
   var wc = wrapCard(), wTop = wrapReady();   // 마지막 라운드 날부터는 맨 위, 그 전 관리자 미리 보기는 맨 아래
-  var html = (wTop ? wc : '') + wakeCard() + (early ? pk : '') + flightsHtml() + fxHtml();
+  var html = (wTop ? wc : '') + wakeCard() + (early ? pk : '') + flightsHtml() + fxHtml() + photosCard();
   dates().forEach(function (d) {
     var its = itemsOf(d).filter(function (i) { return i.fixed || i.type === 'golf' || i.type === 'flight' || i.type === 'hotel'; });
     html += '<div class="card daycard" data-go="' + d + '" style="cursor:pointer"><div class="row between"><b class="dhead">' + md(d) + ' (' + wd(d) + ') · ' + esc(dayLabel(d)) + '</b><span class="muted small">자세히 ›</span></div>' +
@@ -2224,6 +2228,9 @@ function shareOverallText() {
   }).sort(function (a, b) { return b.cnt - a.cnt || a.sum - b.sum; });
   return '🏅 전체 순위 (' + rs.length + '라운드)\n' + rows.map(function (x, i) { return (x.cnt ? (i === 0 ? '👑 ' : (i + 1) + '. ') : '- ') + x.n + ' ' + (x.cnt ? x.sum + '타 · ' + x.cnt + '라운드 · 평균 ' + (x.sum / x.cnt).toFixed(1) : '기록 없음'); }).join('\n');
 }
+document.addEventListener('click', function (e) {
+  var g = e.target.closest && e.target.closest('[data-pall-open]'); if (g) { e.preventDefault(); openGallery(); }
+});
 document.addEventListener('click', function (e) {
   var b = e.target.closest && e.target.closest('[data-share]'); if (!b) return;
   var k = b.dataset.share, i = k.indexOf(':'), kind = i < 0 ? k : k.slice(0, i), arg = i < 0 ? '' : k.slice(i + 1);
@@ -4514,7 +4521,7 @@ function refreshPhotoCards() {
 }
 function photoCard(date, title, rid) {
   var ps = photosOf(date, rid), shown = photosShown(date, rid);
-  return '<div class="card" data-pdate="' + date + '"' + (rid ? ' data-pround="' + esc(rid) + '"' : '') + ' data-ptitle="' + esc(title || '') + '"><div class="row between"><b>📸 ' + esc(title || md(date) + ' 사진') + '</b><span class="small muted">' + (ps.length ? (phBy ? shown.length + '/' : '') + ps.length + '장' : '') + '</span></div>' +
+  return '<div class="card" data-pdate="' + date + '"' + (rid ? ' data-pround="' + esc(rid) + '"' : '') + ' data-ptitle="' + esc(title || '') + '"><div class="row between"><b>📸 ' + esc(title || md(date) + ' 사진') + '</b>' + ((S.D.photos || []).length ? '<button class="linkbtn small" data-pall-open>전체 사진 ›</button>' : '') + '<span class="small muted">' + (ps.length ? (phBy ? shown.length + '/' : '') + ps.length + '장' : '') + '</span></div>' +
     phByHtml(ps) +
     (isRO() ? (ps.length ? '' : '<div class="small muted" style="margin-top:4px">사진이 없어요.</div>') : (ps.length || rid ? '' : '<div class="small muted" style="margin-top:4px">이날 찍은 사진을 올려 두면 모두 같이 볼 수 있어요. 여러 장을 한꺼번에 골라도 돼요.</div>') +
     '<div class="scan-btns" style="margin-top:8px"><label class="btn pri">사진 찍기<input type="file" accept="image/*" capture="environment" data-pup="' + date + '" hidden></label>' +
@@ -4684,17 +4691,81 @@ function uploadPhotos(date, files, opt) {
   });
 }
 /* 크게 보기: 좌우로 넘기기(◀ ▶·밀기), 설명 고치기, 지우기(올린 사람·관리자) */
+/* ═════════ 📸 사진 모아 보기 (2026-11-21 사용자 요청) ═════════
+   요약 탭 카드 · 일정/스코어 사진 칸의 [전체 사진 ›]에서 엶. 날짜별로 묶어 처음 날부터, 찍은 사람별 골라 보기(phBy 같이 씀),
+   누르면 크게(날짜를 넘어 이어서 넘김), [☑️ 골라서 저장]으로 여러 장 폰에 저장 */
+function photosAllShown() {
+  return (S.D.photos || []).filter(function (p) { return !phBy || p.by === phBy; })
+    .sort(function (a, b) { return (a.date + photoTime(a)).localeCompare(b.date + photoTime(b)); });
+}
+function photosCard() {
+  var n = (S.D.photos || []).length; if (!n) return '';
+  return '<button class="card pall-card" data-pall-open><div class="row between"><b>📸 사진 ' + n + '장 · 모아 보기</b><span class="muted small">›</span></div>' +
+    '<div class="small muted" style="margin-top:2px">날짜별로 · 찍은 사람별로 · 크게 넘겨 보기</div></button>';
+}
+var pallSel = null;
+function openGallery() {
+  var sh = sheet('<div id="pall"></div>', null, false);
+  sh.classList.add('pall');
+  function draw() {
+    var ps = photosAllShown(), every = S.D.photos || [], byDay = {};
+    ps.forEach(function (p) { (byDay[p.date] = byDay[p.date] || []).push(p); });
+    var days = Object.keys(byDay).sort();
+    el('#pall', sh).innerHTML =
+      '<div class="row between" style="align-items:center"><h3 style="margin:0">📸 사진 모아 보기 <span class="muted small">' + every.length + '장</span></h3><button class="btn close-btn sm" data-close>✕ 닫기</button></div>' +
+      phByHtml(every) +
+      '<div class="row" style="margin-top:8px;gap:8px">' + (pallSel
+        ? '<button class="btn pri" data-pall-save style="flex:1">📥 ' + Object.keys(pallSel).length + '장 폰에 저장</button><button class="btn" data-pall-cancel>그만</button>'
+        : (ps.length ? '<button class="btn sm" data-pall-pick>☑️ 골라서 저장</button>' : '')) + '</div>' +
+      (days.length ? days.map(function (d) {
+        var r = (S.D.rounds || []).filter(function (x) { return x.date === d; })[0];
+        return '<div class="pa-day">' + md(d) + '(' + wd(d) + ')' + (r ? ' · ⛳ ' + esc(r.course) : '') + ' <span class="muted">· ' + byDay[d].length + '장</span></div>' +
+          '<div class="pgrid">' + byDay[d].map(function (p) {
+            var on = pallSel && pallSel[p.id];
+            return '<button class="pth' + (on ? ' sel' : '') + '" data-pall="' + esc(p.id) + '"><span class="ld">…</span><img data-pimg="' + esc(p.id) + '" alt="">' +
+              (p.caption ? '<span class="cap">' + esc(p.caption) + '</span>' : '') + (pallSel ? '<span class="ck">' + (on ? '✓' : '') + '</span>' : '') + '</button>';
+          }).join('') + '</div>';
+      }).join('') : '<p class="muted" style="margin-top:14px">' + (phBy ? esc(phBy) + ' 님이 올린 사진이 없어요.' : '아직 사진이 없어요.') + '</p>');
+    bindPhotos(el('#pall', sh));   // 작은 그림 불러오기
+    els('[data-close]', sh).forEach(function (b) { b.onclick = function () { pallSel = null; closeSheet(); renderMain(); }; });
+    els('[data-pby]', sh).forEach(function (b) { b.onclick = function () { phBy = b.dataset.pby; pallSel = null; draw(); }; });
+    els('[data-pall]', sh).forEach(function (b) {
+      b.onclick = function () {
+        var id = b.dataset.pall;
+        if (pallSel) { if (pallSel[id]) delete pallSel[id]; else pallSel[id] = 1; draw(); return; }
+        nextSheetRet = function () { openGallery(); };   // 크게 보기를 닫으면 모아 보기로 돌아옴
+        openPhoto('*', id);
+      };
+    });
+    var pk = el('[data-pall-pick]', sh); if (pk) pk.onclick = function () { pallSel = {}; draw(); toast('저장할 사진을 눌러 고르세요.', null, 2000); };
+    var cc = el('[data-pall-cancel]', sh); if (cc) cc.onclick = function () { pallSel = null; draw(); };
+    var sv = el('[data-pall-save]', sh); if (sv) sv.onclick = function () {
+      var pick = photosAllShown().filter(function (p) { return pallSel[p.id]; }); if (!pick.length) return;
+      pallSel = null; draw();
+      var done = 0, fail = 0;
+      toast('📥 폰에 저장하는 중… 0/' + pick.length, null, 60000);
+      pick.reduce(function (pr, p) {
+        return pr.then(function () {
+          return loadForSave(p).then(function (u) { if (saveToPhone(u, p.date)) done++; else fail++; }, function () { fail++; })
+            .then(function () { toast('📥 폰에 저장하는 중… ' + (done + fail) + '/' + pick.length, null, 60000); return new Promise(function (r) { setTimeout(r, 700); }); });
+        });
+      }, Promise.resolve()).then(function () { toast(done + '장 폰에 저장했어요. 갤러리 › Download 앨범에 있어요.' + (fail ? ' (' + fail + '장은 실패)' : ''), null, 5000); });
+    };
+  }
+  draw();
+}
 function openPhoto(date, id, rid) {
-  var ps = photosShown(date, rid), i = 0, changed = false;
+  var all = date === '*', list = function () { return all ? photosAllShown() : photosShown(date, rid); };   // '*' = 사진 모아 보기에서 연 것 (날짜를 넘어 이어서 넘김)
+  var ps = list(), i = 0, changed = false;
   ps.forEach(function (p, k) { if (p.id === id) i = k; });
   var sh = sheet('<div id="pv"></div>', null, true);
   sh.classList.add('pview');
   function draw() {
-    ps = photosShown(date, rid); if (!ps.length) { closeSheet(); renderMain(); return; }
+    ps = list(); if (!ps.length) { closeSheet(); renderMain(); return; }
     if (i >= ps.length) i = ps.length - 1;
     var p = ps[i], mine = (p.by === S.me.name || S.me.isAdmin) && !isRO();
     el('#pv', sh).innerHTML =
-      '<div class="pv-top"><span class="small">' + (i + 1) + ' / ' + ps.length + ' · ' + md(date) + '(' + wd(date) + ')</span><button class="btn sm" data-close>✕ 닫기</button></div>' +
+      '<div class="pv-top"><span class="small">' + (i + 1) + ' / ' + ps.length + ' · ' + md(p.date) + '(' + wd(p.date) + ')</span><button class="btn sm" data-close>✕ 닫기</button></div>' +
       '<div class="pv-img"><img id="pv-im" alt=""><span id="pv-ld" class="small" style="position:absolute;color:#aaa">불러오는 중…</span>' +
         (i > 0 ? '<button class="pv-nav" data-pvgo="-1" style="left:6px">‹</button>' : '') + (i < ps.length - 1 ? '<button class="pv-nav" data-pvgo="1" style="right:6px">›</button>' : '') + '</div>' +
       '<div class="pv-cap" id="pv-cap">' + esc(p.caption || '') + '</div>' +
@@ -4711,7 +4782,7 @@ function openPhoto(date, id, rid) {
     if (svb) svb.onclick = function () {
       svb.disabled = true; svb.textContent = '저장하는 중…';
       loadForSave(p).then(function (u) {
-        var okk = saveToPhone(u, date); svb.disabled = false; svb.textContent = '📥 폰에 저장';
+        var okk = saveToPhone(u, p.date); svb.disabled = false; svb.textContent = '📥 폰에 저장';
         toast(okk ? (p.orig_id ? '원본을 ' : '') + '폰에 저장했어요. 갤러리 › Download 앨범에 있어요.' : '저장하지 못했습니다.');
       }, function () { svb.disabled = false; svb.textContent = '📥 폰에 저장'; toast('사진을 불러오지 못해 저장하지 못했습니다.'); });
     };
