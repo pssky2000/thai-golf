@@ -206,7 +206,7 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .it .ttl{font-weight:700}
 .it .plc{font-size:calc(14px*var(--fs));color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pl-blk{display:flex;gap:6px;margin:8px 0 0;align-items:flex-start}.pl-blk .pin{flex:none}
-.it .memo.alt{padding-left:calc(19.5px*var(--fs))}
+.it .memo.alt{font-size:calc(14px*var(--fs))}.it .memo.alt .ghostpin{visibility:hidden}
 .it .memo{font-size:calc(13px*var(--fs));color:var(--sub)}
 .it .side{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
 .it .letter{width:24px;height:24px;border-radius:50%;background:#d93025;color:#fff;font-size:calc(13px*var(--fs));font-weight:800;display:flex;align-items:center;justify-content:center}
@@ -792,7 +792,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-67';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-68';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -2028,7 +2028,7 @@ function itemHtml(it, letter) {
     '<div class="body" data-open="' + esc(it.id) + '">' +
       '<div class="ttl">' + icon(it.type) + ' ' + esc(it.title) + '</div>' +
       (nameOf(it) ? '<div class="plc">📍 ' + esc(nameOf(it)) + '</div>' : '') +
-      (it.memo ? '<div class="memo' + (altMemo(it) ? ' alt' : '') + '">' + esc(altMemo(it) ? altParts(it).name : it.memo) + '</div>' : '') +
+      (it.memo ? (altMemo(it) ? '<div class="memo alt"><span class="ghostpin">📍 </span>' + esc(altParts(it).name) + '</div>' : '<div class="memo">' + esc(it.memo) + '</div>') : '') +
       '<div class="row" style="gap:6px;margin-top:2px">' + (changed ? '<span class="chg">✏️ 변경됨</span>' : '') + (cmts ? '<span class="chip">💬 ' + cmts + '</span>' : '') + '</div>' +
     '</div>' +
     '<div class="side">' + (letter ? '<span class="letter">' + letter + '</span>' : '') +
@@ -2277,7 +2277,7 @@ function openItem(id) {
     '<div class="row" style="margin-top:8px"><input class="inp" id="ctext" placeholder="모두에게 보이는 메모"><button class="btn pri" id="cadd">등록</button></div>' + (cm.length ? '' : '</div>') +
     /* 지출·수정·삭제는 접어 둠 → 눌러야 펼쳐짐 (2026-11-20, 사용자: 메모처럼) */
     '<div><button type="button" class="btn ghost" id="iact" style="width:100%;margin-top:8px">' +
-      [canMoney() ? '💰 지출 적기' : '', S.me.isAdmin ? '✏️ 수정 · 🗑️ 삭제' : '✋ 수정 요청'].filter(Boolean).join(' · ') + '</button>' +
+      (canMoney() ? '💰 지출 적기' : S.me.isAdmin ? '✏️ 수정' : '✋ 수정 요청') + '</button>' +   // 사용자: 이름은 '지출 적기'만 (누르면 수정·삭제도 나옴)
       '<div style="text-align:right;margin-top:10px"><button class="btn" id="iclose">닫기</button></div></div>' +
     '<div id="iactbox" style="display:none"><div class="row act-row" style="margin-top:8px;justify-content:flex-end">' +
       (canMoney() ? '<button class="btn" id="iexp">💰 지출 적기</button>' : '') +
