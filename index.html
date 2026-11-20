@@ -773,7 +773,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-54';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-55';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -4292,7 +4292,8 @@ function pgridHtml(date, rid) {
 function psbarHtml(date) {
   if (!pSel || pSel.date !== date) return '';
   var ids = Object.keys(pSel.ids), n = ids.length, nd = ids.filter(function (id) { var p = (S.D.photos || []).filter(function (x) { return x.id === id; })[0]; return p && canDelPhoto(p); }).length;
-  return '<div class="psbar"><div class="row between" style="width:100%"><b>' + (n ? n + '장 골랐어요' : '사진을 눌러 고르세요') + '</b><button class="btn sm" data-psx>취소</button></div>' +
+  var nMine = ids.filter(function (id) { var p = (S.D.photos || []).filter(function (x) { return x.id === id; })[0]; return p && p.by === S.me.name; }).length;   // 내 사진은 폰에 이미 있을 수 있어 알려 줌 (2026-11-20)
+  return '<div class="psbar"><div class="row between" style="width:100%"><b>' + (n ? n + '장 골랐어요' + (nMine ? ' <span class="small" style="font-weight:400;color:var(--sub)">(내 사진 ' + nMine + '장 포함)</span>' : '') : '사진을 눌러 고르세요') + '</b><button class="btn sm" data-psx>취소</button></div>' +
     '<div class="row" style="width:100%;gap:8px"><button class="btn sm pri" data-pssave style="flex:1"' + (n ? '' : ' disabled') + '>📥 폰에 저장</button>' +
     (isRO() ? '' : '<button class="btn sm bad" data-psdel style="flex:1"' + (nd ? '' : ' disabled') + '>🗑️ 지우기' + (nd && nd < n ? ' (' + nd + ')' : '') + '</button>') + '</div></div>';
 }
