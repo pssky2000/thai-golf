@@ -248,6 +248,7 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 /* 오늘 동선 지도: 한 손가락은 화면 위아래로 넘기기, 한 번 누르거나 두 손가락이면 지도 움직이기 (2026-11-17) */
 .map-wrap{position:relative}
 .share-row{margin-top:10px}
+.fx-line{margin-top:6px;white-space:nowrap}.fx-line b{font-size:calc(17px*var(--fs))}.fx-line .small{font-size:calc(12px*var(--fs))}
 .btn.wide{display:flex;width:100%;justify-content:center;text-decoration:none}
 .rt svg{width:100%;height:auto;display:block;margin:4px 0 6px}
 .rt-sea{fill:var(--flight);opacity:.16}
@@ -792,7 +793,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-69';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-70';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1552,13 +1553,13 @@ function fxUse() { return S.fx && (S.fx.cash || S.fx.rate); }   // 계산기·�
 function fxHtml() {
   var s = S.D.settings, fx = S.fx;
   var rate = fxUse(), cur = s.currency_name || s.currency;   // 우리나라 값이 있으면 '현금 살 때'를 크게 (회원 대부분 현금 환전)
-  // 오른쪽 3줄: 현금 살 때 / 매매기준율 / 기준일 (폴드 앞 화면처럼 좁아도 줄이 섞이지 않게, 2026-11-20 사용자 요청)
+  // 머리 (2026-11-20 사용자 다시 요청): 제목 줄 오른쪽에 기준일, 그 아래 한 줄에 현금 살 때 · 매매기준율
   var head = rate
-    ? '<div class="fx-head"><div>' + (fx.cash ? '<span class="small muted">현금 살 때 </span>' : '') + '1' + esc(cur) + ' = <b>' + rate.toFixed(2) + '원</b></div>' +
-      (fx.cash ? '<div class="small muted">매매기준율 ' + fx.rate.toFixed(2) + '원</div>' : '') +
-      '<div class="small muted">' + esc(fx.date) + ' 기준' + (fx.fallback ? ' (고정값)' : '') + '</div></div>'
-    : '<span class="muted">환율을 불러오는 중…</span>';
-  return '<div class="card"><div class="row between" style="flex-wrap:nowrap;align-items:flex-start"><b style="white-space:nowrap">💱 환율</b>' + head + '</div>' +
+    ? '<div class="fx-line"><span class="small muted">' + (fx.cash ? '현금 살 때 ' : '') + '</span>1' + esc(cur) + ' = <b>' + rate.toFixed(2) + '원</b>' +
+      (fx.cash ? '<span class="small muted"> · 매매기준율 ' + fx.rate.toFixed(2) + '원</span>' : '') + '</div>'
+    : '<div class="fx-line muted">환율을 불러오는 중…</div>';
+  return '<div class="card"><div class="row between" style="flex-wrap:nowrap;align-items:baseline"><b style="white-space:nowrap">💱 환율</b>' +
+      (rate ? '<span class="small muted">' + esc(fx.date) + ' 기준' + (fx.fallback ? ' (고정값)' : '') + '</span>' : '') + '</div>' + head +
     '<div class="fx-grid" style="margin-top:10px"><input class="inp" id="fxa" inputmode="decimal" placeholder="฿ THB">' +
     '<span>⇄</span><input class="inp" id="fxb" inputmode="numeric" placeholder="원"></div>' +
     (S.fx && S.fx.cash ? '<p class="small muted" style="margin:6px 0 0">계산은 현금 살 때 환율로 해요. 환전 우대를 받으면 조금 더 싸져요.</p>' : '') +
@@ -2260,11 +2261,11 @@ function openItem(id) {
   var exs = canMoney() ? (S.D.expenses || []).filter(function (e) { return e.item_id === id; }) : [];
   /* 💰 지출 (2026-11-20 다시 짬): 적은 지출은 줄로 보이고 줄을 누르면 고치기·삭제 창, [＋ 지출 적기]는 바로 적는 창 */
   var exHtml = !canMoney() ? '' : exs.length
-    ? '<div class="fbox" style="margin:12px 0 0"><div class="row between"><b>💰 이 일정 지출 ' + exs.length + '건</b><b>' + baht(exs.reduce(function (a, e) { return a + Number(e.thb || 0); }, 0)) + '</b></div>' +
+    ? '<div class="fbox" style="margin:10px 0 0"><div class="row between"><b>💰 이 일정 지출 ' + exs.length + '건</b><b>' + baht(exs.reduce(function (a, e) { return a + Number(e.thb || 0); }, 0)) + '</b></div>' +
       exs.map(function (e) { return '<button class="vrow" data-iex="' + esc(e.id) + '" style="grid-template-columns:1fr auto;margin-top:6px"><span><div class="t">' + esc(e.title || e.category || '지출') + '</div><div class="s">' + esc(e.payer || '') + (e.category ? ' · ' + esc(e.category) : '') + '</div></span><b>' + baht(e.thb) + ' ›</b></button>'; }).join('') +
       '<div class="small muted" style="margin-top:6px">줄을 누르면 고치거나 지울 수 있어요.</div>' +
       '<button type="button" class="btn ghost" id="iexp" style="width:100%;margin-top:8px">＋ 지출 더 적기</button></div>'
-    : '<button type="button" class="btn ghost" id="iexp" style="width:100%;margin-top:8px">💰 지출 적기</button>';
+    : '<button type="button" class="btn" id="iexp" style="width:100%;margin-top:10px">💰 지출 적기</button>';
   var html =
     '<div class="row between" style="align-items:flex-start;gap:8px"><h3 style="margin-right:auto">' + icon(it.type) + ' ' + esc(it.time) + ' ' + esc(it.title) + (it.fixed ? ' 🔒' : '') + '</h3>' +
       (S.me.isAdmin ? '<button class="btn sm" id="iedit" style="flex:none">✏️ 수정</button>' : '<button class="btn sm" id="ireq" style="flex:none">✋ 수정 요청</button>') + '</div>' +
@@ -2274,7 +2275,7 @@ function openItem(id) {
     (it.memo && !altMemo(it) ? '<p class="small">' + esc(it.memo) + '</p>' : '') + links + routeCard(it) +
     (it.updated_at ? '<p class="small muted">마지막 수정: ' + esc(it.updated_at) + ' ' + esc(it.updated_by) + '</p>' : '') +
     shareRow('item:' + id, md(it.date) + ' ' + (it.time || '') + ' ' + it.title, '알리기') +
-    (cm.length ? '' : '<button type="button" class="btn ghost" id="copen" style="width:100%;margin-top:12px">💬 메모 · 댓글 남기기</button><div id="cbox" style="display:none">') +
+    (cm.length ? '' : '<button type="button" class="btn" id="copen" style="width:100%;margin-top:10px">💬 메모 · 댓글 남기기</button><div id="cbox" style="display:none">') +
     '<h4 style="margin:14px 0 4px">💬 메모 · 댓글</h4>' +
     (cm.length ? cm.map(function (c) {
       return '<div class="cmt"><b>' + esc(c.member) + '</b> <span class="muted small">' + esc(c.at.slice(5)) + '</span>' +
