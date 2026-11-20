@@ -211,6 +211,7 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .imap{height:calc(190px*var(--fs));border-radius:12px;overflow:hidden;margin:10px 0 0;border:1px solid var(--line);background:#cfd8d2}
 /* 닫기: 다른 단추와 다르게 테두리만 (2026-11-21 사용자: 색이 같아 구분 안 됨) */
 .btn.close-btn{background:transparent!important;border:1.5px solid var(--sub);color:var(--sub);font-weight:700}
+.it-head{border-bottom:1.5px solid rgba(127,127,127,.45);padding-bottom:10px;margin-bottom:6px}
 .pl-blk{display:flex;gap:6px;margin:8px 0 0;align-items:flex-start}.pl-blk .pin{flex:none}
 .it .memo.alt{font-size:calc(14px*var(--fs))}.it .memo.alt .ghostpin{visibility:hidden}
 .it .memo{font-size:calc(13px*var(--fs));color:var(--sub)}
@@ -802,7 +803,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-82';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-83';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -2342,9 +2343,10 @@ function openItem(id) {
       '<button type="button" class="btn ghost" id="iexp" style="width:100%;margin-top:8px">＋ 지출 더 적기</button></div>'
     : '<button type="button" class="btn" id="iexp" style="width:100%;margin-top:10px">💰 지출 적기</button>';
   var html =
-    '<div class="row between" style="align-items:flex-start;gap:8px"><h3 style="margin-right:auto">' + icon(it.type) + ' ' + esc(it.time) + ' ' + esc(it.title) + (it.fixed ? ' 🔒' : '') + '</h3>' +
-      (S.me.isAdmin ? '<button class="btn sm" id="iedit" style="flex:none">✏️ 수정</button>' : '<button class="btn sm" id="ireq" style="flex:none">✋ 수정 요청</button>') + '</div>' +
+    /* 머리: 날짜를 위로, 제목 아래 선으로 내용과 구분 (2026-11-21 사용자 요청) */
     '<div class="muted small">' + md(it.date) + '(' + wd(it.date) + ')</div>' +
+    '<div class="row between it-head" style="align-items:flex-start;gap:8px"><h3 style="margin:2px auto 0 0">' + icon(it.type) + ' ' + esc(it.time) + ' ' + esc(it.title) + (it.fixed ? ' 🔒' : '') + '</h3>' +
+      (S.me.isAdmin ? '<button class="btn sm" id="iedit" style="flex:none">✏️ 수정</button>' : '<button class="btn sm" id="ireq" style="flex:none">✋ 수정 요청</button>') + '</div>' +
     (nameOf(it) ? '<div class="pl-blk"><span class="pin">📍</span><div><b>' + esc(nameOf(it)) + '</b>' + placeSub(it) +
       (altMemo(it) ? '<div style="margin-top:8px"><b>' + esc(altParts(it).name) + '</b>' + (altParts(it).addr ? '<br><span class="small muted">' + esc(altParts(it).addr) + '</span>' : '') + '</div>' : '') + '</div></div>' : '') +
     (it.memo && !altMemo(it) ? '<p class="small">' + esc(memoClean(it.memo)) + '</p>' : '') + links + routeCard(it) +
