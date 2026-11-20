@@ -211,7 +211,7 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .imap{height:calc(190px*var(--fs));border-radius:12px;overflow:hidden;margin:10px 0 0;border:1px solid var(--line);background:#cfd8d2}
 /* 닫기: 다른 단추와 다르게 테두리만 (2026-11-21 사용자: 색이 같아 구분 안 됨) */
 .btn.close-btn{background:transparent!important;border:1.5px solid var(--sub);color:var(--sub);font-weight:700}
-.it-head{border-bottom:1.5px solid rgba(127,127,127,.45);padding-bottom:4px;margin-bottom:10px}
+.it-head{border-bottom:1.5px solid rgba(127,127,127,.45);padding-bottom:4px;margin-bottom:10px}.it-title{margin:4px 0 0;white-space:nowrap;overflow:hidden}
 .pl-blk{display:flex;gap:6px;margin:8px 0 0;align-items:flex-start}.pl-blk .pin{flex:none}
 .it .memo.alt{font-size:calc(14px*var(--fs))}.it .memo.alt .ghostpin{visibility:hidden}
 .it .memo{font-size:calc(13px*var(--fs));color:var(--sub)}
@@ -807,7 +807,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-84';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-85';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -2351,15 +2351,16 @@ function openItem(id) {
     : '<button type="button" class="btn" id="iexp" style="width:100%;margin-top:10px">💰 지출 적기</button>';
   var html =
     /* 머리: 날짜를 위로, 제목 아래 선으로 내용과 구분 (2026-11-21 사용자 요청) */
-    '<div class="muted small">' + md(it.date) + '(' + wd(it.date) + ')</div>' +
-    '<div class="row between it-head" style="align-items:flex-start;gap:8px"><h3 style="margin:2px auto 0 0">' + icon(it.type) + ' ' + esc(it.time) + ' ' + esc(it.title) + (it.fixed ? ' 🔒' : '') + '</h3>' +
+    // [✏️ 수정]은 날짜 줄 오른쪽 → 제목이 화면 폭을 다 씀 (2026-11-21 사용자: 제목 한 줄로). 그래도 길면 글씨를 줄여 한 줄에 (fitTitle)
+    '<div class="row between" style="align-items:center;gap:8px"><span class="muted small">' + md(it.date) + '(' + wd(it.date) + ')</span>' +
       (S.me.isAdmin ? '<button class="btn sm" id="iedit" style="flex:none">✏️ 수정</button>' : '<button class="btn sm" id="ireq" style="flex:none">✋ 수정 요청</button>') + '</div>' +
+    '<div class="it-head"><h3 class="it-title">' + icon(it.type) + ' ' + esc(it.time) + ' ' + esc(it.title) + (it.fixed ? ' 🔒' : '') + '</h3></div>' +
     (nameOf(it) ? '<div class="pl-blk"><span class="pin">📍</span><div><b>' + esc(nameOf(it)) + '</b>' + placeSub(it) +
       (altMemo(it) ? '<div style="margin-top:8px"><b>' + esc(altParts(it).name) + '</b>' + (altParts(it).addr ? '<br><span class="small muted">' + esc(altParts(it).addr) + '</span>' : '') + '</div>' : '') + '</div></div>' : '') +
     (it.memo && !altMemo(it) ? '<p class="small">' + esc(memoClean(it.memo)) + '</p>' : '') + links + routeCard(it) +
     (it.updated_at ? '<p class="small muted">마지막 수정: ' + esc(atLocal(it.updated_at)) + ' ' + esc(it.updated_by) + '</p>' : '') +
     shareRow('item:' + id, md(it.date) + ' ' + (it.time || '') + ' ' + it.title, '알리기') +
-    (cm.length ? '' : '<button type="button" class="btn" id="copen" style="width:100%;margin-top:10px">💬 메모 · 댓글 남기기</button><div id="cbox" style="display:none">') +
+    (cm.length ? '' : '<button type="button" class="btn" id="copen" style="width:100%;margin-top:16px">💬 메모 · 댓글 남기기</button><div id="cbox" style="display:none">') +
     '<h4 style="margin:14px 0 4px">💬 메모 · 댓글</h4>' +
     (cm.length ? cm.map(function (c) {
       return '<div class="cmt"><b>' + esc(c.member) + '</b> <span class="muted small">' + esc(atLocal(c.at, 1)) + '</span>' +
@@ -2370,6 +2371,7 @@ function openItem(id) {
     '<div style="text-align:right;margin-top:14px"><button class="btn close-btn" id="iclose">✕ 닫기</button></div>';
   var sh = sheet(html);
   el('#iclose', sh).onclick = closeSheet;
+  (function fitTitle() { var h = el('.it-title', sh); if (!h) return; var f = parseFloat(getComputedStyle(h).fontSize), min = f * 0.72; while (h.scrollWidth > h.clientWidth + 1 && f > min) { f -= 0.5; h.style.fontSize = f + 'px'; } if (h.scrollWidth > h.clientWidth + 1) h.style.whiteSpace = 'normal'; })();
   // 1·2순위 지도 (2026-11-21): 지도 = 구글 지도(키는 서버가 줌), 위성 = 한국 안이면 Esri 위성(구글 위성이 한국에선 일반 지도처럼 나옴 — 사용자 폰 확인), 그 밖은 구글 위성
   // 키가 없거나 구글이 안 되면 오픈스트리트맵. [지도/위성]은 처음엔 위성, 고른 것은 이 폰에 기억(trip_isat)
   var iSat = function () { return String(LS.get('trip_isat', '1')) === '1'; };
