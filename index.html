@@ -207,6 +207,7 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .it .body{flex:1;min-width:0}
 .it .ttl{font-weight:700}
 .it .plc{font-size:calc(14px*var(--fs));color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.imap{height:calc(190px*var(--fs));border-radius:12px;overflow:hidden;margin:10px 0 0;border:1px solid var(--line);background:#cfd8d2}
 .pl-blk{display:flex;gap:6px;margin:8px 0 0;align-items:flex-start}.pl-blk .pin{flex:none}
 .it .memo.alt{font-size:calc(14px*var(--fs))}.it .memo.alt .ghostpin{visibility:hidden}
 .it .memo{font-size:calc(13px*var(--fs));color:var(--sub)}
@@ -795,7 +796,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-72';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-73';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1871,13 +1872,14 @@ function naverQ(it) { var r = placeSub(it).replace(/<[^>]+>/g, '').replace(/^원
 function naverOpen(it) { return /^https:\/\/(map\.naver\.com|naver\.me)\//.test(it.gurl || '') ? it.gurl : 'https://map.naver.com/p/search/' + encodeURIComponent(naverQ(it)); }
 function naverNearby(it) { return 'https://map.naver.com/p/search/' + encodeURIComponent(naverQ(it) + ' 맛집'); }
 /* 메모가 '(2순위) …'처럼 다른 장소면 장소 이름 줄에 맞춰 들여 씀 */
+/* 메모 안 숨은 표시 (2026-11-21): '@위도,경도' = 2순위 장소 좌표, 'https://…' = 그 장소 지도 링크 → 화면에는 안 보임 */
+function memoClean(t) { return String(t || '').replace(/\s*@-?\d+\.\d+,\s*-?\d+\.\d+/g, '').replace(/\s*https?:\/\/\S+/g, '').trim(); }
 function altMemo(it) { return /^\(\d+순위\)/.test(it.memo || '') && !!nameOf(it); }
-function altParts(it) {   // '(2순위) 이름 (주소)' → { name: '(2순위) 이름', addr: '주소' }
-  var t = String(it.memo || ''), pre = (/^\(\d+순위\)\s*/.exec(t) || [''])[0], rest = t.slice(pre.length), m = /^(.*?)\s*\(([^()]*\d[^()]*)\)\s*$/.exec(rest);
-  return m ? { name: pre + m[1], addr: m[2] } : { name: t, addr: '' };
+function altParts(it) {   // '(2순위) 이름 (주소) @lat,lng https://…' → { name, addr, lat, lng, url }
+  var raw = String(it.memo || ''), t = memoClean(raw), pre = (/^\(\d+순위\)\s*/.exec(t) || [''])[0], rest = t.slice(pre.length), m = /^(.*?)\s*\(([^()]*\d[^()]*)\)\s*$/.exec(rest);
+  var ll = /@(-?\d+\.\d+),\s*(-?\d+\.\d+)/.exec(raw), u = /https?:\/\/\S+/.exec(raw);
+  return { name: m ? pre + m[1] : t, addr: m ? m[2] : '', lat: ll ? Number(ll[1]) : null, lng: ll ? Number(ll[2]) : null, url: u ? u[0] : '' };
 }
-/* 🍽️ 주변 맛집은 이동·비행기 일정과 새벽(06시 전) 일정에는 안 보임 (2026-11-20, 사용자: 청주 04:00 출발엔 필요 없음) */
-function wantNearby(it) { return !{ move: 1, flight: 1 }[it.type] && !(it.time && it.time < '06:00'); }
 function gmapNearby(it) { return 'https://www.google.com/maps/search/restaurants/@' + it.lat + ',' + it.lng + ',16z'; }
 
 /* 한국에서 하는 일정인지: 출발일 비행기 뜨기 전(청주·인천)과 돌아오는 비행기 도착일 일정은 한국 시각으로 적혀 있음 */
@@ -2033,7 +2035,7 @@ function itemHtml(it, letter) {
     '<div class="body" data-open="' + esc(it.id) + '">' +
       '<div class="ttl">' + icon(it.type) + ' ' + esc(it.title) + '</div>' +
       (nameOf(it) ? '<div class="plc">📍 ' + esc(nameOf(it)) + '</div>' : '') +
-      (it.memo ? (altMemo(it) ? '<div class="memo alt"><span class="ghostpin">📍 </span>' + esc(altParts(it).name) + '</div>' : '<div class="memo">' + esc(it.memo) + '</div>') : '') +
+      (it.memo ? (altMemo(it) ? '<div class="memo alt"><span class="ghostpin">📍 </span>' + esc(altParts(it).name) + '</div>' : '<div class="memo">' + esc(memoClean(it.memo)) + '</div>') : '') +
       '<div class="row" style="gap:6px;margin-top:2px">' + (changed ? '<span class="chg">✏️ 변경됨</span>' : '') + (cmts ? '<span class="chip">💬 ' + cmts + '</span>' : '') + '</div>' +
     '</div>' +
     '<div class="side">' + (letter ? '<span class="letter">' + letter + '</span>' : '') +
@@ -2123,7 +2125,7 @@ function shareDayText(date) {
 function shareItemText(id) {
   var it = S.D.items.filter(function (x) { return x.id === id; })[0]; if (!it) return '';
   return '📢 일정 안내\n' + dayLabel(it.date) + ' ' + (it.time || '') + ' ' + icon(it.type) + ' ' + it.title +
-    (nameOf(it) ? '\n📍 ' + nameOf(it) : '') + (it.memo ? '\n📝 ' + it.memo : '') + (hasLL(it) ? '\n🗺️ ' + gmapOpen(it) : '');
+    (nameOf(it) ? '\n📍 ' + nameOf(it) : '') + (it.memo ? '\n📝 ' + memoClean(it.memo) : '') + (hasLL(it) ? '\n🗺️ ' + gmapOpen(it) : '');
 }
 function shareSettleText() {
   var c = calcSettle();
@@ -2249,7 +2251,13 @@ function openItem(id) {
       els('li.it.changed').forEach(function (li) { if (li.dataset.id === id) { li.classList.remove('changed'); els('.chg', li).forEach(function (c) { c.remove(); }); } });
     }
   }
-  var links = hasLL(it)
+  var ap = altMemo(it) ? altParts(it) : null, two = !!(ap && ap.lat && hasLL(it));
+  var links = two
+    ? '<div class="imap" id="imap"></div>' +   // 1·2순위 두 곳을 한 지도에 (2026-11-21 사용자 요청)
+      '<div class="row wrap-row" style="margin:10px 0">' +
+        '<a class="btn sm" target="_blank" href="' + esc(inKorea(it) ? naverOpen(it) : gmapOpen(it)) + '">🗺️ ① 1순위 ' + (inKorea(it) ? '네이버지도' : '구글지도') + '</a>' +
+        '<a class="btn sm" target="_blank" href="' + esc(ap.url || (inKorea(ap) ? 'https://map.naver.com/p/search/' + encodeURIComponent(ap.addr || ap.name) : 'https://www.google.com/maps/search/?api=1&query=' + ap.lat + ',' + ap.lng)) + '">🗺️ ② 2순위 ' + (inKorea(ap) ? '네이버지도' : '구글지도') + '</a></div>'
+    : hasLL(it)
     ? (inKorea(it)
       ? '<div class="row wrap-row" style="margin:10px 0"><a class="btn sm" target="_blank" href="' + esc(naverOpen(it)) + '">🗺️ 네이버지도에서 열기</a>' +
         (wantNearby(it) ? '<a class="btn sm" target="_blank" href="' + esc(naverNearby(it)) + '">🍽️ 주변 맛집</a>' : '') + '</div>'
@@ -2276,7 +2284,7 @@ function openItem(id) {
     '<div class="muted small">' + md(it.date) + '(' + wd(it.date) + ')</div>' +
     (nameOf(it) ? '<div class="pl-blk"><span class="pin">📍</span><div><b>' + esc(nameOf(it)) + '</b>' + placeSub(it) +
       (altMemo(it) ? '<div style="margin-top:8px"><b>' + esc(altParts(it).name) + '</b>' + (altParts(it).addr ? '<br><span class="small muted">' + esc(altParts(it).addr) + '</span>' : '') + '</div>' : '') + '</div></div>' : '') +
-    (it.memo && !altMemo(it) ? '<p class="small">' + esc(it.memo) + '</p>' : '') + links + routeCard(it) +
+    (it.memo && !altMemo(it) ? '<p class="small">' + esc(memoClean(it.memo)) + '</p>' : '') + links + routeCard(it) +
     (it.updated_at ? '<p class="small muted">마지막 수정: ' + esc(it.updated_at) + ' ' + esc(it.updated_by) + '</p>' : '') +
     shareRow('item:' + id, md(it.date) + ' ' + (it.time || '') + ' ' + it.title, '알리기') +
     (cm.length ? '' : '<button type="button" class="btn" id="copen" style="width:100%;margin-top:10px">💬 메모 · 댓글 남기기</button><div id="cbox" style="display:none">') +
@@ -2290,6 +2298,14 @@ function openItem(id) {
     '<div style="text-align:right;margin-top:12px"><button class="btn" id="iclose">닫기</button></div>';
   var sh = sheet(html);
   el('#iclose', sh).onclick = closeSheet;
+  if (el('#imap', sh)) loadLeaflet().then(function (L) {
+    var box = el('#imap', sh); if (!box || !box.isConnected) return;
+    var map = L.map(box, { zoomControl: true, attributionControl: true, scrollWheelZoom: false });
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+    var a = [Number(it.lat), Number(it.lng)], b = [ap.lat, ap.lng];
+    [[a, '1'], [b, '2']].forEach(function (x) { L.marker(x[0], { icon: L.divIcon({ className: '', html: '<div class="rpin">' + x[1] + '</div>', iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(map); });
+    map.fitBounds([a, b], { padding: [40, 40], maxZoom: 17 });
+  }).catch(function () { var box = el('#imap', sh); if (box) box.style.display = 'none'; });
   if (el('#copen', sh)) el('#copen', sh).onclick = function () { el('#copen', sh).style.display = 'none'; el('#cbox', sh).style.display = ''; el('#ctext', sh).focus(); };
   el('#cadd', sh).onclick = function () {
     var t = el('#ctext', sh).value.trim(); if (!t) return;
