@@ -796,7 +796,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-73';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-74';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1880,6 +1880,8 @@ function altParts(it) {   // '(2순위) 이름 (주소) @lat,lng https://…' �
   var ll = /@(-?\d+\.\d+),\s*(-?\d+\.\d+)/.exec(raw), u = /https?:\/\/\S+/.exec(raw);
   return { name: m ? pre + m[1] : t, addr: m ? m[2] : '', lat: ll ? Number(ll[1]) : null, lng: ll ? Number(ll[2]) : null, url: u ? u[0] : '' };
 }
+/* 🍽️ 주변 맛집은 이동·비행기 일정과 새벽(06시 전) 일정에는 안 보임 (2026-11-20, 사용자: 청주 04:00 출발엔 필요 없음) */
+function wantNearby(it) { return !{ move: 1, flight: 1 }[it.type] && !(it.time && it.time < '06:00'); }
 function gmapNearby(it) { return 'https://www.google.com/maps/search/restaurants/@' + it.lat + ',' + it.lng + ',16z'; }
 
 /* 한국에서 하는 일정인지: 출발일 비행기 뜨기 전(청주·인천)과 돌아오는 비행기 도착일 일정은 한국 시각으로 적혀 있음 */
@@ -2298,14 +2300,27 @@ function openItem(id) {
     '<div style="text-align:right;margin-top:12px"><button class="btn" id="iclose">닫기</button></div>';
   var sh = sheet(html);
   el('#iclose', sh).onclick = closeSheet;
-  if (el('#imap', sh)) loadLeaflet().then(function (L) {
+  // 1·2순위 지도: 구글 지도(다른 화면과 같은 모양, 키는 서버가 줌) → 안 되면 오픈스트리트맵 (2026-11-21)
+  if (el('#imap', sh) && S.D.mapsKey) loadGmaps(S.D.mapsKey).then(function (g) {
+    var box = el('#imap', sh); if (!box || !box.isConnected) return;
+    var map = new g.maps.Map(box, { center: { lat: Number(it.lat), lng: Number(it.lng) }, zoom: 16, disableDefaultUI: true, zoomControl: true, clickableIcons: false, gestureHandling: 'greedy' });
+    var dot = { path: g.maps.SymbolPath.CIRCLE, scale: 13, fillColor: '#d93025', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 };
+    var bounds = new g.maps.LatLngBounds();
+    [[{ lat: Number(it.lat), lng: Number(it.lng) }, '1'], [{ lat: ap.lat, lng: ap.lng }, '2']].forEach(function (x) {
+      new g.maps.Marker({ map: map, position: x[0], icon: dot, label: { text: x[1], color: '#fff', fontSize: '14px', fontWeight: '800' } });
+      bounds.extend(x[0]);
+    });
+    map.fitBounds(bounds, 50);
+  }).catch(function () { var box = el('#imap', sh); if (box) { box.dataset.osm = '1'; osmTwo(); } });
+  else if (el('#imap', sh)) osmTwo();
+  function osmTwo() { loadLeaflet().then(function (L) {
     var box = el('#imap', sh); if (!box || !box.isConnected) return;
     var map = L.map(box, { zoomControl: true, attributionControl: true, scrollWheelZoom: false });
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
     var a = [Number(it.lat), Number(it.lng)], b = [ap.lat, ap.lng];
     [[a, '1'], [b, '2']].forEach(function (x) { L.marker(x[0], { icon: L.divIcon({ className: '', html: '<div class="rpin">' + x[1] + '</div>', iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(map); });
     map.fitBounds([a, b], { padding: [40, 40], maxZoom: 17 });
-  }).catch(function () { var box = el('#imap', sh); if (box) box.style.display = 'none'; });
+  }).catch(function () { var box = el('#imap', sh); if (box) box.style.display = 'none'; }); }
   if (el('#copen', sh)) el('#copen', sh).onclick = function () { el('#copen', sh).style.display = 'none'; el('#cbox', sh).style.display = ''; el('#ctext', sh).focus(); };
   el('#cadd', sh).onclick = function () {
     var t = el('#ctext', sh).value.trim(); if (!t) return;
