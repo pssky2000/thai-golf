@@ -715,7 +715,8 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .seg-tabs.folder.six button,.seg-tabs.folder.five button{font-size:min(calc(13px*var(--fs)),4.3vw);letter-spacing:-.07em;padding:10px 0 8px}
 .seg-tabs.folder button.adm{border:2px solid var(--warn);border-bottom:0;color:var(--warn)}   /* 관리자 칸은 주황 테두리. 다른 탭처럼 아래 선에 붙음 (2026-11-17, 열면 선도 주황) */
 .seg-tabs.folder button.adm.on{background:var(--warn);border-color:var(--warn);color:var(--warn-ink);font-weight:800}
-.seg-tabs.folder.adm-on{border-bottom-color:var(--warn)}   /* 관리자 탭을 열면 아래 선도 주황 (2026-11-17) */
+.seg-tabs.folder.adm-on{border-bottom-color:var(--warn)}
+.seg-tabs.folder button.adm:not(.on){border-bottom:2px solid var(--warn);border-radius:10px;margin-bottom:5px;padding-top:7px;padding-bottom:5px}   /* 다른 탭을 볼 땐 관리자 칸은 아래 선에서 떨어진 둥근 상자 (2026-11-21) */   /* 관리자 탭을 열면 아래 선도 주황 (2026-11-17) */
 /* 관리자 상자 안은 초록 대신 주황 (주 단추·단계 번호·켜짐). 주황 위 글씨는 --warn-ink(다크: 진한 갈색, 라이트: 흰색) (2026-11-17) */
 .admin-box .btn.pri{background:var(--warn);border-color:var(--warn);color:var(--warn-ink);font-weight:800}
 .admin-box .ar-n{border-color:var(--warn);color:var(--warn)}
@@ -807,7 +808,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-86';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-87';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
