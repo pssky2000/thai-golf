@@ -802,7 +802,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-81';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-82';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -2361,36 +2361,34 @@ function openItem(id) {
     '<div style="text-align:right;margin-top:14px"><button class="btn close-btn" id="iclose">✕ 닫기</button></div>';
   var sh = sheet(html);
   el('#iclose', sh).onclick = closeSheet;
-  // 1·2순위 지도: 구글 지도(다른 화면과 같은 모양, 키는 서버가 줌) → 안 되면 오픈스트리트맵 (2026-11-21)
-  // [지도/위성]: 처음엔 위성(사용자: 위성이 좋음), 고른 것은 이 폰에 기억
-  var iSat = function () { return LS.get('trip_isat', '1') === '1'; }, iSatSet = function () {};
+  // 1·2순위 지도 (2026-11-21): 지도 = 구글 지도(키는 서버가 줌), 위성 = 한국 안이면 Esri 위성(구글 위성이 한국에선 일반 지도처럼 나옴 — 사용자 폰 확인), 그 밖은 구글 위성
+  // 키가 없거나 구글이 안 되면 오픈스트리트맵. [지도/위성]은 처음엔 위성, 고른 것은 이 폰에 기억(trip_isat)
+  var iSat = function () { return String(LS.get('trip_isat', '1')) === '1'; };
   var iSatPaint = function () { els('[data-isat]', sh).forEach(function (b) { b.classList.toggle('on', (b.dataset.isat === '1') === iSat()); }); };
-  iSatPaint();
-  els('[data-isat]', sh).forEach(function (b) { b.onclick = function () { LS.set('trip_isat', b.dataset.isat); iSatPaint(); iSatSet(iSat()); }; });
-  if (el('#imap', sh) && S.D.mapsKey) loadGmaps(S.D.mapsKey).then(function (g) {
-    var box = el('#imap', sh); if (!box || !box.isConnected) return;
-    var map = new g.maps.Map(box, { center: { lat: Number(it.lat), lng: Number(it.lng) }, zoom: 16, mapTypeId: iSat() ? 'hybrid' : 'roadmap', disableDefaultUI: true, zoomControl: true, clickableIcons: false, gestureHandling: 'greedy' });
-    iSatSet = function (v) { map.setMapTypeId(v ? 'hybrid' : 'roadmap'); };
-    var dot = { path: g.maps.SymbolPath.CIRCLE, scale: 13, fillColor: '#d93025', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 };
-    var bounds = new g.maps.LatLngBounds();
-    [[{ lat: Number(it.lat), lng: Number(it.lng) }, '1'], [{ lat: ap.lat, lng: ap.lng }, '2']].forEach(function (x) {
-      new g.maps.Marker({ map: map, position: x[0], icon: dot, label: { text: x[1], color: '#fff', fontSize: '14px', fontWeight: '800' } });
-      bounds.extend(x[0]);
-    });
-    map.fitBounds(bounds, 50);
-  }).catch(function () { var box = el('#imap', sh); if (box) { box.dataset.osm = '1'; osmTwo(); } });
-  else if (el('#imap', sh)) osmTwo();
-  function osmTwo() { loadLeaflet().then(function (L) {
-    var box = el('#imap', sh); if (!box || !box.isConnected) return;
+  var iPts = function () { return [[Number(it.lat), Number(it.lng), '1'], [ap.lat, ap.lng, '2']]; };
+  var freshBox = function () { var o = el('#imap', sh); if (!o) return null; var n = document.createElement('div'); n.className = 'imap'; n.id = 'imap'; o.parentNode.replaceChild(n, o); return n; };
+  var drawLeaflet = function (sat) { return loadLeaflet().then(function (L) {
+    var box = freshBox(); if (!box || !box.isConnected) return;
     var map = L.map(box, { zoomControl: true, attributionControl: true, scrollWheelZoom: false });
-    var street = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' });
-    var sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: '© Esri' });
-    (iSat() ? sat : street).addTo(map);
-    iSatSet = function (v) { map.removeLayer(v ? street : sat); (v ? sat : street).addTo(map); };
-    var a = [Number(it.lat), Number(it.lng)], b = [ap.lat, ap.lng];
-    [[a, '1'], [b, '2']].forEach(function (x) { L.marker(x[0], { icon: L.divIcon({ className: '', html: '<div class="rpin">' + x[1] + '</div>', iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(map); });
-    map.fitBounds([a, b], { padding: [40, 40], maxZoom: 17 });
-  }).catch(function () { var box = el('#imap', sh); if (box) box.style.display = 'none'; }); }
+    L.tileLayer(sat ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}' : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: sat ? '© Esri' : '© OpenStreetMap' }).addTo(map);
+    iPts().forEach(function (x) { L.marker([x[0], x[1]], { icon: L.divIcon({ className: '', html: '<div class="rpin">' + x[2] + '</div>', iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(map); });
+    map.fitBounds(iPts().map(function (x) { return [x[0], x[1]]; }), { padding: [40, 40], maxZoom: 17 });
+  }); };
+  var drawGoogle = function (sat) { return loadGmaps(S.D.mapsKey).then(function (g) {
+    var box = freshBox(); if (!box || !box.isConnected) return;
+    var map = new g.maps.Map(box, { center: { lat: Number(it.lat), lng: Number(it.lng) }, zoom: 16, mapTypeId: sat ? 'hybrid' : 'roadmap', disableDefaultUI: true, zoomControl: true, clickableIcons: false, gestureHandling: 'greedy' });
+    var dot = { path: g.maps.SymbolPath.CIRCLE, scale: 13, fillColor: '#d93025', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }, bounds = new g.maps.LatLngBounds();
+    iPts().forEach(function (x) { var pos = { lat: x[0], lng: x[1] }; new g.maps.Marker({ map: map, position: pos, icon: dot, label: { text: x[2], color: '#fff', fontSize: '14px', fontWeight: '800' } }); bounds.extend(pos); });
+    map.fitBounds(bounds, 50);
+  }); };
+  var drawImap = function () {
+    if (!el('#imap', sh)) return;
+    var sat = iSat(), useG = S.D.mapsKey && !(sat && inKorea(it));
+    (useG ? drawGoogle(sat).catch(function () { return drawLeaflet(sat); }) : drawLeaflet(sat))
+      .catch(function () { var box = el('#imap', sh); if (box) box.style.display = 'none'; });
+  };
+  iSatPaint(); drawImap();
+  els('[data-isat]', sh).forEach(function (b) { b.onclick = function () { if ((b.dataset.isat === '1') === iSat()) return; LS.set('trip_isat', b.dataset.isat); iSatPaint(); drawImap(); }; });
   if (el('#copen', sh)) el('#copen', sh).onclick = function () { el('#copen', sh).style.display = 'none'; el('#cbox', sh).style.display = ''; el('#ctext', sh).focus(); };
   el('#cadd', sh).onclick = function () {
     var t = el('#ctext', sh).value.trim(); if (!t) return;
