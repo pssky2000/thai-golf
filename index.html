@@ -820,7 +820,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-98';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-101';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -3803,6 +3803,14 @@ function memberNames() { return S.D.members.map(function (m) { return m.name; })
 function settleRate() { return Number(S.D.settings.settle_rate || S.D.settings.fallback_rate || 41.65); }
 function liveRate() { return (S.fx && S.fx.rate) || settleRate(); }
 function expenses() { return (S.D.expenses || []).slice().sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : (a.updated_at < b.updated_at ? 1 : -1); }); }
+/* 원화로 적은 지출은 정산 환율이 바뀌어도 원래 원화 그대로 정산 (2026-11-21 사용자 요청):
+   바트 = 원화 ÷ 지금 정산 환율. 바트로 적은 지출은 적은 바트 그대로 */
+function expKrwIn(e) { return e.input_cur === 'KRW' && Number(e.krw) > 0; }
+function expThb(e) { return expKrwIn(e) ? Number(e.krw) / settleRate() : (Number(e.thb) || 0); }
+function expSup(e) {   // 일부 지원 금액도 같은 비율로
+  var t = Number(e.thb) || 0, sp = Number(e.support_thb) || 0;
+  return expKrwIn(e) && t > 0 ? sp * expThb(e) / t : sp;
+}
 function partsOf(e) { var p = String(e.participants || '').split(',').filter(Boolean); return p.length ? p : memberNames(); }
 
 /* 공금 보관자 [{name, start}] — 설정 common_cash_note의 "이름 숫자바트"를 읽음 (회원 이름만) */
@@ -3822,7 +3830,7 @@ function cashByHolder() {
   hs.forEach(function (h) { used[h.name] = 0; });
   (S.D.expenses || []).forEach(function (e) {
     if (e.payer !== '공금') return;
-    var t = Number(e.thb) || 0;
+    var t = expThb(e);
     if (e.cash_from && used[e.cash_from] !== undefined) used[e.cash_from] += t; else none += t;
   });
   var moved = {}; hs.forEach(function (h) { moved[h.name] = 0; });
@@ -3840,7 +3848,7 @@ function calcSettle() {
   names.forEach(function (n) { paid[n] = 0; owed[n] = 0; enjoyed[n] = 0; support[n] = 0; });
   var total = 0, common = 0, bank = 0, personalShared = 0, supportTotal = 0, byCat = {}, byDay = {};
   (S.D.expenses || []).forEach(function (e) {
-    var thb = Number(e.thb) || 0, sup = e.kind === '지원' ? thb : e.kind === '일부지원' ? Number(e.support_thb) || 0 : 0;
+    var thb = expThb(e), sup = e.kind === '지원' ? thb : e.kind === '일부지원' ? expSup(e) : 0;
     var shared = thb - sup, parts = partsOf(e);
     total += thb; byCat[e.category] = (byCat[e.category] || 0) + thb; byDay[e.date] = (byDay[e.date] || 0) + thb;
     parts.forEach(function (n) { if (enjoyed[n] !== undefined) enjoyed[n] += thb / parts.length; });
@@ -4156,21 +4164,27 @@ function expenseForm(e, preset) {
   var canEdit = isNew || e.created_by === S.me.name || S.me.isAdmin;
   var holders = cashHolders().map(function (h) { return h.name; });
   var defFrom = e.cash_from || (holders.indexOf(S.me.name) >= 0 ? S.me.name : (isNew ? (LS.get('trip_cash_from', '') || holders[0] || '') : ''));
-  var st = { cat: e.category, payer: e.payer, kind: e.kind, parts: partsOf(e).slice(), receipt: e.receipt_id, inCur: e.input_cur || 'THB', rate: Number(e.rate) || liveRate(), from: defFrom };
+  var st = { cat: e.category, payer: e.payer, kind: e.kind, parts: partsOf(e).slice(), receipt: e.receipt_id, inCur: e.input_cur || 'THB', rate: Number(e.rate) || (e.input_cur === 'KRW' ? settleRate() : liveRate()), from: defFrom };
+  /* 원화로 적으면 정산 환율로 바트 환산 → 정산에서 원래 원화 금액 그대로 (2026-11-21 사용자 요청). 바트로 적을 땐 오늘 은행 환율은 참고로만 */
+  function rateLb() {
+    return st.inCur === 'KRW' ? '금액 (원화로 적음 · 1바트 = ' + st.rate.toFixed(2) + '원 정산 환율 → 정산에서 이 원화 그대로)'
+      : '금액 (어느 쪽이든 적으면 자동 계산 · 1바트 ≈ ' + st.rate.toFixed(2) + '원' + (Number(e.rate) ? '' : ' 오늘 은행 기준') + ')';
+  }
   var html =
     '<h3>' + (isNew ? '＋ 지출 적기' : (canEdit ? '✏️ 지출 고치기' : '🧾 지출')) + '</h3>' +
     '<div class="row" style="margin-bottom:8px"><label class="lb" style="margin:0;white-space:nowrap">📅 날짜</label><select class="inp" id="x-date" style="flex:1">' + ds.map(function (d) { return '<option value="' + d + '"' + (d === e.date ? ' selected' : '') + '>' + md(d) + '(' + wd(d) + ')</option>'; }).join('') + '</select></div>' +
     '<div class="rc-box"><div class="row wrap-row"><label class="btn pri sm">영수증 찍기<input type="file" accept="image/*" capture="environment" id="x-cam" hidden></label>' +
       '<label class="btn sm">갤러리<input type="file" accept="image/*" id="x-pic" hidden></label></div>' +
       '<div class="rc-row"><div id="x-rimg"></div><span class="small" id="x-rst">' + (st.receipt ? '영수증 있음' : '영수증을 찍으면 금액을 자동으로 채워 드려요') + '</span></div></div>' +
-    '<label class="lb">금액 (어느 쪽이든 적으면 자동 계산 · 1바트 ≈ ' + st.rate.toFixed(2) + '원)</label>' +
+    '<label class="lb" id="x-rate-lb">' + rateLb() + '</label>' +
     '<div class="fx-grid x-money"><label class="mwrap"><span class="unit">THB</span><input class="inp money" id="x-thb" inputmode="decimal" placeholder="0" value="' + esc(e.thb) + '"></label><span>⇄</span><label class="mwrap won"><span class="unit">원</span><input class="inp money" id="x-krw" inputmode="numeric" placeholder="0" value="' + esc(e.krw ? num(e.krw) : '') + '"></label></div>' +
-    '<label class="lb">누가 냈나요</label><div id="x-payer"><div class="grid2"><button class="pick wide' + (st.payer === '공금' ? ' on' : '') + '" data-v="공금">💰 공금(현금)</button><button class="pick wide' + (st.payer === '통장' ? ' on' : '') + '" data-v="통장">🏦 회비 통장</button></div>' +
+    '<label class="lb">누가 냈나요</label><div id="x-payer"><div class="grid2"><button class="pick wide' + (st.payer === '공금' ? ' on' : '') + '" data-v="공금">💰 공금(바트)</button><button class="pick wide' + (st.payer === '통장' ? ' on' : '') + '" data-v="통장">🏦 회비(원화)</button></div>' +
       '<div class="grid4" style="margin-top:6px">' + names.map(function (n) { return '<button class="pick' + (n === st.payer ? ' on' : '') + '" data-v="' + esc(n) + '">' + esc(n) + '</button>'; }).join('') + '</div></div>' +
     '<div id="x-kind-box"><label class="lb">어떻게 나눌까요</label><div class="grid3" id="x-kind">' +
       [['공동', '👥', '다 같이'], ['지원', '🙏', '지원(쏨)'], ['일부지원', '🙏', '일부 지원']].map(function (k) { return '<button class="pick tile' + (k[0] === st.kind ? ' on' : '') + '" data-v="' + k[0] + '"><span class="ti">' + k[1] + '</span><span>' + k[2] + '</span></button>'; }).join('') + '</div>' +
     '<p class="small muted" id="x-kind-help"></p></div>' +
     (holders.length ? '<div id="x-from-box"><label class="lb">👛 누구 지갑의 공금에서?</label><div class="grid4" id="x-from">' + holders.map(function (n) { return '<button class="pick' + (n === st.from ? ' on' : '') + '" data-v="' + esc(n) + '">' + esc(n) + '</button>'; }).join('') + '</div></div>' : '') +
+    '<p class="small" id="x-krw-warn" style="color:var(--warn);font-weight:700">💡 공금은 태국에서 쓰는 바트 현금이에요. 한국에서 원화로 낸 돈이면 [🏦 회비(원화)]나 낸 사람을 골라 주세요.</p>' +
     '<p class="small muted" id="x-cash-note">💰 공금은 다 같이 낸 돈이라 회원끼리 정산하지 않습니다.</p>' +
     '<div id="x-sup-box"><label class="lb">지원한 금액 (바트) — 나머지만 나눕니다</label><input class="inp money" id="x-sup" inputmode="decimal" value="' + esc(e.support_thb) + '"></div>' +
     '<div id="x-parts-box"><label class="lb">함께한 사람 (빠진 사람은 눌러서 해제)</label><div class="grid4" id="x-parts">' + names.map(function (n) { return '<button class="pick' + (st.parts.indexOf(n) >= 0 ? ' on' : '') + '" data-v="' + esc(n) + '">' + esc(n) + '</button>'; }).join('') + '</div></div>' +
@@ -4184,10 +4198,21 @@ function expenseForm(e, preset) {
   var sh = sheet(html);
   var tIn = el('#x-thb', sh), kIn = el('#x-krw', sh);
   if (tIn.value) tIn.value = numDec(tIn.value);
-  tIn.oninput = function () { commaLive(tIn, true); st.inCur = 'THB'; var v = parseFloat(tIn.value.replace(/,/g, '')); kIn.value = isFinite(v) ? num(Math.round(v * st.rate)) : ''; tIn.classList.add('main'); kIn.classList.remove('main'); };
-  kIn.oninput = function () { commaLive(kIn, false); st.inCur = 'KRW'; var v = parseFloat(kIn.value.replace(/,/g, '')); tIn.value = isFinite(v) ? numDec(Math.round(v / st.rate * 100) / 100) : ''; kIn.classList.add('main'); tIn.classList.remove('main'); };
+  function setCur(c) {
+    if (st.inCur === c) return;
+    st.inCur = c; st.rate = c === 'KRW' ? settleRate() : liveRate();
+    el('#x-rate-lb', sh).textContent = rateLb();
+    // 새 지출을 원화로 적기 시작했는데 낸 사람을 아직 안 골랐으면 '회비 통장'으로 (공금은 바트 현금)
+    var to = null;
+    if (c === 'KRW' && isNew && !st.payerTouched && st.payer === '공금') { to = '통장'; st.autoBank = true; }
+    else if (c === 'THB' && st.autoBank && !st.payerTouched && st.payer === '통장') { to = '공금'; st.autoBank = false; }   // 바트로 다시 적으면 공금(현금)으로 되돌림
+    if (to) { st.payer = to; els('#x-payer .pick', sh).forEach(function (x) { x.classList.toggle('on', x.dataset.v === to); }); }
+    sync();
+  }
+  tIn.oninput = function () { commaLive(tIn, true); setCur('THB'); var v = parseFloat(tIn.value.replace(/,/g, '')); kIn.value = isFinite(v) ? num(Math.round(v * st.rate)) : ''; tIn.classList.add('main'); kIn.classList.remove('main'); };
+  kIn.oninput = function () { commaLive(kIn, false); setCur('KRW'); var v = parseFloat(kIn.value.replace(/,/g, '')); tIn.value = isFinite(v) ? numDec(Math.round(v / st.rate * 100) / 100) : ''; kIn.classList.add('main'); tIn.classList.remove('main'); };
   function pickOne(id, key) {
-    els('#' + id + ' .pick', sh).forEach(function (b) { b.onclick = function () { if (!canEdit) return; st[key] = b.dataset.v; els('#' + id + ' .pick', sh).forEach(function (x) { x.classList.toggle('on', x === b); }); sync(); }; });
+    els('#' + id + ' .pick', sh).forEach(function (b) { b.onclick = function () { if (!canEdit) return; st[key] = b.dataset.v; st[key + 'Touched'] = true; els('#' + id + ' .pick', sh).forEach(function (x) { x.classList.toggle('on', x === b); }); sync(); }; });
   }
   pickOne('x-cat', 'cat'); pickOne('x-payer', 'payer'); pickOne('x-kind', 'kind'); if (holders.length) pickOne('x-from', 'from');
   els('#x-parts .pick', sh).forEach(function (b) {
@@ -4199,6 +4224,7 @@ function expenseForm(e, preset) {
     els('#x-kind .pick', sh).forEach(function (x) { x.classList.toggle('on', x.dataset.v === st.kind); });
     el('#x-kind-box', sh).style.display = cash ? 'none' : '';
     el('#x-cash-note', sh).style.display = cash ? '' : 'none';
+    el('#x-krw-warn', sh).style.display = st.inCur === 'KRW' && st.payer === '공금' ? '' : 'none';
     if (el('#x-from-box', sh)) el('#x-from-box', sh).style.display = st.payer === '공금' ? '' : 'none';
     el('#x-kind-help', sh).textContent = st.kind === '공동' ? '낸 사람이 받을 돈으로 계산되고, 함께한 사람끼리 똑같이 나눕니다.'
       : st.kind === '지원' ? '기록만 남고 정산에서는 빠집니다. 감사 보드에 이름이 올라갑니다. 🙏'
@@ -4939,7 +4965,7 @@ function repayList() {
   var by = {}, ids = [];
   (S.D.expenses || []).forEach(function (e) {
     if (e.payer === '공금' || e.payer === '통장' || (e.kind !== '공동' && e.kind !== '일부지원')) return;
-    var thb = Number(e.thb) || 0, sh = e.kind === '일부지원' ? thb - (Number(e.support_thb) || 0) : thb;
+    var thb = expThb(e), sh = e.kind === '일부지원' ? thb - expSup(e) : thb;
     if (!(sh > 0)) return;
     by[e.payer] = by[e.payer] || { amt: 0, n: 0 }; by[e.payer].amt += sh; by[e.payer].n++; ids.push(e.id);
   });
@@ -5058,8 +5084,9 @@ function settleRateForm() {
     '<div class="small">지금 정산 환율: <b>฿1 = ' + cur + '원</b></div>' +
     '<div class="row wrap-row" style="margin-top:8px">' +
       (avg ? '<button class="btn sm" data-r="' + avg.rate + '">환전 평균 ' + avg.rate + '원</button>' : '') +
-      (live ? '<button class="btn sm" data-r="' + live.toFixed(2) + '">오늘 환율 ' + live.toFixed(2) + '원</button>' : '') + '</div>' +
+      '</div>' + 
     (avg ? '<p class="small muted" style="margin:4px 2px 0">환전 평균 = 바꾼 원화 ' + won(avg.krw) + ' ÷ 받은 바트 ' + baht(avg.thb) + '</p>' : '') +
+    (live ? '<p class="small muted" style="margin:4px 2px 0">참고: 오늘 은행 환율 ' + live.toFixed(2) + '원 (정산에는 쓰지 않아요 — 정산은 우리가 실제로 바트를 산 환전 평균으로)</p>' : '') +
     '<label class="lb">정산 환율 (원/바트)</label><input class="inp money" id="sr-v" inputmode="decimal" value="' + cur + '">' +
     '<p class="small" id="sr-msg" style="color:var(--bad);min-height:18px"></p>' +
     '<div class="row" style="justify-content:flex-end"><button class="btn" data-close>취소</button><button class="btn pri" id="sr-ok">저장</button></div>');
@@ -5103,8 +5130,8 @@ function reportTables() {
   T.push({ id: 'exp', title: '지출 내역', head: ['날짜', '항목', '내용', '바트', '원', '낸 사람', '종류', '지원(바트)', '함께한 사람', '인원', '메모', '적은 사람'],
     rows: expenses().slice().reverse().map(function (e) {
       var p = partsOf(e), payer = e.payer === '공금' ? '공금' + (e.cash_from ? '(' + e.cash_from + ' 지갑)' : '') : e.payer === '통장' ? '회비 통장' : e.payer;
-      return [e.date, e.category, e.title, Number(e.thb) || 0, R(Number(e.thb) || 0), payer, e.kind, e.support_thb ? Number(e.support_thb) : '', e.kind === '지원' ? '' : p.join(' '), e.kind === '지원' ? '' : p.length, e.memo, e.created_by];
-    }), note: '원 = 바트 × 정산 환율' });
+      return [e.date, e.category, e.title, Math.round(expThb(e) * 100) / 100, expKrwIn(e) ? Math.round(Number(e.krw)) : R(expThb(e)), payer, e.kind, e.support_thb ? Number(e.support_thb) : '', e.kind === '지원' ? '' : p.join(' '), e.kind === '지원' ? '' : p.length, e.memo, e.created_by];
+    }), note: '원 = 바트 × 정산 환율 (원화로 적은 지출은 적은 원화 그대로)' });
   T.push({ id: 'wal', title: '공금 지갑 (누가 갖고 있나)', head: ['이름', '처음(바트)', '받음·줌(바트)', '쓴 돈(바트)', '남음(바트)'],
     rows: w.list.map(function (h) { return [h.name, h.start, h.moved, h.used, h.left]; }).concat(w.none ? [['지갑 안 고른 공금 지출', '', '', w.none, -w.none]] : []).concat([['합계', '', '', '', c.cashLeft]]), total: true });
   var mv = (S.D.cashMoves || []).slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
