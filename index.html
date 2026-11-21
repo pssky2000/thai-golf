@@ -457,11 +457,10 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .fab-rail.loop{-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 12px,#000 calc(100% - 12px),transparent 100%);mask-image:linear-gradient(to bottom,transparent 0,#000 12px,#000 calc(100% - 12px),transparent 100%)}
 .exl{margin-top:8px;border-top:1px dashed var(--line);padding-top:6px}
 .exl summary{cursor:pointer;font-size:calc(14px*var(--fs));padding:4px 0}
-.exl-g{display:grid;grid-template-columns:3.2em 1fr 1fr 1.25fr 3.6em;gap:4px;font-size:calc(13px*var(--fs));padding:3px 0;align-items:baseline}
+.exl-g{display:grid;grid-template-columns:2.9em 3.4em 1fr 1.35fr 3.3em;gap:6px;font-size:calc(13px*var(--fs));padding:6px 0;align-items:baseline;border-bottom:1px solid color-mix(in srgb,var(--line) 45%,transparent)}
 .exl-g>span:nth-child(n+3){text-align:right;font-variant-numeric:tabular-nums}
-.exl-h{color:var(--sub);border-bottom:1px solid var(--line)}
-.exl-t{border-top:1px solid var(--line);font-weight:700}
-.exl-m{margin:-2px 0 2px 3.4em}
+.exl-h{color:var(--sub);border-bottom:1px solid var(--line);padding-top:2px}
+.exl-t{border-top:1px solid var(--line);border-bottom:0;font-weight:700}
 .tr-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
 .tr-btns .btn{padding:10px 4px;font-weight:700;line-height:1.3}
 .fab-set{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px}
@@ -827,7 +826,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-102';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-103';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -3964,8 +3963,7 @@ function exchListHtml() {
     rows.map(function (r) {
       var canDel = r.id && (r.by === S.me.name || S.me.isAdmin);
       return '<div class="exl-g"><span>' + md(r.date) + '</span><span>' + esc(r.who) + '</span><span>' + num(r.thb) + '</span><span>' + num(r.krw) + '</span><span><b>' + (r.thb ? r2(r.krw / r.thb) : '') + '</b>' +
-        (canDel ? ' <a href="#" data-mvdel="' + esc(r.id) + '" title="지우기">✕</a>' : '') + '</span></div>' +
-        (r.memo ? '<div class="small muted exl-m">' + esc(r.memo) + '</div>' : '');
+        (canDel ? ' <a href="#" data-mvdel="' + esc(r.id) + '" title="지우기">✕</a>' : '') + '</span></div>';   // 메모 줄은 뺌 (표가 복잡해 보여서, 2026-11-21 사용자)
     }).join('') +
     '<div class="exl-g exl-t"><span>합계</span><span></span><span>' + num(t) + '</span><span>' + num(k) + '</span><span><b>' + r2(avg) + '</b></span></div>' +
     (Math.abs(avg - sr) >= 0.005 ? '<div class="small" style="color:var(--warn);margin-top:6px">⚠️ 지금 정산 환율 ' + sr + '원이 환전 평균 ' + r2(avg) + '원과 달라요.' +
