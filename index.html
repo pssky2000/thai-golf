@@ -820,7 +820,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-96';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-97';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1227,10 +1227,19 @@ function kakaoMenu() {
     };
   });
 }
-/* 카톡 앱만 열기: 안드로이드는 intent(앱 없으면 플레이 스토어), 그 밖은 kakaotalk:// */
+/* 카톡 앱만 열기 (11.16-97): 앱 실행 단추(LAUNCHER) 방식은 Chrome이 막아 플레이 스토어로 넘어갔음 →
+   카톡이 받는 주소 kakaotalk:// 로 엶. 1.5초 뒤에도 화면이 그대로면(못 열었으면) 폰 공유 창을 띄워 카톡을 고르게 함 */
 function openKakao() {
-  if (/Android/i.test(navigator.userAgent)) location.href = 'intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.kakao.talk;S.browser_fallback_url=' + encodeURIComponent('https://play.google.com/store/apps/details?id=com.kakao.talk') + ';end';
-  else location.href = 'kakaotalk://';
+  var gone = false, mark = function () { if (document.hidden) gone = true; };
+  document.addEventListener('visibilitychange', mark);
+  window.addEventListener('blur', function b() { gone = true; window.removeEventListener('blur', b); });
+  location.href = /Android/i.test(navigator.userAgent) ? 'intent://main#Intent;scheme=kakaotalk;package=com.kakao.talk;end' : 'kakaotalk://main';
+  setTimeout(function () {
+    document.removeEventListener('visibilitychange', mark);
+    if (gone) return;
+    if (navigator.share) { toast('카톡을 바로 못 열었어요. 공유 창에서 카카오톡을 고르세요.', null, 3500); navigator.share({ text: ' ' }).catch(function () {}); }
+    else toast('카톡을 열지 못했어요. 카톡 앱을 직접 열어 주세요.');
+  }, 1500);
 }
 function captureShare(whole) {
   toast('📸 그림으로 만드는 중…', null, 6000);
