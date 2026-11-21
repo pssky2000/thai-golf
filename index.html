@@ -820,7 +820,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-95';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-96';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1210,7 +1210,8 @@ function kakaoFabRefresh() { var k = el('#kakao-fab'); if (k) k.style.display = 
 function kakaoMenu() {
   var t = kakaoTarget();
   var sh = sheet('<h3>💬 카톡으로 보내기</h3>' +
-    (t ? '<button class="btn km-opt" data-km="text" style="margin-top:6px">📝 글로 보내기<div class="small muted">' + esc((t.querySelector('small') || {}).textContent || '이 화면 내용') + '</div></button>' : '') +
+    '<button class="btn km-opt" data-km="open" style="margin-top:6px">💬 카톡 바로 열기<div class="small muted">그냥 하고 싶은 말을 쓸 때 — 카톡 앱이 열려요</div></button>' +
+    (t ? '<button class="btn km-opt" data-km="text" style="margin-top:8px">📝 이 화면 내용을 글로<div class="small muted">' + esc((t.querySelector('small') || {}).textContent || '이 화면 내용') + ' — 글자로 정리해서</div></button>' : '') +
     '<button class="btn km-opt" data-km="view" style="margin-top:8px">📸 지금 보이는 화면 그대로<div class="small muted">폰 화면에 보이는 만큼 그림 한 장으로</div></button>' +
     '<button class="btn km-opt" data-km="page" style="margin-top:8px">📜 이 페이지 전체 (길게)<div class="small muted">위에서 아래 끝까지 긴 그림 한 장으로</div></button>' +
     '<div class="small muted" style="margin-top:8px">지도 부분은 그림에 안 나올 수 있어요.</div>' +
@@ -1220,10 +1221,16 @@ function kakaoMenu() {
     b.onclick = function () {
       var k = b.dataset.km;
       closeSheet();
+      if (k === 'open') { openKakao(); return; }   // 2026-11-21 사용자 요청
       if (k === 'text') { var tb = kakaoTarget(); if (tb) tb.click(); return; }
       setTimeout(function () { captureShare(k === 'page'); }, 350);   // 창이 닫힌 뒤 찍음
     };
   });
+}
+/* 카톡 앱만 열기: 안드로이드는 intent(앱 없으면 플레이 스토어), 그 밖은 kakaotalk:// */
+function openKakao() {
+  if (/Android/i.test(navigator.userAgent)) location.href = 'intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.kakao.talk;S.browser_fallback_url=' + encodeURIComponent('https://play.google.com/store/apps/details?id=com.kakao.talk') + ';end';
+  else location.href = 'kakaotalk://';
 }
 function captureShare(whole) {
   toast('📸 그림으로 만드는 중…', null, 6000);
