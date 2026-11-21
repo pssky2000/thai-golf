@@ -447,12 +447,20 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .cam-fab{background:#37474f}
 /* 카톡 고르기 창 단추: 제목 한 줄 + 아래 작은 설명 (2026-11-21 글자 뒤섞임 고침) */
 .btn.km-opt{display:block;width:100%;white-space:normal;text-align:left;padding:12px 14px;line-height:1.35;font-weight:700}.btn.km-opt .small{display:block;font-weight:400;margin-top:2px}
+.tr-fab{background:#1a73e8}   /* 🌐 번역: 구글 번역 파랑 (2026-11-21 사용자 고름) */
 .kakao-fab{background:#fee500}.kakao-fab svg{width:30px;height:28px}
 .mic-fab{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .mic-fab.fab-drag{transform:scale(1.15);box-shadow:0 10px 26px rgba(0,0,0,.45);opacity:.92}
+.fab-rail{position:fixed;right:10px;z-index:41;height:206px;width:66px;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;align-items:center;gap:12px;padding:4px 0;scroll-snap-type:y mandatory;scrollbar-width:none;overscroll-behavior:contain;border-radius:33px}
+.fab-rail::-webkit-scrollbar{display:none}
+.fab-rail .mic-fab{position:static!important;flex:0 0 58px;scroll-snap-align:end;touch-action:pan-y}
+.fab-rail.loop{-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 12px,#000 calc(100% - 12px),transparent 100%);mask-image:linear-gradient(to bottom,transparent 0,#000 12px,#000 calc(100% - 12px),transparent 100%)}
+.tr-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+.tr-btns .btn{padding:10px 4px;font-weight:700;line-height:1.3}
 .fab-set{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px}
 .fab-set>span{white-space:nowrap;font-size:calc(14px*var(--fs))}
-.fab-set .seg-tabs{flex:0 0 55%;margin:0}
+.fab-set .seg-tabs{flex:0 0 64%;margin:0}
+.fab-set .seg-tabs button{font-size:min(calc(14px*var(--fs)),4vw);white-space:nowrap}   /* 모든 줄 같은 폭이라 단추 칸이 세로로 맞음 ('모두 보기'가 다 보이게 55→62%) */
 .vc-mic{display:block;margin:6px auto 4px;width:84px;height:84px;border-radius:50%;border:0;background:var(--pri);color:#fff;font-size:40px;box-shadow:0 4px 14px rgba(0,0,0,.25);cursor:pointer}
 .vc-mic.on{background:#d32f2f;animation:vcpulse 1.2s ease-in-out infinite}
 .vc-mic.off{background:var(--line);color:var(--sub)}
@@ -812,7 +820,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-94';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-95';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -1128,6 +1136,64 @@ function micOn() { return LS.get('trip_mic', 'on') !== 'off'; }
 /* ═════════ 떠 있는 단추 (🎤 말로 하기 · 📷 사진 찍기) ═════════
    한 번 누르면 실행, 꾹 눌러(0.5초) 끌면 자리 옮기기 → 그 폰에 기억(trip_fab). 내 정보에서 보이기/숨기기·처음 자리로 */
 function camOn() { return LS.get('trip_cam', 'on') !== 'off'; }
+/* 🌐 번역 (2026-11-21 사용자 요청): 떠 있는 단추·필수 태국어 카드·크게 보기에서 번역앱을 바로 엶
+   안드로이드: 앱이 있으면 앱(intent), 없으면 웹. 구글 번역은 한→태(문장 미리 넣기 가능), 파파고는 앱만 열림(언어는 앱에서 마지막 것) */
+function trOn() { return LS.get('trip_tr', 'on') !== 'off'; }
+function trApp() { return LS.get('trip_tr_app', 'google') === 'papago' ? 'papago' : 'google'; }
+function openTranslator(app, text) {
+  app = app || trApp(); text = text || '';
+  var and = /Android/i.test(navigator.userAgent), q = encodeURIComponent(text), url;
+  if (app === 'papago') {
+    var web = 'https://papago.naver.com/?sk=ko&tk=th' + (text ? '&st=' + q : '');
+    url = and ? 'intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.naver.labs.translator;S.browser_fallback_url=' + encodeURIComponent(web) + ';end' : web;
+  } else {
+    var path = 'translate.google.com/?sl=ko&tl=th&op=translate' + (text ? '&text=' + q : '');
+    url = and ? 'intent://' + path + '#Intent;scheme=https;package=com.google.android.apps.translate;S.browser_fallback_url=' + encodeURIComponent('https://' + path) + ';end' : 'https://' + path;
+  }
+  if (and) location.href = url; else window.open(url, '_blank');
+}
+var TR_SVG = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18"/><path d="M12 3a14 14 0 0 0 0 18"/></svg>';
+/* 떠 있는 단추 '스크롤' 모양 (2026-11-21 사용자 고름): 3개 높이 상자 안에 세로로 넣고 위아래로 밀어 넘김.
+   한쪽으로 계속 밀면 처음 단추가 다시 나옴(앞뒤로 복제본을 붙이고 끝에 가까워지면 한 바퀴만큼 되돌림). 이 모양에선 꾹 눌러 옮기기 없음 */
+function fabRail() { return LS.get('trip_fab_mode', 'rail') === 'rail'; }
+function buildFabRail() {
+  var old = el('#fab-rail'); if (old) old.remove();
+  if (!fabRail()) return;
+  var fs = ['#kakao-fab', '#tr-fab', '#cam-fab', '#mic-fab'].map(function (q) { return el(q); }).filter(function (f) { return f; });
+  if (fs.length < 2) return;
+  var nh = (el('.bnav') || { offsetHeight: 70 }).offsetHeight;
+  var r = document.createElement('div'); r.id = 'fab-rail'; r.className = 'fab-rail'; r.style.bottom = (nh + 12) + 'px';
+  fs.forEach(function (f) { f.style.right = f.style.bottom = f.style.left = f.style.top = ''; f.style.display = ''; });
+  var loop = fs.length > 3;   // 3개 이하면 다 보이므로 돌릴 필요 없음
+  var copy = function () {
+    return fs.map(function (f) {
+      var c = f.cloneNode(true); c.removeAttribute('id'); c.classList.add('fab-copy'); c.style.display = '';
+      els('[id]', c).forEach(function (x) { x.removeAttribute('id'); });
+      els('input', c).forEach(function (x) { x.remove(); });
+      c.addEventListener('click', function (ev) {   // 복제본을 누르면 원래 단추가 하는 일
+        ev.preventDefault(); ev.stopPropagation();
+        if (f.id === 'cam-fab') { var ci = el('#cam-in'); if (ci) ci.click(); } else f.click();
+      });
+      return c;
+    });
+  };
+  if (loop) copy().forEach(function (c) { r.appendChild(c); });
+  fs.forEach(function (f) { r.appendChild(f); });
+  if (loop) copy().forEach(function (c) { r.appendChild(c); });
+  r.classList.toggle('loop', loop);
+  document.body.appendChild(r);
+  if (!loop) return;
+  var step = function () { var k = r.children; return k[1].offsetTop - k[0].offsetTop; };
+  var H = function () { return step() * fs.length; };   // 한 바퀴 높이
+  var home = function () { return fs[fs.length - 1].offsetTop + fs[0].offsetHeight + 4 - r.clientHeight; };   // 원래 줄의 맨 아래(마이크)가 바닥에
+  var fix = function () {
+    var h = H(); if (!h) return;
+    if (r.scrollTop < h * 0.5) r.scrollTop += h;
+    else if (r.scrollTop > h * 1.5) r.scrollTop -= h;
+  };
+  r.addEventListener('scroll', fix, { passive: true });
+  requestAnimationFrame(function () { r.scrollTop = home(); });   // 처음엔 마이크·사진·번역이 보이게
+}
 function fabPos() { return LS.get('trip_fab', null) || {}; }
 // 사진이 들어갈 날짜: 여행 중이면 오늘(현지), 아니면 지금 보는 날짜 탭, 그것도 아니면 첫날
 function camDate() {
@@ -1161,7 +1227,7 @@ function kakaoMenu() {
 }
 function captureShare(whole) {
   toast('📸 그림으로 만드는 중…', null, 6000);
-  var hide = ['#mic-fab', '#cam-fab', '#kakao-fab', '.toast'].concat(whole ? ['.bnav'] : []);   // 긴 그림에는 아래 메뉴 빼기
+  var hide = ['#mic-fab', '#cam-fab', '#tr-fab', '#kakao-fab', '.fab-rail', '.toast'].concat(whole ? ['.bnav'] : []);   // 긴 그림에는 아래 메뉴 빼기
   loadH2C().then(function (h2c) {
     var bg = getComputedStyle(document.body).backgroundColor;
     var opt = { backgroundColor: bg, scale: Math.min(2, window.devicePixelRatio || 1), useCORS: true, logging: false,
@@ -1182,8 +1248,9 @@ function captureShare(whole) {
 }
 function placeFabs() {
   var n = el('.bnav'), nh = n ? n.offsetHeight : 70, pos = fabPos(), W = window.innerWidth, H = window.innerHeight;
-  [['mic', '#mic-fab', 0], ['cam', '#cam-fab', 1], ['kakao', '#kakao-fab', 2]].forEach(function (f) {
-    var e = el(f[1]); if (!e) return;
+  var rl = el('#fab-rail'); if (rl) rl.style.bottom = (nh + 12) + 'px';
+  [['mic', '#mic-fab', 0], ['cam', '#cam-fab', 1], ['tr', '#tr-fab', 2], ['kakao', '#kakao-fab', 3]].forEach(function (f) {
+    var e = el(f[1]); if (!e || rl) return;
     var p = pos[f[0]], size = e.offsetWidth || 58;
     var r = p ? p.r : 14, b = p ? p.b : nh + 12 + f[2] * (size + 12);
     r = Math.max(4, Math.min(W - size - 4, r)); b = Math.max(nh + 4, Math.min(H - size - 4, b));   // 화면 밖·아래 메뉴 위로는 못 가게
@@ -1196,7 +1263,7 @@ function bindFab(e, key, onTap) {
   var down = function (x, y) {
     st = { x: x, y: y, moved: false, drag: false };
     st.timer = setTimeout(function () {
-      if (!st) return; st.drag = true; e.classList.add('fab-drag');
+      if (!st || e.closest('#fab-rail')) return; st.drag = true; e.classList.add('fab-drag');
       if (navigator.vibrate) { try { navigator.vibrate(25); } catch (er) {} }
       toast('끌어서 놓으세요', null, 1200);
     }, 500);
@@ -1238,7 +1305,7 @@ function snapFab(e, key) {
   var base = nh + gap, step = size + gap, maxSlot = Math.floor((H - size - 4 - base) / step);
   var slot = Math.max(0, Math.min(maxSlot, Math.round((b - base) / step)));
   // 다른 단추(마이크·카메라·카톡)가 있는 칸이면 빈 칸으로 비켜 섬 — 위로 먼저, 없으면 아래로
-  var others = ['#mic-fab', '#cam-fab', '#kakao-fab'].map(function (q) { return el(q); }).filter(function (o) { return o && o !== e && o.style.display !== 'none'; });
+  var others = ['#mic-fab', '#cam-fab', '#tr-fab', '#kakao-fab'].map(function (q) { return el(q); }).filter(function (o) { return o && o !== e && o.style.display !== 'none'; });
   var taken = function (sl) { return others.some(function (o) { return Math.abs(parseFloat(o.style.right) - r) < 2 && Math.abs(parseFloat(o.style.bottom) - (base + sl * step)) < step / 2; }); };
   if (taken(slot)) { var up = slot, dn = slot; while (up < maxSlot && taken(up)) up++; while (dn > 0 && taken(dn)) dn--; slot = !taken(up) ? up : !taken(dn) ? dn : slot; }
   e.style.transition = 'right .15s, bottom .15s';
@@ -1522,9 +1589,11 @@ function render() {
     }).join('') + '</nav>' +
     (micOn() && !isRO() ? '<button class="mic-fab" id="mic-fab" aria-label="말로 하기"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/><path d="M8.5 21h7"/></svg></button>' : '') +
     (camOn() && !isRO() ? '<label class="mic-fab cam-fab" id="cam-fab" aria-label="사진 찍기"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l1.6-2.4A1 1 0 0 1 9.4 5h5.2a1 1 0 0 1 .8.6L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg><input type="file" accept="image/*" capture="environment" id="cam-in" hidden></label>' : '') +
+    (trOn() ? '<button class="mic-fab tr-fab" id="tr-fab" aria-label="번역앱 열기">' + TR_SVG + '</button>' : '') +
     '<button class="mic-fab kakao-fab" id="kakao-fab" aria-label="카톡으로 보내기" style="display:none">' + KAKAO_SVG + '</button>';
 
   if (el('#mic-fab')) bindFab(el('#mic-fab'), 'mic', function () { voiceOpen(); });
+  if (el('#tr-fab')) bindFab(el('#tr-fab'), 'tr', function () { openTranslator(); });   // 🌐 번역 (2026-11-21)
   if (el('#kakao-fab')) bindFab(el('#kakao-fab'), 'kakao', kakaoMenu);   // 꾹 눌러 옮기기 (2026-11-21)
   if (el('#cam-fab')) {
     bindFab(el('#cam-fab'), 'cam', null);
@@ -1533,6 +1602,7 @@ function render() {
       var d = camDate(); fs.forEach(function (f) { saveToPhone(f, d); }); toast('📸 ' + md(d) + '(' + wd(d) + ') 사진에 올리는 중… (폰 갤러리에도 저장)', null, 4000); uploadPhotos(d, fs, { cam: true });
     };
   }
+  buildFabRail();
   placeFabs();
   els('[data-tab]').forEach(function (b) { b.onclick = function () { go(b.dataset.tab); }; });
   els('[data-sec]').forEach(function (b) {
@@ -5138,7 +5208,9 @@ function thaiNums() {
 }
 function thaiHtml() {
   var cat = S.thaiCat || '인사';
-  return '<div class="card thai"><b>🗣️ 필수 태국어</b><div class="small muted">문장을 누르면 크게 보여요. 상대에게 화면을 보여 주세요.</div>' +
+  return '<div class="card thai"><b>🗣️ 필수 태국어</b>' +
+    '<div class="tr-btns"><button class="btn" data-tropen="papago">🟢 파파고 열기<div class="small muted">말·사진 번역</div></button><button class="btn" data-tropen="google">🔵 구글 번역<div class="small muted">한→태 바로</div></button></div>' +
+    '<div class="small muted">문장을 누르면 크게 보여요. 상대에게 화면을 보여 주세요.</div>' +
     '<div class="thai-cats">' + THAI_ORDER.filter(function (c) { return THAI[c]; }).map(function (c) { return '<button data-tcat="' + c + '"' + (c === cat ? ' class="on"' : '') + '>' + c + '</button>'; }).join('') + '</div>' +
     '<div class="thai-body">' + (cat === '숫자' ? thaiNums() : THAI[cat].map(function (p, i) {
       return '<button class="tp" data-tp="' + i + '"><div class="ko">' + esc(p[0]) + '</div><div class="say">' + esc(p[1]) + '</div><div class="th">' + esc(p[2]) + '</div></button>';
@@ -5195,12 +5267,21 @@ function viewInfo() {
       '<div class="small muted" style="margin-top:10px">🌙 화면 밝기</div><div class="seg-tabs" style="margin-top:4px">' + [['auto', '자동'], ['light', '밝게'], ['dark', '어둡게']].map(function (x) {
         return '<button class="' + ((LS.get('trip_theme', 'auto') || 'auto') === x[0] ? 'on' : '') + '" data-theme="' + x[0] + '">' + x[1] + '</button>';
       }).join('') + '</div>' +
-      '<div class="small muted" style="margin-top:10px">떠 있는 단추 (꾹 눌러 끌면 자리를 옮길 수 있어요)</div>' +
+      '<div class="small muted" style="margin-top:10px">떠 있는 단추 ' + (fabRail() ? '(스크롤: 위아래로 밀어 넘겨요)' : '(꾹 눌러 끌면 자리를 옮길 수 있어요)') + '</div>' +
+      '<div class="fab-set"><span>단추 모양</span><div class="seg-tabs">' + [['free', '모두 보기'], ['rail', '스크롤']].map(function (x) {
+        return '<button class="' + (LS.get('trip_fab_mode', 'rail') === x[0] ? 'on' : '') + '" data-fabmode="' + x[0] + '">' + x[1] + '</button>';
+      }).join('') + '</div></div>' +
       '<div class="fab-set"><span>🎤 말로 하기</span><div class="seg-tabs">' + [['on', '보이기'], ['off', '숨기기']].map(function (x) {
         return '<button class="' + (LS.get('trip_mic', 'on') === x[0] ? 'on' : '') + '" data-mic="' + x[0] + '">' + x[1] + '</button>';
       }).join('') + '</div></div>' +
       '<div class="fab-set"><span>📷 사진 찍기</span><div class="seg-tabs">' + [['on', '보이기'], ['off', '숨기기']].map(function (x) {
         return '<button class="' + (LS.get('trip_cam', 'on') === x[0] ? 'on' : '') + '" data-cam="' + x[0] + '">' + x[1] + '</button>';
+      }).join('') + '</div></div>' +
+      '<div class="fab-set"><span>🌐 번역</span><div class="seg-tabs">' + [['on', '보이기'], ['off', '숨기기']].map(function (x) {
+        return '<button class="' + (LS.get('trip_tr', 'on') === x[0] ? 'on' : '') + '" data-trf="' + x[0] + '">' + x[1] + '</button>';
+      }).join('') + '</div></div>' +
+      '<div class="fab-set"><span class="muted">　여는 앱</span><div class="seg-tabs">' + [['google', '구글'], ['papago', '파파고']].map(function (x) {
+        return '<button class="' + (trApp() === x[0] ? 'on' : '') + '" data-trapp="' + x[0] + '">' + x[1] + '</button>';
       }).join('') + '</div></div>' +
       '<button class="btn sm" data-act="fab-reset" style="margin-top:6px">단추 처음 자리로</button>' +
       myRequests() + '</div>';
@@ -5430,12 +5511,18 @@ function bindMain() {
     b.onclick = function () {
       var p = THAI[S.thaiCat || '인사'][Number(b.dataset.tp)];
       sheet('<div class="thai-big"><div class="small muted">' + esc(p[0]) + '</div><div class="th">' + esc(p[2]) + '</div><div class="say">' + esc(p[1]) + '</div></div>' +
-        '<button class="btn" style="width:100%;margin-top:14px" data-close>닫기</button>', null, true);
+        '<button class="btn" style="width:100%;margin-top:14px" data-trgo>🔵 구글 번역에서 이어서 하기</button>' +
+        '<button class="btn" style="width:100%;margin-top:8px" data-close>닫기</button>', null, true);
+      var g = el('[data-trgo]'); if (g) g.onclick = function () { openTranslator('google', String(p[0]).replace(/\s*\(.*?\)\s*/g, ' ').trim()); };
     };
   });
   els('[data-admin]', m).forEach(function (d) { d.ontoggle = function () { S.adminOpen = d.open; }; });
   els('[data-mic]', m).forEach(function (b) { b.onclick = function () { LS.set('trip_mic', b.dataset.mic); render(); }; });
   els('[data-cam]', m).forEach(function (b) { b.onclick = function () { LS.set('trip_cam', b.dataset.cam); render(); }; });
+  els('[data-fabmode]', m).forEach(function (b) { b.onclick = function () { LS.set('trip_fab_mode', b.dataset.fabmode); render(); }; });
+  els('[data-trf]', m).forEach(function (b) { b.onclick = function () { LS.set('trip_tr', b.dataset.trf); render(); }; });
+  els('[data-trapp]', m).forEach(function (b) { b.onclick = function () { LS.set('trip_tr_app', b.dataset.trapp); render(); }; });
+  els('[data-tropen]', m).forEach(function (b) { b.onclick = function () { openTranslator(b.dataset.tropen); }; });
   els('[data-theme]', m).forEach(function (b) {
     b.onclick = function () {
       var v = b.dataset.theme; LS.set('trip_theme', v);
