@@ -455,6 +455,13 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .fab-rail::-webkit-scrollbar{display:none}
 .fab-rail .mic-fab{position:static!important;flex:0 0 58px;scroll-snap-align:end;touch-action:pan-y}
 .fab-rail.loop{-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 12px,#000 calc(100% - 12px),transparent 100%);mask-image:linear-gradient(to bottom,transparent 0,#000 12px,#000 calc(100% - 12px),transparent 100%)}
+.exl{margin-top:8px;border-top:1px dashed var(--line);padding-top:6px}
+.exl summary{cursor:pointer;font-size:calc(14px*var(--fs));padding:4px 0}
+.exl-g{display:grid;grid-template-columns:3.2em 1fr 1fr 1.25fr 3.6em;gap:4px;font-size:calc(13px*var(--fs));padding:3px 0;align-items:baseline}
+.exl-g>span:nth-child(n+3){text-align:right;font-variant-numeric:tabular-nums}
+.exl-h{color:var(--sub);border-bottom:1px solid var(--line)}
+.exl-t{border-top:1px solid var(--line);font-weight:700}
+.exl-m{margin:-2px 0 2px 3.4em}
 .tr-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
 .tr-btns .btn{padding:10px 4px;font-weight:700;line-height:1.3}
 .fab-set{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px}
@@ -820,7 +827,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-101';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-102';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -3927,35 +3934,74 @@ function walletLine() {
 function movesHtml() {
   var mv = (S.D.cashMoves || []).slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
   return '<div class="row wrap-row" style="margin-top:6px"><button class="btn sm" data-act="cash-move">🔁 공금 넘겨주기</button><button class="btn sm" data-act="cash-exch">💱 추가 환전</button></div>' +
-    mv.map(function (m) {
+    exchListHtml() +
+    mv.filter(function (m) { return m.from !== '회비'; }).map(function (m) {
       var canDel = m.by === S.me.name || S.me.isAdmin, ex = m.from === '회비';
       return '<div class="small" style="margin-top:4px">' + (ex ? '💱 ' + md(m.date) + ' 회비 환전 → ' + esc(m.to) + ' <b>' + baht(m.thb) + '</b> <span class="muted">(' + won(m.krw) + ')</span>'
         : '🔁 ' + md(m.date) + ' ' + esc(m.from) + ' → ' + esc(m.to) + ' <b>' + baht(m.thb) + '</b>') + (m.memo ? ' <span class="muted">' + esc(m.memo) + '</span>' : '') +
         (canDel ? ' <a href="#" data-mvdel="' + esc(m.id) + '">✕</a>' : '') + '</div>';
     }).join('');
 }
+/* 💱 환전 기록 (2026-11-21 사용자 요청): 회비 사용의 '환전 N바트' + 앱에서 적은 추가 환전을 날짜순으로,
+   줄마다 그때 환율(원화 ÷ 바트), 맨 아래 합계·평균. 정산 환율이 평균과 다르면 알림 */
+function exchRows() {
+  var rows = [];
+  (S.D.feeUses || []).forEach(function (u) {
+    var m = /환전\s*฿?\s*([\d,]+)/.exec(u.title || ''); if (!m) return;
+    rows.push({ date: String(u.date || ''), who: u.by || '', thb: Number(m[1].replace(/,/g, '')) || 0, krw: Number(String(u.amount).replace(/,/g, '')) || 0, memo: u.memo || '' });
+  });
+  exchanges().forEach(function (m) {
+    rows.push({ date: String(m.date || ''), who: m.to, thb: Number(String(m.thb).replace(/,/g, '')) || 0, krw: Number(String(m.krw).replace(/,/g, '')) || 0, memo: m.memo || '', id: m.id, by: m.by });
+  });
+  return rows.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+}
+function exchListHtml() {
+  var rows = exchRows(); if (!rows.length) return '';
+  var t = sumOf(rows, 'thb'), k = sumOf(rows, 'krw'), avg = t ? Math.round(k / t * 100) / 100 : 0, sr = settleRate();
+  var r2 = function (x) { return (Math.round(x * 100) / 100).toFixed(2); };
+  return '<details class="exl"' + (S.exlOpen ? ' open' : '') + ' data-exl><summary>💱 환전 기록 ' + rows.length + '건 · 평균 <b>' + r2(avg) + '원</b></summary>' +
+    '<div class="exl-g exl-h"><span>날짜</span><span>누가</span><span>바트</span><span>원화</span><span>환율</span></div>' +
+    rows.map(function (r) {
+      var canDel = r.id && (r.by === S.me.name || S.me.isAdmin);
+      return '<div class="exl-g"><span>' + md(r.date) + '</span><span>' + esc(r.who) + '</span><span>' + num(r.thb) + '</span><span>' + num(r.krw) + '</span><span><b>' + (r.thb ? r2(r.krw / r.thb) : '') + '</b>' +
+        (canDel ? ' <a href="#" data-mvdel="' + esc(r.id) + '" title="지우기">✕</a>' : '') + '</span></div>' +
+        (r.memo ? '<div class="small muted exl-m">' + esc(r.memo) + '</div>' : '');
+    }).join('') +
+    '<div class="exl-g exl-t"><span>합계</span><span></span><span>' + num(t) + '</span><span>' + num(k) + '</span><span><b>' + r2(avg) + '</b></span></div>' +
+    (Math.abs(avg - sr) >= 0.005 ? '<div class="small" style="color:var(--warn);margin-top:6px">⚠️ 지금 정산 환율 ' + sr + '원이 환전 평균 ' + r2(avg) + '원과 달라요.' +
+      (S.me.isAdmin ? ' <button class="btn sm" data-act="settle-rate" style="margin-left:4px">정산 환율 바꾸기</button>' : ' 관리자에게 알려 주세요.') + '</div>'
+      : '<div class="small muted" style="margin-top:6px">정산 환율 ' + sr + '원 = 환전 평균 ✓</div>') +
+    '</details>';
+}
 /* 💱 추가 환전: 회비 통장 원화를 현지에서 바트로 바꿈 → 받은 사람 지갑 +바트, 회비 사용 +원화 */
 function cashExchForm() {
-  var names = memberNames(), today = localNow().date, ds = dates(), rate = liveRate();
+  var names = memberNames(), today = localNow().date, cashRate = S.fx && S.fx.cash;
   var hs = cashHolders().map(function (h) { return h.name; });
   var st = { to: hs.indexOf(S.me.name) >= 0 ? S.me.name : (hs[0] || '') };
-  var sh = sheet('<h3>💱 공금 추가 환전</h3><p class="small muted">회비 통장 돈을 현지에서 바트로 더 바꿨을 때 적어 주세요. 바트는 받은 사람 지갑(공금)에 더해지고, 원화는 회비 사용으로 빠집니다.</p>' +
+  var sh = sheet('<h3>💱 공금 추가 환전</h3><p class="small muted">회비 통장 돈을 바트로 더 바꿨을 때(한국 은행이든 현지든) 적어 주세요. 바트는 받은 사람 지갑(공금)에 더해지고, 원화는 회비 통장에서 빠집니다.</p>' +
     '<label class="lb">바꾼 바트를 받은 사람</label><div class="grid4" id="ex-to">' + names.map(function (n) { return '<button class="pick' + (n === st.to ? ' on' : '') + '" data-v="' + esc(n) + '">' + esc(n) + '</button>'; }).join('') + '</div>' +
     '<div class="fx-grid x-money" style="margin-top:10px"><label class="mwrap"><span class="unit">THB</span><input class="inp money" id="ex-thb" inputmode="decimal" placeholder="0"></label><span>⇄</span><label class="mwrap won"><span class="unit">원</span><input class="inp money" id="ex-krw" inputmode="numeric" placeholder="0"></label></div>' +
-    '<p class="small muted" style="margin:4px 2px 0">원화는 지금 환율(' + rate.toFixed(2) + '원)로 먼저 채워져요. 실제로 통장에서 나간 금액으로 고쳐 주세요.</p>' +
-    '<div class="row" style="margin-top:8px"><label class="lb" style="margin:0">날짜</label><select class="inp" id="ex-date" style="flex:1">' + ds.map(function (d) { return '<option value="' + d + '"' + (d === (ds.indexOf(today) >= 0 ? today : ds[0]) ? ' selected' : '') + '>' + md(d) + '(' + wd(d) + ')</option>'; }).join('') + '</select></div>' +
+    '<p class="small muted" id="ex-rate" style="margin:4px 2px 0">원화는 <b>통장에서 실제로 나간 금액</b>(환전 영수증)을 적어 주세요. 환율은 저절로 계산돼요.' + (cashRate ? ' (참고: 오늘 현금 살 때 ' + cashRate.toFixed(2) + '원)' : '') + '</p>' +
+    '<div class="row" style="margin-top:8px;align-items:flex-start"><label class="lb" style="margin:0;padding-top:12px">날짜</label><div style="flex:1;min-width:0"><input type="date" class="inp" id="ex-date" style="width:100%" value="' + today + '">' +
+    '<p class="small muted" style="margin:2px 0 0;padding-left:13px">환전하거나 신청한 날</p></div></div>' +
     '<label class="lb">메모 (선택)</label><input class="inp" id="ex-memo" placeholder="예) 공항 환전소, ATM">' +
     '<p class="small" id="ex-msg" style="color:var(--bad);min-height:18px"></p>' +
     '<div class="row" style="justify-content:flex-end"><button class="btn" data-close>취소</button><button class="btn pri" id="ex-ok">저장</button></div>');
   els('#ex-to .pick', sh).forEach(function (b) { b.onclick = function () { st.to = b.dataset.v; els('#ex-to .pick', sh).forEach(function (x) { x.classList.toggle('on', x === b); }); }; });
-  var tIn = el('#ex-thb', sh), kIn = el('#ex-krw', sh), kTouched = false;
-  tIn.oninput = function () { commaLive(tIn, true); if (kTouched) return; var v = parseFloat(tIn.value.replace(/,/g, '')); kIn.value = isFinite(v) ? num(Math.round(v * rate)) : ''; };
-  kIn.oninput = function () { commaLive(kIn, false); kTouched = !!kIn.value; };
+  var tIn = el('#ex-thb', sh), kIn = el('#ex-krw', sh);
+  /* 바트·원화 둘 다 적으면 실제 환율을 보여 줌 (지금 환율로 미리 채우지 않음 — 2026-11-21 사용자 요청) */
+  var showRate = function () {
+    var t = parseFloat(tIn.value.replace(/,/g, '')), k = parseFloat(kIn.value.replace(/,/g, ''));
+    if (t > 0 && k > 0) el('#ex-rate', sh).innerHTML = '→ 이번 환전 환율: <b>1바트 = ' + (Math.round(k / t * 100) / 100).toFixed(2) + '원</b> (영수증과 같은지 확인해 주세요)';
+  };
+  tIn.oninput = function () { commaLive(tIn, true); showRate(); };
+  kIn.oninput = function () { commaLive(kIn, false); showRate(); };
   el('#ex-ok', sh).onclick = function () {
     var thb = tIn.value.replace(/,/g, ''), krw = kIn.value.replace(/,/g, '');
     if (!st.to) { el('#ex-msg', sh).textContent = '바트를 받은 사람을 골라 주세요.'; return; }
     if (!(Number(thb) > 0)) { el('#ex-msg', sh).textContent = '받은 바트를 적어 주세요.'; return; }
     if (!(Number(krw) > 0)) { el('#ex-msg', sh).textContent = '통장에서 나간 원화를 적어 주세요.'; return; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(el('#ex-date', sh).value)) { el('#ex-msg', sh).textContent = '날짜를 골라 주세요.'; return; }
     call('addCashMove', { from: '회비', to: st.to, thb: thb, krw: krw, date: el('#ex-date', sh).value, memo: el('#ex-memo', sh).value }).then(function (r) {
       S.D.cashMoves = r.cashMoves; saveCache(); closeSheet(); renderMain(); toast(st.to + ' 지갑에 ' + baht(thb) + ' 더했습니다.');
     }).catch(function (e) { el('#ex-msg', sh).textContent = e.message; });
@@ -5348,15 +5394,15 @@ function baselineCard() {
   return '<div class="card"><b>🧪 시험 기본값</b><p class="small muted">여행 전에 이것저것 시험해 본 뒤 처음 상태로 되돌려요. 여행이 시작되면 이 칸은 사라져요.</p>' +
     '<div class="small">' + (st.baseline_at ? '저장한 기본값: <b>' + esc(atLocal(st.baseline_at)) + '</b>' : '<span style="color:var(--warn)">아직 저장한 기본값이 없어요.</span>') + '</div>' +
     '<div class="bl-tbl">' +
-      '<span class="bl-k" style="color:var(--warn)">📌 저장</span><span>일정 · 항공 · 라운드 · 연락처 · 현지 팁 · 설정 · 회비</span>' +
-      '<span class="bl-k" style="color:var(--bad)">🗑️ 지움</span><span>지출 · 스코어 · 내기 · 사진 · 댓글 · 수정 요청 · 공금 이동 · 정산 확인 · 변경 기록</span>' +
+      '<span class="bl-k" style="color:var(--warn)">📌 저장</span><span>일정 · 항공 · 라운드 · 연락처 · 현지 팁 · 설정 · 회비 · 공금 환전·이동</span>' +
+      '<span class="bl-k" style="color:var(--bad)">🗑️ 지움</span><span>지출 · 스코어 · 내기 · 사진 · 댓글 · 수정 요청 · 정산 확인 · 변경 기록</span>' +
       '<span class="bl-k">✋ 그대로</span><span>회원 · PIN · 기기 허락 · 바우처</span></div>' +
     '<div class="bl-btns"><button class="btn sm pri" data-act="bl-save">📌 기본값 저장</button>' +
     '<button class="btn sm" data-act="bl-reset" style="color:var(--bad)"' + (st.baseline_at ? '' : ' disabled') + '>↺ 되돌리기</button></div></div>';
 }
 function baselineAct(act, b) {
   if (act === 'bl-save') {
-    return confirmBox('지금 일정 · 항공 · 라운드 · 연락처 · 현지 팁 · 설정 · 회비 기록을 기본값으로 저장할까요? (전에 저장한 기본값은 바뀌어요)', '저장').then(function (y) {
+    return confirmBox('지금 일정 · 항공 · 라운드 · 연락처 · 현지 팁 · 설정 · 회비 · 공금 환전·이동 기록을 기본값으로 저장할까요? (전에 저장한 기본값은 바뀌어요)', '저장').then(function (y) {
       if (!y) return;
       b.disabled = true; b.textContent = '저장하는 중…';
       call('baselineSave', {}).then(function (r) { S.D.settings.baseline_at = r.at; saveCache(); renderMain(); toast('기본값으로 저장했어요.'); }).catch(function (e) { toast(e.message); renderMain(); });
@@ -5722,6 +5768,7 @@ function bindMain() {
       call('settleMark', { key: b.dataset.mark, on: !!b.dataset.on, stamp: b.dataset.stamp || '' }).then(function (r) { S.D.settle = r.settle; saveCache(); renderMain(); }).catch(function (e) { toast(e.message); });
     };
   });
+  els('[data-exl]', m).forEach(function (d) { d.ontoggle = function () { S.exlOpen = d.open; }; });   // 환전 기록 펼침 기억
   els('[data-mvdel]', m).forEach(function (a) {
     a.onclick = function (ev) {
       ev.preventDefault();
