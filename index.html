@@ -820,7 +820,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-97';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-98';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -5336,7 +5336,7 @@ function baselineAct(act, b) {
     });
   }
   if (act === 'bl-reset') {
-    return confirmBox((S.D.settings.baseline_at || '') + '에 저장한 기본값으로 되돌릴까요? 지출 · 스코어 · 사진 · 댓글 같은 시험 자료는 지워져요. (되돌리기 전에 시트 사본을 드라이브 「보관」 폴더에 만들어 둬요)', '되돌리기').then(function (y) {
+    return confirmBox((S.D.settings.baseline_at ? atLocal(S.D.settings.baseline_at) : '') + '에 저장한 기본값으로 되돌릴까요? 지출 · 스코어 · 사진 · 댓글 같은 시험 자료는 지워져요. (되돌리기 전에 시트 사본을 드라이브 「보관」 폴더에 만들어 둬요)', '되돌리기').then(function (y) {
       if (!y) return;
       b.disabled = true; b.textContent = '되돌리는 중… 잠시만요';
       call('baselineReset', {}).then(function (r) {
