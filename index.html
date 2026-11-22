@@ -461,6 +461,15 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .exl-g>span:nth-child(n+3){text-align:right;font-variant-numeric:tabular-nums}
 .exl-h{color:var(--sub);border-bottom:1px solid var(--line);padding-top:2px}
 .exl-t{border-top:1px solid var(--line);border-bottom:0;font-weight:700}
+.est-bar{height:8px;background:var(--line);border-radius:6px;margin-top:4px;overflow:hidden}
+.est-bar i{display:block;height:100%;background:var(--pri);border-radius:6px}
+.est-bar i.over{background:var(--warn)}
+.est-cat{margin-top:10px;font-size:calc(14px*var(--fs))}
+.est-over{color:var(--warn);font-weight:700}
+.est-day{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding:5px 0;border-bottom:1px solid var(--line);font-size:calc(14px*var(--fs))}
+.est-day>span:nth-child(n+2){text-align:right;font-variant-numeric:tabular-nums}
+.est-dh{color:var(--sub);font-size:calc(12px*var(--fs))}
+.est-dt{font-weight:700;border-bottom:0}
 .tr-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
 .tr-btns .btn{padding:10px 4px;font-weight:700;line-height:1.3}
 .fab-set{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px}
@@ -826,7 +835,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-103';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-104';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 function call(action, payload) {
@@ -3911,12 +3920,58 @@ function viewMoney() {
       '<div class="small muted" style="text-align:right">' + esc(S.D.settings.fee_asof || '') + ' 기준' + (c.exThb ? ' + 현지 환전 반영' : '') + '</div></div>' +
     '<div class="cbox ctotal"><div class="ctop"><span class="lab">회비 예상 잔액</span><b class="big">' + won(Math.round(c.cashLeft * c.rate) + fs.balance) + '</b></div>' +
       '<div class="small muted">통장 ' + won(fs.balance) + ' + 남은 바트 ' + baht(c.cashLeft) + '을 ' + c.rate + '원에 바꾼 ' + won(Math.round(c.cashLeft * c.rate)) + '</div></div></div>' +
-    '<div class="seg-tabs folder">' + [['fee', '🏦 회비'], ['list', '🧾 지출 기록'], ['settle', '🤝 정산']].map(function (t) {
+    '<div class="seg-tabs folder' + (S.me.isAdmin ? ' four' : '') + '">' + [['fee', '🏦 회비'], ['list', '🧾 지출 기록']].concat(S.me.isAdmin ? [['est', '📊 예상']] : []).concat([['settle', '🤝 정산']]).map(function (t) {
       return '<button class="' + (sub === t[0] ? 'on' : '') + '" data-mtab="' + t[0] + '">' + t[1] + '</button>';
     }).join('') + '</div><div class="folder-body">';
   if (sub === 'settle') return head + viewSettle(c) + '</div>';
   if (sub === 'fee') return head + viewFee() + '</div>';
+  if (sub === 'est' && S.me.isAdmin) return head + viewEstimate(c) + '</div>';
   return head + viewExpenseList() + '</div>';
+}
+
+/* 📊 예상 대비 (관리자만, 2026-11-22): 시트 '예상' 탭(날짜·항목별 예상)과 실제 지출을 분류별·날짜별로 비교.
+   금액은 4인 원화 — 바트는 정산 환율로, basis '4인'은 그대로, '1인'은 ×4. 분류가 '(개인…)'이면 비교에서 빼고 따로 */
+function estNum(v) { return Number(String(v || '').replace(/[^\d.\-]/g, '')) || 0; }
+function viewEstimate(c) {
+  var rows = S.D.estimates || [], R = settleRate(), ds = dates();
+  var dk = function (d) { return 'd' + d.slice(5).replace('-', ''); };
+  var est = {}, estDay = {}, personal = 0, total = 0;
+  rows.forEach(function (r) {
+    var mul = (r.cur === 'THB' ? R : 1) * (r.basis === '4인' ? 1 : 4), cat = String(r.category || '기타');
+    ds.forEach(function (d) {
+      var w = estNum(r[dk(d)]) * mul; if (!w) return;
+      if (/^\(|개인/.test(cat)) { personal += w; return; }
+      est[cat] = (est[cat] || 0) + w; estDay[d] = (estDay[d] || 0) + w; total += w;
+    });
+  });
+  var act = {}, actDay = {}, actTotal = 0;
+  (S.D.expenses || []).forEach(function (e) {
+    var w = expThb(e) * R; act[e.category] = (act[e.category] || 0) + w; actDay[e.date] = (actDay[e.date] || 0) + w; actTotal += w;
+  });
+  if (!rows.length) return '<div class="card"><b>📊 예상 대비</b><p class="small muted">구글 시트 「예상」 탭에 예상 비용이 아직 없어요.</p></div>';
+  var bar = function (a, e) {
+    var p = e ? Math.round(a / e * 100) : (a ? 100 : 0);
+    return '<div class="est-bar"><i class="' + (p > 100 ? 'over' : '') + '" style="width:' + Math.min(100, p) + '%"></i></div>';
+  };
+  var icon = {}; CATS.forEach(function (x) { icon[x[0]] = x[1]; });
+  var cats = Object.keys(est).concat(Object.keys(act).filter(function (k) { return !est[k]; }))
+    .sort(function (a, b) { return (est[b] || 0) - (est[a] || 0); });
+  var pct = total ? Math.round(actTotal / total * 100) : 0;
+  return '<div class="card"><div class="row between"><b>📊 예상 대비 쓴 돈 (4인)</b><span class="small muted">관리자만 보여요</span></div>' +
+      '<div class="row between" style="margin-top:6px"><span class="small muted">예상 ' + won(total) + ' (개인 용돈 빼고)</span><b>' + won(actTotal) + ' <span class="small muted">' + pct + '%</span></b></div>' + bar(actTotal, total) +
+      cats.map(function (k) {
+        var a = act[k] || 0, e = est[k] || 0, p = e ? Math.round(a / e * 100) : 0;
+        return '<div class="est-cat"><div class="row between"><span>' + (icon[k] || '⭐') + ' ' + esc(k) + '</span><span class="small' + (e && a > e ? ' est-over' : ' muted') + '">' + num(Math.round(a)) + ' / ' + num(Math.round(e)) + (e ? ' · ' + p + '%' : '') + '</span></div>' + bar(a, e) + '</div>';
+      }).join('') +
+      '<p class="small muted" style="margin:8px 0 0">예상보다 많이 쓴 분류는 주황 · 바트는 정산 환율 ' + R + '원으로 · 개인 용돈 예상 ' + won(personal) + '은 각자 돈이라 빼고 계산</p></div>' +
+    '<div class="card"><b>📅 날짜별</b>' +
+      '<div class="est-day est-dh"><span>날짜</span><span>예상</span><span>실제</span></div>' +
+      ds.map(function (d) {
+        var e = estDay[d] || 0, a = actDay[d] || 0;
+        return '<div class="est-day"><span>' + md(d) + '(' + wd(d) + ')</span><span>' + num(Math.round(e)) + '</span><span class="' + (e && a > e ? 'est-over' : '') + '">' + num(Math.round(a)) + '</span></div>';
+      }).join('') +
+      '<div class="est-day est-dt"><span>합계</span><span>' + num(Math.round(total)) + '</span><span>' + num(Math.round(actTotal)) + '</span></div>' +
+      '<p class="small muted" style="margin:6px 0 0">예상 금액은 구글 시트 「예상」 탭에서 고쳐요 (원 · 4인 기준)</p></div>';
 }
 
 /* 공금 카드의 사람별 줄: "👛 박상천 ฿23,000 · 표상민 ฿29,600 남음" (지갑을 안 고른 공금이 있으면 따로) */
