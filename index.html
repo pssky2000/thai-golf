@@ -760,8 +760,9 @@ html.fab-dim .mic-fab,html.fab-dim .fab-rail{opacity:.12;pointer-events:none}   
 /* 회비: 회원별 연도 줄 */
 .fee-y{display:flex;justify-content:space-between;font-size:calc(14px*var(--fs));padding:2px 0 2px 8px;color:var(--sub)}
 .fee-tot{display:flex;justify-content:space-between;font-weight:700;margin:4px 0 2px}
-.use-tot{display:flex;justify-content:space-between;align-items:baseline;gap:8px;background:var(--pri-soft);border-radius:10px;padding:8px 12px;margin:8px 0 4px;font-weight:700}   /* 회비 사용 합계: 아래 목록과 구분되게 연초록 상자 */
-.use-tot b{color:var(--pri);white-space:nowrap}
+.use-tot{display:flex;justify-content:space-between;align-items:baseline;gap:8px;background:var(--pri-soft);border:2px solid var(--pri);border-radius:10px;padding:8px 12px;margin:8px 0 4px;font-weight:700}   /* 회비 사용 합계: 아래 목록과 구분되게 연초록 상자 */
+.use-tot span{color:var(--pri)}   /* 위 '사용' 칸과 같은 색: 글자 초록 · 금액 기본색 (사용자 2026-11-22) */
+.use-tot b{color:var(--ink);white-space:nowrap}
 /* 공금 카드: 바트 현금 · 통장 */
 /* 공금 카드: ① 바트 현금(+누가 갖고 있나) ② 회비 통장 ③ 회비 예상 잔액 */
 .cbox{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:8px}
@@ -844,7 +845,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-113';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-119';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 /* 두 번 저장 막기: 단추를 누른 그 순간 서버 요청이 나가면, 답이 올 때까지 그 단추를 잠금('저장 중…') */
@@ -1718,7 +1719,7 @@ function renderMain() {
   if (S.tab === 'all') h = viewAll();
   else if (S.tab === 'score') h = viewScore();
   else if (S.tab === 'info') h = viewInfo();
-  else if (S.tab === 'money') h = canMoney() ? viewMoney() : viewAll();
+  else if (S.tab === 'money') h = canMoney() ? viewMoney().replace(/(\d)원/g, '$1 원').replace(/฿(?=[\d−-])/g, '฿ ') : viewAll();   // 경비 화면 금액은 숫자와 '원' 사이 한 칸 (사용자 2026-11-22, 바트도 '฿ 60,500'처럼 한 칸, '1080만원'처럼 줄인 금액은 그대로)
   else h = viewDay(S.tab);
   m.innerHTML = bahtSign(h);
   bindMain();
@@ -3957,7 +3958,7 @@ function viewMoney() {
   var head =
     '<div class="card cash"><b style="white-space:nowrap">💰 공금 남은 돈</b>' +
     '<div class="cbox"><div class="ctop"><span class="lab">💵 남은 바트 현금</span><b class="big">' + baht(c.cashLeft) + '</b></div>' +
-      '<div class="ctop" style="margin-top:2px"><span class="muted">처음 ' + baht(c.cash0) + (c.exThb ? ' + 환전 ' + baht(c.exThb) : '') + '</span><span>쓴 돈 <span class="spent">' + baht(c.common) + '</span></span></div>' +
+      '<div class="ctop" style="margin-top:2px"><span class="muted">처음 ' + baht(c.cash0) + (c.exThb ? ' + 환전 ' + baht(c.exThb) : '') + '</span><span>쓴돈 <span class="spent">' + baht(c.common) + '</span></span></div>' +
       '<div class="bar-bg" style="margin-top:8px"><div class="bar-fg" style="width:' + pct + '%"></div></div>' +
       walletLine() + '</div>' +
     '<div class="cbox"><div class="ctop"><span class="lab">🏦 회비 통장</span><b class="big">' + won(fs.balance) + '</b></div>' +
@@ -4286,7 +4287,7 @@ function viewFee() {
     html += '<div class="card"><b>📤 회비 사용 내역</b>' +
       '<div class="use-tot"><span>사용 합계</span><b>' + won(useTotal) + '</b></div>' +
       (uses.length ? uses.slice().sort(function (a, b) { return String(a.date || '').localeCompare(String(b.date || '')); }).map(function (u) {
-        return '<button type="button" class="mrow mrow-btn" data-feeuse="' + esc(u.ex ? 'ex' : u.id) + '"><div><b>' + esc(u.title) + '</b><div class="small muted">' + esc(u.date) + '</div><div class="small muted">' + esc(u.by) + (u.memo ? ' · ' + esc(u.memo) : '') + '</div></div><div class="bal">' + won(u.amount) + ' <span class="muted">›</span></div></button>';
+        return '<button type="button" class="mrow mrow-btn" data-feeuse="' + esc(u.ex ? 'ex' : u.id) + '"><div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;gap:10px"><b>' + esc(u.title) + '</b><span class="bal">' + won(u.amount) + ' <span class="muted">›</span></span></div><div class="small muted">' + esc(u.date) + '</div><div class="small muted">' + esc(u.by) + (u.memo ? ' · ' + esc(u.memo) : '') + '</div></div></button>';
       }).join('') : '<p class="muted small">아직 사용 기록이 없습니다.</p>') +
       (S.me.isAdmin ? '<button class="btn sm" data-act="fee-use" style="margin-top:8px">＋ 사용 기록 (관리자)</button>' : '') + '</div>';
   } else {
