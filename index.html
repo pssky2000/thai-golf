@@ -845,7 +845,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-119';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-121';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 /* 두 번 저장 막기: 단추를 누른 그 순간 서버 요청이 나가면, 답이 올 때까지 그 단추를 잠금('저장 중…') */
@@ -1719,7 +1719,7 @@ function renderMain() {
   if (S.tab === 'all') h = viewAll();
   else if (S.tab === 'score') h = viewScore();
   else if (S.tab === 'info') h = viewInfo();
-  else if (S.tab === 'money') h = canMoney() ? viewMoney().replace(/(\d)원/g, '$1 원').replace(/฿(?=[\d−-])/g, '฿ ') : viewAll();   // 경비 화면 금액은 숫자와 '원' 사이 한 칸 (사용자 2026-11-22, 바트도 '฿ 60,500'처럼 한 칸, '1080만원'처럼 줄인 금액은 그대로)
+  else if (S.tab === 'money') h = canMoney() ? viewMoney().replace(/(\d)원/g, '$1 원').replace(/฿(?=[\d−-])/g, '฿ ').replace(/(\d)만원/g, '$1 만원') : viewAll();   // 경비 화면 금액은 숫자와 '원' 사이 한 칸 (사용자 2026-11-22, 바트도 '฿ 60,500'처럼 한 칸(줄이 바뀌어도 안 떨어지는 빈칸), '1080만원'처럼 줄인 금액은 그대로)
   else h = viewDay(S.tab);
   m.innerHTML = bahtSign(h);
   bindMain();
