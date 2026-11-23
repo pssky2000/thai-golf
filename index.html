@@ -874,7 +874,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-133';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-134';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 /* 두 번 저장 막기: 단추를 누른 그 순간 서버 요청이 나가면, 답이 올 때까지 그 단추를 잠금('저장 중…') */
@@ -4180,7 +4180,7 @@ function viewEstimate(c) {
       '<p class="small muted" style="margin:6px 0 0">예상 금액은 구글 시트 「예상」 탭에서 고쳐요 (원 · 4인 기준)</p></div>';
 }
 
-/* 공금 카드의 사람별 줄: "👛 박상천 ฿23,000 · 표상민 ฿29,600 남음" (지갑을 안 고른 공금이 있으면 따로) */
+/* 공금 카드의 사람별 줄: "👛 (이름) ฿(남은 바트) 남음" (지갑을 안 고른 공금이 있으면 따로) */
 function walletLine() {
   var w = cashByHolder();
   if (!w.list.length) return S.D.settings.common_cash_note ? '<div class="wsub">' + esc(S.D.settings.common_cash_note) + '</div>' : '';
