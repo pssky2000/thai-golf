@@ -845,7 +845,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-123';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-124';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 /* 두 번 저장 막기: 단추를 누른 그 순간 서버 요청이 나가면, 답이 올 때까지 그 단추를 잠금('저장 중…') */
@@ -4287,13 +4287,36 @@ function viewSettle(c) {
 }
 
 /* 회비 납부 현황 */
+/* 회비 사용 목록의 '💱 추가 환전' 줄을 누르면: 통장 돈으로 바꾼 바트 기록 자세히. 고치기 창은 없어서 관리자는 지우고 다시 적기 */
+function exMoveSheet(mid) {
+  var m = (S.D.cashMoves || []).filter(function (x) { return x.id === mid; })[0]; if (!m) return;
+  var thb = Number(String(m.thb).replace(/,/g, '')) || 0, krw = Number(String(m.krw).replace(/,/g, '')) || 0;
+  var sh = sheet('<h3>💱 추가 환전</h3>' +
+    '<div class="kv"><span>받은 바트</span><b>' + baht(thb) + '</b></div>' +
+    '<div class="kv"><span>통장에서 나간 돈</span><b>' + won(krw) + '</b></div>' +
+    (thb ? '<div class="kv"><span>환율</span><b>฿1 = ' + (Math.round(krw / thb * 100) / 100) + '원</b></div>' : '') +
+    '<div class="kv"><span>날짜</span><b>' + esc(m.date) + '</b></div>' +
+    '<div class="kv"><span>바트 받은 사람</span><b>' + esc(m.to) + '</b></div>' +
+    (m.memo ? '<div class="kv"><span>메모</span><b>' + esc(m.memo) + '</b></div>' : '') +
+    '<p class="small muted">회비 통장 돈으로 바꾼 바트예요. 바트는 공금(바트 현금)에 더해지고, 원화는 통장 사용으로 빠져요.' +
+    (S.me.isAdmin ? ' 잘못 적었으면 지우고 공금 카드 [💱 추가 환전]으로 다시 적어 주세요.' : ' 고칠 곳이 있으면 관리자에게 알려 주세요.') + '</p>' +
+    '<div class="row" style="justify-content:flex-end;gap:8px">' + (S.me.isAdmin ? '<button class="btn" data-exdel>🗑️ 지우기</button>' : '') + '<button class="btn" data-close>닫기</button></div>');
+  els('[data-close]', sh).forEach(function (x) { x.onclick = closeSheet; });
+  var d = el('[data-exdel]', sh);
+  if (d) d.onclick = function () {
+    confirmBox('이 환전 기록을 지울까요? (' + baht(thb) + ' · ' + won(krw) + ')', '삭제').then(function (y) {
+      if (!y) return;
+      call('deleteCashMove', { id: m.id }).then(function (r) { S.D.cashMoves = r.cashMoves; saveCache(); closeSheet(); renderMain(); toast('지웠어요.'); }).catch(function (e) { toast(e.message); });
+    });
+  };
+}
 function feeStats() {
   var s = S.D.settings, names = memberNames();
   var fees = S.D.fees || [], uses = S.D.feeUses || [];
   var paidBy = {}; names.forEach(function (n) { paidBy[n] = 0; });
   fees.forEach(function (f) { paidBy[f.member] = (paidBy[f.member] || 0) + Number(f.amount || 0); });
   var paidTotal = names.reduce(function (a, n) { return a + paidBy[n]; }, 0);
-  exchanges().forEach(function (m) { uses = uses.concat([{ title: '💱 현지 환전 ' + baht(m.thb), date: m.date, by: m.to, memo: m.memo, amount: m.krw, ex: true }]); });
+  exchanges().forEach(function (m) { uses = uses.concat([{ title: '💱 추가 환전 ' + baht(m.thb), date: m.date, by: m.to, memo: m.memo, amount: m.krw, ex: true, mvid: m.id }]); });
   var useTotal = uses.reduce(function (a, u) { return a + Number(String(u.amount || 0).replace(/,/g, '')); }, 0);
   var interest = Number(s.fee_interest || 0);
   return { names: names, fees: fees, uses: uses, paidBy: paidBy, paidTotal: paidTotal, useTotal: useTotal, interest: interest, balance: paidTotal + interest - useTotal };
@@ -4334,7 +4357,7 @@ function viewFee() {
     html += '<div class="card"><b>📤 회비 사용 내역</b>' +
       '<div class="use-tot"><span>사용 합계</span><b>' + won(useTotal) + '</b></div>' +
       (uses.length ? uses.slice().sort(function (a, b) { return String(a.date || '').localeCompare(String(b.date || '')); }).map(function (u) {
-        return '<button type="button" class="mrow mrow-btn" data-feeuse="' + esc(u.ex ? 'ex' : u.id) + '"><div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;gap:10px"><b>' + esc(u.title) + '</b><span class="bal">' + won(u.amount) + ' <span class="muted">›</span></span></div><div class="small muted">' + esc(u.date) + '</div><div class="small muted">' + esc(u.by) + (u.memo ? ' · ' + esc(u.memo) : '') + '</div></div></button>';
+        return '<button type="button" class="mrow mrow-btn" data-feeuse="' + esc(u.ex ? 'ex:' + u.mvid : u.id) + '"><div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;gap:10px"><b>' + esc(u.title) + '</b><span class="bal">' + won(u.amount) + ' <span class="muted">›</span></span></div><div class="small muted">' + esc(u.date) + '</div><div class="small muted">' + esc(u.by) + (u.memo ? ' · ' + esc(u.memo) : '') + '</div></div></button>';
       }).join('') : '<p class="muted small">아직 사용 기록이 없습니다.</p>') +
       (S.me.isAdmin ? '<button class="btn sm" data-act="fee-use" style="margin-top:8px">＋ 사용 기록 (관리자)</button>' : '') + '</div>';
   } else {
@@ -5930,7 +5953,7 @@ function bindMain() {
   els('[data-feeuse]', m).forEach(function (b) {
     b.onclick = function () {
       var id = b.dataset.feeuse;
-      if (id === 'ex') { toast('현지 환전 기록이에요. 경비 › 공금 카드의 💱 추가 환전에서 고칠 수 있어요.', null, 3000); return; }
+      if (id.indexOf('ex') === 0) { exMoveSheet(id.slice(3)); return; }   // 추가 환전(공금이동) 줄: 알림 대신 다른 줄처럼 자세히 창 (2026-11-23 사용자: 알림 뜻을 모르겠음)
       var u = (S.D.feeUses || []).filter(function (x) { return x.id === id; })[0]; if (!u) return;
       if (S.me.isAdmin) { feeForm('use', u); return; }
       var sh = sheet('<h3>📤 회비 사용</h3><div class="kv"><span>어디에</span><b>' + esc(u.title) + '</b></div><div class="kv"><span>금액</span><b>' + won(Number(String(u.amount).replace(/,/g, ''))) + '</b></div>' +
