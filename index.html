@@ -336,6 +336,7 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .vrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;width:100%;text-align:left;border:0;border-top:1px solid var(--line);background:transparent;color:var(--ink);padding:10px 2px;font:inherit;cursor:pointer}
 .vrow:first-of-type{border-top:0}
 .vrow .ic{font-size:calc(24px*var(--fs))}
+.vrow .t .v-mine{display:inline-block;font-size:.72em;font-weight:700;color:var(--pri-ink);background:var(--pri);border-radius:6px;padding:1px 6px;vertical-align:middle}
 .vrow .t{font-weight:700;overflow-wrap:anywhere}   /* 띄어쓰기 없는 긴 파일 이름이 화면 밖으로 밀려 아래 메뉴가 안 보이던 것 (2026-11-23) */
 .vrow .s{font-size:calc(12px*var(--fs));color:var(--sub)}
 .vday{font-weight:800;color:var(--pri);margin:12px 0 2px;font-size:calc(14px*var(--fs))}
@@ -873,7 +874,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-131';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-133';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 /* 두 번 저장 막기: 단추를 누른 그 순간 서버 요청이 나가면, 답이 올 때까지 그 단추를 잠금('저장 중…') */
@@ -4704,10 +4705,58 @@ function bindFull(box) {
 }
 
 /* ═════════ 📄 바우처: 드라이브 '바우처' 폴더 + 앱에서 올린 것. 일정(그날)과 정보 › 바우처에서 봄 ═════════ */
-function vouchersOf(date) { return (S.D.vouchers || []).filter(function (v) { return v.date === date; }); }
-function vIcon(v) { return /pdf/.test(v.mime) ? '📄' : '🖼️'; }
+/* 바우처 이름 읽기 (2026-11-23): 몽키트래블 'voucher_이름_2026-12-16(Wed)_Car___Golf_Pickup_번호' 처럼 날짜가 이름 중간에 있어도 읽고,
+   보기 쉬운 이름·종류(✈️ 항공권 / 🚐 차량 / ⛳ 골프장)를 붙임. 드라이브 파일 이름은 그대로 */
+var V_COURSE = [[/phoenix/i, '피닉스 골드'], [/siam|plantation/i, '시암 플랜테이션'], [/laem|chabang/i, '람차방'], [/bang\s*pa\s*kong/i, '방파콩']];
+var V_INFO = {};   // 폰 저장(saveCache)에 섞이지 않게 바우처 객체 밖에 기억
+function vInfo(v) {
+  var nm = String(v.name || v.title || ''), ck = v.id + '|' + nm + '|' + (S.me && S.me.name);
+  if (V_INFO[ck]) return V_INFO[ck];
+  var raw = nm.replace(/\.[a-z0-9]+$/i, ''), sp = raw.replace(/_+/g, ' ');
+  var dm = /(20\d\d)-(\d{1,2})-(\d{1,2})/.exec(raw), date = v.date || (dm ? dm[1] + '-' + ('0' + dm[2]).slice(-2) + '-' + ('0' + dm[3]).slice(-2) : '');
+  var owner = memberNames().filter(function (n) { return nm.indexOf(n) >= 0; })[0] || '';
+  var kind = '', title = sp.trim();
+  if (/e-?ticket|항공권|이티켓|전자\s*티켓/i.test(nm)) { kind = 'flight'; title = '항공권' + (owner ? ' · ' + owner : ''); }
+  else if (/car[\s_]+.*airport/i.test(nm)) { kind = 'car'; title = '차량 (공항 픽업)'; }
+  else if (/car[\s_]+.*golf/i.test(nm)) { kind = 'car'; title = '차량 (골프장 왕복)'; }
+  else if (/golf|country\s*club/i.test(sp)) {
+    kind = 'golf';
+    var c = V_COURSE.filter(function (x) { return x[0].test(sp); })[0];
+    title = c ? c[1] : sp.replace(/^voucher\s+.*?\d{4}-\d{1,2}-\d{1,2}(\([a-z]+\))?\s*/i, '').replace(/\s+\d{6,}$/, '');
+  } else if (/^voucher\s/i.test(sp)) title = sp.replace(/^voucher\s+.*?\d{4}-\d{1,2}-\d{1,2}(\([a-z]+\))?\s*/i, '').replace(/\s+\d{6,}$/, '') || sp;
+  return (V_INFO[ck] = { date: kind === 'flight' ? '' : date, kind: kind, title: title, owner: owner });
+}
+var V_KIND = { flight: ['✈️', 0], car: ['🚐', 1], golf: ['⛳', 2] };
+function vSort(a, b) {
+  var ia = vInfo(a), ib = vInfo(b), me = S.me && S.me.name;
+  var ka = (V_KIND[ia.kind] || [0, 3])[1], kb = (V_KIND[ib.kind] || [0, 3])[1];
+  if (ia.kind === 'flight' && ib.kind === 'flight') return (ia.owner === me ? -1 : 0) - (ib.owner === me ? -1 : 0) || (ia.owner < ib.owner ? -1 : 1);   // 내 항공권 먼저
+  return ka - kb || (ia.title < ib.title ? -1 : 1);
+}
+function flightDates() { return (S.D.flights || []).map(function (f) { return String(f.date || ''); }).filter(function (d) { return d; }); }
+// 그날 바우처: 날짜가 맞는 것 + 비행기 타는 날엔 항공권(회원은 자기 것만, 관리자는 전부)
+function vouchersOf(date) {
+  var me = S.me && S.me.name, fl = flightDates().indexOf(date) >= 0;
+  return (S.D.vouchers || []).filter(function (v) {
+    var i = vInfo(v);
+    if (i.kind === 'flight') return fl && (!i.owner || i.owner === me || S.me.isAdmin);
+    return i.date === date;
+  }).sort(function (a, b) { return vTime(a, date) < vTime(b, date) ? -1 : vTime(a, date) > vTime(b, date) ? 1 : vSort(a, b); });   // 그날 시간 순 (2026-11-23 사용자: 12/19 항공권은 맨 뒤)
+}
+/* 그날 바우처의 대략 시각: 항공권=출발, 공항 픽업=도착, 골프장 차량=티오프 1시간 전, 골프장=티오프 */
+function vTime(v, date) {
+  var i = vInfo(v), f = (S.D.flights || []).filter(function (x) { return String(x.date) === date; })[0];
+  var r = (S.D.rounds || []).filter(function (x) { return String(x.date) === date; })[0], tee = r && String(r.tee || '');
+  var hm = function (t, add) { var m = /^(\d{1,2}):(\d{2})/.exec(t || ''); if (!m) return ''; var n = m[1] * 60 + Number(m[2]) + (add || 0); return ('0' + Math.floor(n / 60)).slice(-2) + ':' + ('0' + n % 60).slice(-2); };
+  var t = i.kind === 'flight' ? hm(f && f.dep) : i.kind === 'golf' ? hm(tee) : i.kind === 'car' ? (/공항/.test(i.title) ? hm(f && f.arr) : hm(tee, -60)) : '';
+  return t || '99:99';
+}
+function vIcon(v) { var k = V_KIND[vInfo(v).kind]; return k ? k[0] : (/pdf/.test(v.mime) ? '📄' : '🖼️'); }
 function vSize(n) { n = Number(n) || 0; return n > 1048576 ? (Math.round(n / 104857.6) / 10) + 'MB' : Math.max(1, Math.round(n / 1024)) + 'KB'; }
-function vRow(v) { return '<button class="vrow" data-vid="' + esc(v.id) + '"><span class="ic">' + vIcon(v) + '</span><span><div class="t">' + esc(String(v.title || '').replace(/_+/g, ' ')) + '</div><div class="s">' + (/pdf/.test(v.mime) ? 'PDF' : '사진') + ' · ' + vSize(v.size) + ' <span data-vok="' + esc(v.id) + '"></span></div></span><span class="small muted">보기 ›</span></button>'; }
+function vRow(v) {
+  var i = vInfo(v), mine = i.kind === 'flight' && i.owner && S.me && i.owner === S.me.name;
+  return '<button class="vrow" data-vid="' + esc(v.id) + '"><span class="ic">' + vIcon(v) + '</span><span><div class="t">' + esc(i.title) + (mine ? ' <span class="v-mine">내 것</span>' : '') + '</div><div class="s">' + (/pdf/.test(v.mime) ? 'PDF' : '사진') + ' · ' + vSize(v.size) + ' <span data-vok="' + esc(v.id) + '"></span></div></span><span class="small muted">보기 ›</span></button>';
+}
 /* 일정 화면 위쪽: 그날 바우처 */
 function dayVouchers(date) {
   var vs = vouchersOf(date); if (!vs.length) return '';
@@ -4715,16 +4764,18 @@ function dayVouchers(date) {
 }
 /* 정보 › 바우처: 날짜별 전체 */
 function vouchersHtml() {
-  var vs = S.D.vouchers || [], days = {}, none = [];
-  vs.forEach(function (v) { if (v.date) (days[v.date] = days[v.date] || []).push(v); else none.push(v); });
+  var vs = S.D.vouchers || [], days = {}, none = [], fl = [];
+  vs.forEach(function (v) { var i = vInfo(v); if (i.kind === 'flight') fl.push(v); else if (i.date) (days[i.date] = days[i.date] || []).push(v); else none.push(v); });
+  fl.sort(vSort); none.sort(vSort);
   return '<div class="card"><div class="row between"><b>📄 바우처</b><span class="small muted">' + (vs.length ? vs.length + '개' : '') + '</span></div>' +
     // 안내(작은 글씨)와 '없음'(점선 상자)을 나눠 보이게 (2026-11-21 사용자: 두 내용이 섞여 보임). 바우처가 없으면 안내는 숨김
     (vs.length ? '<div class="small muted" style="margin-top:4px">누르면 화면 가득 보여요. 이 칸을 한 번 열어 두면 폰에 저장돼서 인터넷이 약해도 열려요. <span id="v-pre"></span></div>' : '<span id="v-pre"></span>') +
     (vs.length ? '' : '<div class="empty-box">📭 <b>아직 올린 바우처가 없습니다.</b>' + (S.me.isAdmin ? '<div class="small muted" style="margin-top:4px">구글 드라이브 「여행 자료 폴더 › 바우처」에 PDF·사진을 넣거나 아래 버튼으로 올려 주세요.</div>' : '<div class="small muted" style="margin-top:4px">관리자가 올리면 여기에 보여요.</div>') + '</div>') +
-    Object.keys(days).sort().map(function (d) { return '<div class="vday">' + md(d) + '(' + wd(d) + ')</div>' + days[d].map(vRow).join(''); }).join('') +
+    (fl.length ? '<div class="vday">✈️ 항공권 <span class="small muted" style="font-weight:400">· 가는 날·오는 날 일정에도 보여요</span></div>' + fl.map(vRow).join('') : '') +
+    Object.keys(days).sort().map(function (d) { return '<div class="vday">' + md(d) + '(' + wd(d) + ')</div>' + days[d].sort(vSort).map(vRow).join(''); }).join('') +
     (none.length ? '<div class="vday">날짜 없음</div>' + none.map(vRow).join('') : '') +
     (S.me.isAdmin ? '<div class="admin-box" style="margin-top:12px;padding:10px"><b class="small">🛠️ 관리자</b>' +
-      '<div class="small muted" style="margin:4px 0 8px">PC: 드라이브 「2026 태국 골프여행 › 바우처」 폴더에 파일을 넣으면 몇 분 안에 여기 나와요. 파일 이름 앞에 날짜를 붙이면(예: <b>1215 타이항공 전자항공권.pdf</b>) 그날 일정에도 붙어요.</div>' +
+      '<div class="small muted" style="margin:4px 0 8px">PC: 드라이브 「2026 태국 골프여행 › 바우처」 폴더에 파일을 넣으면 몇 분 안에 여기 나와요. 파일 이름에 날짜(예: <b>1215</b>, <b>2026-12-15</b>)가 있으면 그날 일정에도 붙어요. 이름에 <b>E-Ticket</b>·<b>항공권</b>이 있으면 항공권으로 묶고, 회원 이름이 있으면 그 회원 것으로 봐요.</div>' +
       '<label class="btn pri" style="width:100%;justify-content:center;display:flex">＋ 폰에서 바우처 올리기<input type="file" accept="application/pdf,image/*" data-vup hidden></label></div>' : '') + '</div>';
 }
 /* 바우처 파일: 메모리 → 폰(IndexedDB) → 서버. 바뀐 파일은 updated 값이 달라 새로 받음 */
@@ -4788,9 +4839,9 @@ function loadPdfJs() {
 }
 function openVoucher(v) {
   var zoom = 1, pdf = null, img = null;
-  var sh = sheet('<div class="vbar"><b>' + vIcon(v) + ' ' + esc(v.title) + '</b><span class="row" style="gap:4px;flex:none"><button class="btn sm" data-vz="-1">−</button><button class="btn sm" data-vz="1">＋</button><button class="btn sm" data-close>✕</button></span></div>' +
+  var sh = sheet('<div class="vbar"><b>' + vIcon(v) + ' ' + esc(vInfo(v).title) + '</b><span class="row" style="gap:4px;flex:none"><button class="btn sm" data-vz="-1">−</button><button class="btn sm" data-vz="1">＋</button><button class="btn sm" data-close>✕</button></span></div>' +
     '<div class="vbody" id="vb"><p style="color:#aaa;padding:20px;text-align:center" id="v-ld">불러오는 중…</p></div>' +
-    (v.date ? '<div class="small" style="color:#aaa;margin-top:6px">' + md(v.date) + '(' + wd(v.date) + ')' + '</div>' : '') +
+    (vInfo(v).date ? '<div class="small" style="color:#aaa;margin-top:6px">' + md(vInfo(v).date) + '(' + wd(vInfo(v).date) + ')' + '</div>' : '') +
     (S.me.isAdmin ? '<div class="row" style="justify-content:flex-end;margin-top:6px"><button class="btn sm bad" id="v-del">🗑️ 지우기</button></div>' : ''), null, true);
   sh.classList.add('vview');
   var body = el('#vb', sh);
