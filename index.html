@@ -333,10 +333,10 @@ nav.tabs{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;mar
 .seg-tabs.six{grid-template-columns:repeat(6,1fr);gap:3px}
 /* 정보 탭 5~6칸을 앞화면 한 줄에: 글씨는 화면 폭에 맞춰 줄임(아주 크게여도 넘치지 않게) */
 .seg-tabs.six button,.seg-tabs.five button{font-size:min(calc(13px*var(--fs)),4.3vw);letter-spacing:-.07em;padding:10px 0}
-.vrow{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;width:100%;text-align:left;border:0;border-top:1px solid var(--line);background:transparent;color:var(--ink);padding:10px 2px;font:inherit;cursor:pointer}
+.vrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;width:100%;text-align:left;border:0;border-top:1px solid var(--line);background:transparent;color:var(--ink);padding:10px 2px;font:inherit;cursor:pointer}
 .vrow:first-of-type{border-top:0}
 .vrow .ic{font-size:calc(24px*var(--fs))}
-.vrow .t{font-weight:700}
+.vrow .t{font-weight:700;overflow-wrap:anywhere}   /* 띄어쓰기 없는 긴 파일 이름이 화면 밖으로 밀려 아래 메뉴가 안 보이던 것 (2026-11-23) */
 .vrow .s{font-size:calc(12px*var(--fs));color:var(--sub)}
 .vday{font-weight:800;color:var(--pri);margin:12px 0 2px;font-size:calc(14px*var(--fs))}
 .sheet.vview{background:#0b0d0c;color:#eee;padding:10px;max-width:900px;width:100%}
@@ -845,7 +845,7 @@ var $app = document.getElementById('app');
 
 /* 서버 주소: 구글 앱스 스크립트 웹앱 (GitHub Pages 화면이 여기로 요청을 보냄) */
 var EXEC_URL = 'https://script.google.com/macros/s/AKfycbxugM8eolhHJVlGLwgyOweGk7cGIWNm20UClpZa0yl2LYymnH3KEV6DdAmSQ3kUSMuWcw/exec';
-var APP_VER = '11.16-121';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
+var APP_VER = '11.16-123';   // 화면을 고칠 때마다 올림 (정보 탭에 보임 → 폰이 새 화면인지 확인용)
 var IN_GAS =!!(window.google && google.script && google.script.run);   // 앱스 스크립트 화면 또는 내 PC 미리보기
 
 /* 두 번 저장 막기: 단추를 누른 그 순간 서버 요청이 나가면, 답이 올 때까지 그 단추를 잠금('저장 중…') */
@@ -1301,15 +1301,61 @@ function openKakao() {
     else toast('카톡을 열지 못했어요. 카톡 앱을 직접 열어 주세요.');
   }, 1500);
 }
+/* 화면 → 그림 (2026-11-23 고침)
+   ① 새 Chrome은 color-mix() 색을 'color(srgb …)'로 돌려줘서 html2canvas 1.4.1이 "unsupported color function" 오류로 멈춤
+      → 찍을 사본(onclone)에서 그런 색을 모두 rgba로 바꿔 넣음
+   ② 지도 그림 조각 등을 오래 기다려 멈춘 것처럼 보임 → 그림 기다리기 4초, 지도·iframe 빼기, 전체 25초 넘으면 그만 */
+var SNAP_PROPS = ['color', 'background-color', 'border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color', 'outline-color', 'text-decoration-color', 'box-shadow', 'background-image', 'fill', 'stroke', 'caret-color', 'column-rule-color'];
+function snapRgba(c, cache) {
+  if (cache[c]) return cache[c];
+  var cv = snapRgba.cv || (snapRgba.cv = document.createElement('canvas')); cv.width = cv.height = 1;
+  var x = cv.getContext('2d', { willReadFrequently: true }); x.clearRect(0, 0, 1, 1); x.fillStyle = '#000'; x.fillStyle = c; x.fillRect(0, 0, 1, 1);
+  var d = x.getImageData(0, 0, 1, 1).data;
+  return (cache[c] = 'rgba(' + d[0] + ',' + d[1] + ',' + d[2] + ',' + Math.round(d[3] / 255 * 1000) / 1000 + ')');
+}
+function snapFixColors(doc) {
+  var win = doc.defaultView || window, cache = {}, re = /(?:color|oklch|oklab|lab|lch|color-mix)\((?:[^()]|\([^()]*\))*\)/g;
+  Array.prototype.forEach.call(doc.querySelectorAll('*'), function (n) {
+    var cs = win.getComputedStyle(n);
+    SNAP_PROPS.forEach(function (p) {
+      var v = cs.getPropertyValue(p);
+      if (v && /(?:color|oklch|oklab|lab|lch)\(/.test(v)) n.style.setProperty(p, v.replace(re, function (c) { return snapRgba(c, cache); }), 'important');
+    });
+  });
+}
+function snap(node, opt) {
+  return loadH2C().then(function (h2c) {
+    var o = Object.assign({ useCORS: true, logging: false, imageTimeout: 4000 }, opt || {});
+    var ign = o.ignoreElements;
+    o.ignoreElements = function (n) { return n.tagName === 'IFRAME' || (n.classList && (n.classList.contains('gm-style') || n.classList.contains('map-cover'))) || (ign ? ign(n) : false); };
+    o.onclone = function (doc) { try { snapFixColors(doc); } catch (e) {} };
+    var tm;
+    return Promise.race([h2c(node, o), new Promise(function (_, rej) { tm = setTimeout(function () { rej(new Error('그림 만들기가 너무 오래 걸려요. 화면을 조금 올리거나 \'지금 보이는 화면\'으로 다시 해 주세요.')); }, 25000); })])
+      .then(function (cv) { clearTimeout(tm); return cv; }, function (e) {
+        clearTimeout(tm);
+        throw new Error(/[가-힣]/.test(e && e.message || '') ? e.message : '그림을 만들지 못했어요. 다시 한 번 눌러 주세요.');   // 영어 오류는 쉬운 말로
+      });
+  });
+}
+/* 폰 공유 창: 그림 만드는 데 몇 초 걸리면 Chrome이 '누른 지 오래됨'으로 공유를 막음(NotAllowedError) → 단추를 한 번 더 누르게 함 */
+function shareFile(file, extra, done) {
+  var go = function () {
+    return navigator.share(Object.assign({ files: [file] }, extra || {})).then(function () { if (done) done(true); }, function (e) {
+      if (e && e.name === 'NotAllowedError') toast('그림이 준비됐어요.', { label: '📤 보내기', fn: go }, 15000);
+      else if (done) done(false);
+    });
+  };
+  return go();
+}
 function captureShare(whole) {
-  toast('📸 그림으로 만드는 중…', null, 6000);
+  toast('📸 그림으로 만드는 중…', null, 30000);
   var hide = ['#mic-fab', '#cam-fab', '#tr-fab', '#kakao-fab', '.fab-rail', '.toast'].concat(whole ? ['.bnav'] : []);   // 긴 그림에는 아래 메뉴 빼기
-  loadH2C().then(function (h2c) {
+  Promise.resolve().then(function () {
     var bg = getComputedStyle(document.body).backgroundColor;
-    var opt = { backgroundColor: bg, scale: Math.min(2, window.devicePixelRatio || 1), useCORS: true, logging: false,
+    var opt = { backgroundColor: bg, scale: Math.min(2, window.devicePixelRatio || 1),
       ignoreElements: function (n) { return hide.some(function (q) { return n.matches && n.matches(q); }); } };
-    if (whole) return h2c(el('#app') || document.body, opt);
-    return h2c(document.body, Object.assign(opt, { x: window.scrollX, y: window.scrollY, width: window.innerWidth, height: window.innerHeight, windowWidth: document.documentElement.clientWidth, windowHeight: window.innerHeight }));
+    if (whole) return snap(el('#app') || document.body, opt);
+    return snap(document.body, Object.assign(opt, { x: window.scrollX, y: window.scrollY, width: window.innerWidth, height: window.innerHeight, windowWidth: document.documentElement.clientWidth, windowHeight: window.innerHeight }));
   }).then(function (cv) {
     return new Promise(function (ok) { cv.toBlob(ok, 'image/png'); });
   }).then(function (blob) {
@@ -1317,7 +1363,7 @@ function captureShare(whole) {
     var name = '여행앱_' + (/^\d{4}-/.test(S.tab) ? S.tab.slice(5) : S.tab) + '_' + p2(tm.getHours()) + p2(tm.getMinutes()) + '.png';
     var file = window.File ? new File([blob], name, { type: 'image/png' }) : null;
     var t = el('.toast'); if (t) t.remove();
-    if (file && navigator.canShare && navigator.canShare({ files: [file] })) return navigator.share({ files: [file] }).catch(function () {});
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) return shareFile(file);
     var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
     toast('그림을 내려받았어요. 갤러리 › Download에서 카톡으로 보내세요.', null, 4000);
   }).catch(function (e) { toast(e.message || '그림을 만들지 못했어요.'); });
@@ -2010,16 +2056,17 @@ function wrapOpen() {
   el('#wp-x', sh).onclick = closeSheet;
   el('#wp-img', sh).onclick = function () {
     var btn = this, msg = el('#wp-msg', sh); btn.disabled = true; msg.textContent = '그림으로 만드는 중… (사진이 많으면 몇 초 걸려요)';
-    loadH2C().then(function (h2c) {
+    Promise.resolve().then(function () {
       var node = el('#wrap-page', sh), bg = getComputedStyle(el('.sheet') || document.body).backgroundColor;
-      return h2c(node, { backgroundColor: bg, scale: 2, useCORS: true, logging: false });
+      return snap(node, { backgroundColor: bg, scale: 2 });
     }).then(function (cv) {
       return new Promise(function (ok) { cv.toBlob(ok, 'image/png'); });
     }).then(function (blob) {
       var name = '여행마무리_' + S.D.settings.start_date + '.png';
       var file = window.File ? new File([blob], name, { type: 'image/png' }) : null;
       if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
-        return navigator.share({ files: [file], title: S.D.settings.trip_title }).then(function () { msg.textContent = '보냈어요.'; }, function () { msg.textContent = ''; });
+        msg.textContent = '';
+        return shareFile(file, { title: S.D.settings.trip_title }, function (ok) { msg.textContent = ok ? '보냈어요.' : ''; });
       }
       var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
       msg.textContent = '그림을 내려받았어요. 갤러리 › Download에서 볼 수 있어요.';
@@ -4528,7 +4575,7 @@ function bindFull(box) {
 function vouchersOf(date) { return (S.D.vouchers || []).filter(function (v) { return v.date === date; }); }
 function vIcon(v) { return /pdf/.test(v.mime) ? '📄' : '🖼️'; }
 function vSize(n) { n = Number(n) || 0; return n > 1048576 ? (Math.round(n / 104857.6) / 10) + 'MB' : Math.max(1, Math.round(n / 1024)) + 'KB'; }
-function vRow(v) { return '<button class="vrow" data-vid="' + esc(v.id) + '"><span class="ic">' + vIcon(v) + '</span><span><div class="t">' + esc(v.title) + '</div><div class="s">' + (/pdf/.test(v.mime) ? 'PDF' : '사진') + ' · ' + vSize(v.size) + ' <span data-vok="' + esc(v.id) + '"></span></div></span><span class="small muted">보기 ›</span></button>'; }
+function vRow(v) { return '<button class="vrow" data-vid="' + esc(v.id) + '"><span class="ic">' + vIcon(v) + '</span><span><div class="t">' + esc(String(v.title || '').replace(/_+/g, ' ')) + '</div><div class="s">' + (/pdf/.test(v.mime) ? 'PDF' : '사진') + ' · ' + vSize(v.size) + ' <span data-vok="' + esc(v.id) + '"></span></div></span><span class="small muted">보기 ›</span></button>'; }
 /* 일정 화면 위쪽: 그날 바우처 */
 function dayVouchers(date) {
   var vs = vouchersOf(date); if (!vs.length) return '';
